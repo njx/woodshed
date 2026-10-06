@@ -1,4 +1,5 @@
 import { SEED_TUNES } from './data/tunes.js';
+import { SEED_EXERCISES } from './data/exercises.js';
 import { DEFAULT_SETTINGS } from './constants.js';
 import { parseKey } from './keys.js';
 import { uid } from './util.js';
@@ -6,25 +7,48 @@ import { kvGet, kvSet } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
-// Schema (version 2):
-//   items:    practice items. Only type 'tune' so far:
-//             { id, type, name, seedName?, style, priority 1–4, level null|0–3, keys [concert key],
-//               notes, mine, focus, ivl, due, levelSetAt, recordings? }
-//   log:      { id, date, itemId, at, key, alt, shift, rating, prev: { ivl, due } }
-//   plan:     today's set { date, items: [{ itemId, bucket, key, alt, shift }], skipped, focusSkipped }
+// Schema (version 3):
+//   items:    practice items, all with { id, type, name, priority 1–4, level null|0–3, notes,
+//             focus, ivl, due, levelSetAt }, plus by type:
+//             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings? }
+//             exercise: { category, keyMode, keysPerSession, keys [roots 0–11, for 'fixed'],
+//                         abc (notation written in C), meter }
+//   log:      { id, date, itemId, at, key, keys?, alt, shift, rating, prev: { ivl, due } }
+//             (exercises log every key practiced in keys)
+//   plan:     today's set { date, items: [{ itemId, bucket, key, keys?, alt, shift }], skipped,
+//             focusSkipped }
 //   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,
 //             media.js; recorded clips themselves live in IndexedDB's media store)
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
 export const store = { state: null };
 
+export function seedExercises() {
+  return SEED_EXERCISES.map((x) => ({
+    id: uid(),
+    type: 'exercise',
+    name: x.name,
+    category: x.category,
+    keyMode: x.keyMode,
+    keysPerSession: x.keysPerSession,
+    keys: [],
+    abc: x.abc,
+    meter: '4/4',
+    notes: x.notes,
+    priority: 3,
+    level: null,
+    ivl: null,
+    due: null,
+  }));
+}
+
 export function seedState() {
   return {
     version: SCHEMA_VERSION,
-    items: SEED_TUNES.map((t) => ({
+    items: [...SEED_TUNES.map((t) => ({
       id: uid(),
       type: 'tune',
       name: t.name,
@@ -37,7 +61,7 @@ export function seedState() {
       mine: !!t.mine,
       ivl: null,
       due: null,
-    })),
+    })), ...seedExercises()],
     log: [],
     diary: [],
     plan: null,
@@ -61,6 +85,11 @@ export function migrate(s) {
     }
     s.version = 2;
   }
+  if (s.version < 3) {
+    // v3: exercises arrive, starting with a starter set.
+    s.items = [...(s.items || []), ...seedExercises()];
+    s.version = 3;
+  }
   return normalize(s);
 }
 
@@ -75,6 +104,13 @@ export function normalize(s) {
   for (const t of s.items) {
     t.type ||= 'tune';
     if (!Array.isArray(t.keys)) t.keys = [];
+    if (t.type === 'exercise') {
+      t.keyMode ||= 'weak';
+      t.keysPerSession ||= 1;
+      t.abc ??= '';
+      t.meter ||= '4/4';
+      t.category ||= 'other';
+    }
   }
   return s;
 }

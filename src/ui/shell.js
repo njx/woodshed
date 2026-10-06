@@ -12,7 +12,7 @@ const UI_KEY = 'woodshed.ui';
 export const ui = { tab: 'today', query: '', filter: 'all', sort: 'priority' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch {}
 export function saveUi() {
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, sort: ui.sort })); } catch {}
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, exFilter: ui.exFilter, sort: ui.sort, library: ui.library })); } catch {}
 }
 
 // ---------- Rendering ----------

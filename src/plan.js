@@ -4,8 +4,10 @@ import { dateStr } from './dates.js';
 import { isMinor } from './keys.js';
 import { weightedPick, randomOf } from './util.js';
 import { itemStats, overdue, itemById, isPlayedToday } from './practice.js';
+import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 
 export function bucketOf(t) {
+  if (t.type === 'exercise') return 'exercise';
   if (t.level >= 2) return 'hone';
   if (t.level === 1) return 'learn';
   return 'fresh';
@@ -66,6 +68,11 @@ export function pickItem(bucket, exclude, stats) {
 }
 
 export function makePlanItem(t, stats, bucket = bucketOf(t)) {
+  if (t.type === 'exercise') {
+    const s = stats.get(t.id);
+    const keys = chooseExerciseKeys(t, { played: s?.keys || [], lastPlayed: s?.keyLast || {}, familiarity: keyFamiliarity() });
+    return { itemId: t.id, bucket, key: null, keys, alt: false, shift: null };
+  }
   return { itemId: t.id, bucket, ...chooseKey(t, stats) };
 }
 
@@ -85,10 +92,12 @@ export function buildPlan(keepPlayed = false) {
   const kept = prev ? prev.items.filter((it) => isPlayedToday(it.itemId)) : [];
   const exclude = new Set(prev ? [...prev.skipped, ...prev.items.map((i) => i.itemId)] : []);
   const items = [...kept];
-  const counts = { focus: 0, hone: 0, learn: 0, fresh: 0 };
+  const counts = { focus: 0, exercise: 0, hone: 0, learn: 0, fresh: 0 };
   kept.forEach((it) => counts[it.bucket]++);
-  for (const b of ['hone', 'learn', 'fresh']) {
-    for (let i = counts[b]; i < state.settings[b]; i++) {
+  // How many of each group the daily set has (from Settings → Daily mix).
+  const slots = { exercise: 'exercises', hone: 'hone', learn: 'learn', fresh: 'fresh' };
+  for (const b of Object.keys(slots)) {
+    for (let i = counts[b]; i < (state.settings[slots[b]] ?? 0); i++) {
       const t = pickItem(b, exclude, stats);
       if (!t) break;
       exclude.add(t.id);
@@ -97,6 +106,7 @@ export function buildPlan(keepPlayed = false) {
   }
   state.plan = {
     date: today,
+    withExercises: true,
     items,
     skipped: prev ? [...exclude].filter((id) => !items.some((i) => i.itemId === id)) : [],
     focusSkipped: prev?.focusSkipped || [],
@@ -125,6 +135,20 @@ export function syncFocus() {
 }
 
 export function ensurePlan() {
-  if (!store.state.plan || store.state.plan.date !== dateStr()) buildPlan();
-  else syncFocus();
+  const plan = store.state.plan;
+  if (!plan || plan.date !== dateStr()) return buildPlan();
+  // A set made before exercises existed (e.g. earlier today, before an update): add them once.
+  if (!plan.withExercises) {
+    const stats = itemStats();
+    const exclude = excludedIds();
+    for (let i = 0; i < (store.state.settings.exercises ?? 0); i++) {
+      const t = pickItem('exercise', exclude, stats);
+      if (!t) break;
+      exclude.add(t.id);
+      plan.items.push(makePlanItem(t, stats));
+    }
+    plan.withExercises = true;
+    save();
+  }
+  syncFocus();
 }

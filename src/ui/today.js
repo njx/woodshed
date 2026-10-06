@@ -15,6 +15,8 @@ import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
+import { exerciseKeysText } from './exercise.js';
+import { CATEGORIES } from '../constants.js';
 import { canRecord } from '../media.js';
 
 export function renderToday(root) {
@@ -50,7 +52,7 @@ export function renderToday(root) {
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
       <ul class="list">${extras.map((t) => rowHtml(t, stats)).join('')}</ul>` : ''}
-    <p class="hint">Swipe a card right when you’ve played it, left for a different tune. Tap for details.</p>
+    <p class="hint">Swipe a card right when you’ve played it, left for a different one. Tap for details.</p>
   `;
 
   bindTransposeToggle(root);
@@ -94,7 +96,7 @@ function bindCard(card) {
       });
     }
     const t = pickItem(item.bucket, excludedIds(), itemStats());
-    if (!t) return toast('No other tunes to suggest');
+    if (!t) return toast(item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
     withUndo(`Swapped out ${itemById(item.itemId).name}`, () => {
       state.plan.skipped.push(item.itemId);
       state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
@@ -118,7 +120,7 @@ function bindCard(card) {
     render();
     toast(`${t.name} is now ${LEVELS[t.level].label}`);
   };
-  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest')) openItem(item.itemId); };
+  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest')) openItem(item.itemId, { keys: item.keys }); };
   attachSwipe(card, {
     right: toggle,
     left: isPlayedToday(item.itemId) ? null : swap,
@@ -127,6 +129,10 @@ function bindCard(card) {
 
 function keyChip(it, t) {
   const chip = (cls, main, sub) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
+  if (t.type === 'exercise') {
+    if (!it.keys?.length) return '';
+    return chip('', `In <b>${esc(exerciseKeysText(it.keys)).replaceAll(' · ', '</b> · <b>')}</b>`, t.abc ? 'tap for notation' : '');
+  }
   if (it.alt) {
     if (it.key == null) return chip('alt', `Transpose it <b>${SHIFTS[it.shift]}</b>`);
     return chip('alt', `Try it in <b>${kn(it.key)}</b>`, `usually ${esc(keysText(t))}`);
@@ -153,14 +159,14 @@ function cardHtml(it, i, stats) {
     <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" tabindex="0">
       <div class="card-top">
         <span class="bucket"><i></i>${BUCKETS[it.bucket].label}</span>
-        <span class="style">${esc(t.style)}</span>
+        <span class="style">${esc(t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style)}</span>
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>
       <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span></div>
       <div class="card-actions">
         ${keyChip(it, t)}
-        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
+        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
       ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}

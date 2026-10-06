@@ -17,6 +17,7 @@
   --learn: #2d6f8e;
   --fresh: #7a4fa0;
   --focus: #c0396b;
+  --exercise: #2f7d6d;
   --heat-0: #ebe4d8;
   --heat-1: #f0cf9f;
   --heat-2: #dc9f4f;
@@ -49,6 +50,7 @@
     --learn: #69b3d6;
     --fresh: #b892dc;
     --focus: #f07aa6;
+    --exercise: #5cc1a8;
     --heat-0: #2a251e;
     --heat-1: #5a3e1d;
     --heat-2: #8f5d22;
@@ -62,7 +64,7 @@
   --bg: #14110d; --surface: #1e1a15; --surface-2: #2a251e; --raised: #453c31; --line: #342e26;
   --ink: #f3ece2; --ink-2: #c3b8a9; --ink-3: #8f8577; --accent: #e3a04f; --accent-ink: #1b1207;
   --accent-soft: #3a2a17; --good: #5cc185; --good-soft: #1d3326; --danger: #ef7a6e;
-  --hone: #e3a04f; --learn: #69b3d6; --fresh: #b892dc; --focus: #f07aa6;
+  --hone: #e3a04f; --learn: #69b3d6; --fresh: #b892dc; --focus: #f07aa6; --exercise: #5cc1a8;
   --heat-0: #2a251e; --heat-1: #5a3e1d; --heat-2: #8f5d22; --heat-3: #c9842f; --heat-4: #f2b766;
   color-scheme: dark;
 }
@@ -164,6 +166,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .bucket i { width: 8px; height: 8px; border-radius: 50%; background: var(--hone); }
 .b-learn .bucket i { background: var(--learn); }
 .b-fresh .bucket i { background: var(--fresh); }
+.b-exercise .bucket i { background: var(--exercise); }
 .b-focus .bucket i { background: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
 .card-top .style { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card h2 { margin: 6px 0 4px; font: 600 23px/1.18 var(--serif); letter-spacing: -.005em; }
@@ -676,3 +679,60 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .rec-actions { display: flex; gap: 8px; }
 .rec-actions .ghost-btn { border-style: solid; }
 #rec-discard { color: var(--danger); }
+
+/* ---------- Exercises & notation ---------- */
+.library-seg { margin-bottom: 12px; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+.has-abc { color: var(--exercise); font-weight: 700; margin-left: 3px; }
+
+.notation-card { background: var(--surface); border-radius: 16px; padding: 10px 10px 12px; }
+.key-strip { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; margin-bottom: 8px; }
+.key-strip button { min-height: 34px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); padding: 0; }
+.key-strip button.today { text-decoration: underline; text-decoration-color: var(--exercise); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.key-strip button.on { background: var(--exercise); color: #fff; }
+.notation { min-height: 70px; color: var(--ink); overflow: hidden; }
+.notation svg { width: 100%; height: auto; display: block; fill: currentColor; stroke: none; }
+.notation svg path, .notation svg text { fill: currentColor; }
+.notation svg .abcjs-staff, .notation svg .abcjs-bar, .notation svg .abcjs-stem, .notation svg .abcjs-beam-elem { stroke: currentColor; }
+.play-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.play-row .pill-btn svg, .ne-opts .pill-btn svg { fill: currentColor; stroke: none; width: 14px; height: 14px; }
+.play-row .pill-btn.on { background: var(--exercise); color: #fff; }
+.tempo { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
+.tempo input { width: 64px; height: 36px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 16px; }
+
+.editor-preview { background: var(--surface); border-radius: 14px; padding: 8px; margin-bottom: 8px; min-height: 90px; }
+.ne-text { position: relative; }
+.ne-text textarea {
+  width: 100%; padding: 10px 48px 10px 12px; border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--surface); font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); resize: vertical; outline: 0;
+}
+.ne-text textarea:focus { border-color: var(--accent); }
+.ne-text .icon-btn { position: absolute; right: 6px; top: 6px; width: 36px; height: 36px; font-size: 18px; }
+.ne-text .icon-btn.on { background: var(--accent); color: var(--accent-ink); }
+.keypad { display: grid; gap: 6px; margin-top: 10px; user-select: none; -webkit-user-select: none; }
+.kp-row { display: grid; gap: 5px; }
+.kp-row.durations { grid-template-columns: repeat(7, 1fr); }
+.kp-row.mods { grid-template-columns: repeat(4, 1fr) 1.4fr 1fr; align-items: center; }
+.kp-row.notes { grid-template-columns: repeat(7, 1fr); }
+.kp-row.tools { grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; }
+.keypad button {
+  min-height: 44px; border-radius: 10px; background: var(--surface); box-shadow: 0 1px 0 var(--line);
+  font-size: 15px; font-weight: 600; color: var(--ink);
+}
+.kp-row.durations button { font-size: 22px; line-height: 1; }
+.kp-row.notes button { min-height: 52px; font: 600 20px/1 var(--serif); background: var(--raised); }
+.keypad button.on { background: var(--exercise); color: #fff; }
+.keypad button:active { transform: scale(.95); }
+.oct { text-align: center; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ne-opts { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 14px; color: var(--ink-2); }
+.ne-opts select { height: 36px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 15px; margin-left: 6px; }
+code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+
+/* Keys chart on Progress */
+.keybars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; align-items: end; }
+.keybar { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; }
+.kb-track { width: 100%; height: 80px; display: flex; align-items: flex-end; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.kb-fill { width: 100%; background: var(--exercise); border-radius: 4px 4px 0 0; }
+.kb-label { font-size: 11px; font-weight: 600; color: var(--ink-2); }
+.keybar.sel .kb-track { box-shadow: 0 0 0 2px var(--ink); }
+.kp-row.durations svg { width: 22px; height: 24px; stroke: none; fill: none; }

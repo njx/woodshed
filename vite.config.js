@@ -34,7 +34,8 @@ function serviceWorker() {
 
 export default defineConfig({
   base: './',
-  build: { target: 'es2020' },
+  // abcjs (notation) is ~500 KB, loaded separately and only when notation is shown.
+  build: { target: 'es2020', chunkSizeWarningLimit: 600 },
   plugins: [serviceWorker()],
   test: { environment: 'node' },
 });

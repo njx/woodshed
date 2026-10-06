@@ -2,18 +2,24 @@ import { store } from './store.js';
 import { BASE_INTERVAL, MAX_INTERVAL, LEVELS, SOLID_TO_LEVEL_UP, ROUGH_TO_LEVEL_DOWN } from './constants.js';
 import { dateStr, daysBetween, addDays } from './dates.js';
 import { uid } from './util.js';
+import { entryKeys } from './keystats.js';
 
 export const itemById = (id) => store.state.items.find((t) => t.id === id);
 
-// Per-item totals from the practice log: { count, last, keys: [keys played] }.
+// Per-item totals from the practice log:
+//   { count, last, keys: [keys played, oldest first], keyLast: { root: last date in that key } }
 export function itemStats() {
   const stats = new Map();
-  for (const e of store.state.log) {
+  const log = [...store.state.log].sort((a, b) => a.date.localeCompare(b.date) || (a.at || 0) - (b.at || 0));
+  for (const e of log) {
     let s = stats.get(e.itemId);
-    if (!s) stats.set(e.itemId, (s = { count: 0, last: null, keys: [] }));
+    if (!s) stats.set(e.itemId, (s = { count: 0, last: null, keys: [], keyLast: {} }));
     s.count++;
     if (!s.last || e.date > s.last) s.last = e.date;
-    if (e.key != null) s.keys.push(e.key);
+    for (const k of entryKeys(e)) {
+      s.keys.push(k);
+      s.keyLast[k % 12] = e.date;
+    }
   }
   return stats;
 }
@@ -62,6 +68,7 @@ export function markPlayed(itemId, planItem) {
   const entry = {
     id: uid(), date: dateStr(), itemId, at: Date.now(),
     key: planItem?.key ?? null, alt: !!planItem?.alt, shift: planItem?.shift ?? null,
+    ...(planItem?.keys?.length ? { keys: [...planItem.keys] } : {}),
     rating: 'ok', prev: { ivl: t.ivl, due: t.due },
   };
   store.state.log.push(entry);

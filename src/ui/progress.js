@@ -3,6 +3,9 @@ import { dateStr, daysBetween, addDays, parseDate, niceDate } from '../dates.js'
 import { esc } from '../util.js';
 import { itemStats, itemById, isDue } from '../practice.js';
 import { $, $$, ui, saveUi, render, pips, levelLabel } from './shell.js';
+import { keyFamiliarity, keySessions } from '../keystats.js';
+import { writtenToConcert } from '../keys.js';
+import { rootName } from './exercise.js';
 
 export function renderProgress(root) {
   const state = store.state;
@@ -17,8 +20,9 @@ export function renderProgress(root) {
   let days30 = 0;
   for (let i = 0; i < 30; i++) if (perDay.has(addDays(today, -i))) days30++;
   const week = new Set();
-  for (const e of state.log) if (daysBetween(e.date, today) < 7) week.add(e.itemId);
-  const dueCount = state.items.filter((t) => isDue(t, stats)).length;
+  for (const e of state.log) if (daysBetween(e.date, today) < 7 && itemById(e.itemId)?.type === 'tune') week.add(e.itemId);
+  const tunes = state.items.filter((t) => t.type === 'tune');
+  const dueCount = tunes.filter((t) => isDue(t, stats)).length;
 
   // Heatmap: 17 weeks, columns are weeks (Sun–Sat), latest week on the right.
   const WEEKS = 17;
@@ -34,7 +38,15 @@ export function renderProgress(root) {
     }
   }
 
-  const levelCounts = [3, 2, 1, 0, null].map((l) => ({ l, n: state.items.filter((t) => (t.level ?? null) === l).length }));
+  const levelCounts = [3, 2, 1, 0, null].map((l) => ({ l, n: tunes.filter((t) => (t.level ?? null) === l).length }));
+
+  // Keys: how familiar each one is (recent sessions count more), in circle-of-fifths order.
+  const fam = keyFamiliarity();
+  const sessions = keySessions(30);
+  const maxFam = Math.max(...fam, 0.001);
+  // Around the circle of fifths, starting from C as written for the instrument shown.
+  const keyOrder = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].map((w) => writtenToConcert(w, state.settings.view));
+  const hasKeys = fam.some((x) => x > 0);
   const maxCount = Math.max(...levelCounts.map((c) => c.n), 1);
   const byDate = [...perDay.keys()].sort().reverse().slice(0, 10);
   const namesOn = (day) => state.log.filter((e) => e.date === day).map((e) => itemById(e.itemId)?.name).filter(Boolean);
@@ -58,6 +70,20 @@ export function renderProgress(root) {
     </section>
 
     <section class="panel">
+      <h3 class="section-label">Keys</h3>
+      ${hasKeys ? `
+        <div class="keybars" role="img" aria-label="How much you've practiced in each key">
+          ${keyOrder.map((k) => `
+            <button class="keybar" data-key="${k}" aria-label="${esc(rootName(k))}: ${sessions[k]} sessions in the last 30 days">
+              <span class="kb-track"><span class="kb-fill" style="height:${Math.max(4, (fam[k] / maxFam) * 100)}%"></span></span>
+              <span class="kb-label">${esc(rootName(k))}</span>
+            </button>`).join('')}
+        </div>
+        <p class="fine" id="key-readout">Taller = more recent practice. Exercises set to “weak keys” favour the short ones. Tap a key for details.</p>`
+        : '<p class="fine">As you practice tunes and exercises, this shows which keys you’re spending time in.</p>'}
+    </section>
+
+    <section class="panel">
       <h3 class="section-label">Repertoire</h3>
       <ul class="levels">${levelCounts.map((c) => `
         <li><span class="lv-name">${pips(c.l)}${esc(levelLabel(c.l))}</span>
@@ -73,7 +99,12 @@ export function renderProgress(root) {
     </section>
   `;
 
-  $('#due-tile').onclick = () => { ui.tab = 'tunes'; ui.filter = 'due'; saveUi(); render(); };
+  $('#due-tile').onclick = () => { ui.tab = 'tunes'; ui.library = 'tunes'; ui.filter = 'due'; saveUi(); render(); };
+  $$('.keybar', root).forEach((b) => (b.onclick = () => {
+    const k = Number(b.dataset.key);
+    $$('.keybar', root).forEach((x) => x.classList.toggle('sel', x === b));
+    $('#key-readout').textContent = `${rootName(k)}: ${sessions[k]} session${sessions[k] === 1 ? '' : 's'} in the last 30 days.`;
+  }));
   $('.heat', root).onclick = (e) => {
     const c = e.target.closest('.cell');
     if (!c || c.disabled) return;

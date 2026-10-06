@@ -11,14 +11,16 @@ import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js
 import { entriesFor } from '../diary.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
+import { openExercise } from './exercise.js';
 import { canRecord } from '../media.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
 } from './shell.js';
 
 // Detail sheet for a tune: edit it, listen to recordings, see its history. id null = new tune.
-export function openItem(id) {
+export function openItem(id, opts) {
   const state = store.state;
+  if (id && itemById(id)?.type === 'exercise') return openExercise(id, opts);
   const isNew = !id;
   const t = isNew
     ? { id: uid(), type: 'tune', name: ui.query.trim(), style: 'Standard', priority: 2, level: 0, keys: [], notes: '', mine: true, ivl: null, due: null }

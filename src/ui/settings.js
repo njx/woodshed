@@ -33,6 +33,7 @@ export function renderSettings(root) {
 
     <section class="panel">
       <h3 class="section-label">Daily mix</h3>
+      ${stepper('exercises', 'Exercises', 'Scales, arpeggios, patterns, licks')}
       ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
       ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
       ${stepper('fresh', 'New', 'Tunes you don’t know yet')}

@@ -15,6 +15,36 @@ regular mix, until you turn it off. Swipe a Focus card left to skip it for just 
 Swipe a card **right** (or tap ✓) when you've played it, and **left** to swap in a different
 suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
 
+## Exercises
+
+Alongside tunes, the **Library** tab has exercises: scales, arpeggios, patterns, licks, or
+anything with a name ("cross-arpeggios"). A starter set is included. Exercises get their own
+slots in the daily set (Settings → Daily mix), and each one says which keys to play it in today.
+
+For each exercise you choose:
+
+- **Keys per session**: how many keys to play it in each time (1–12).
+- **How keys are chosen**: *weak keys* (the default: keys you've practiced least overall, and
+  ones this exercise hasn't been played in lately), *cycle of 4ths* or *chromatic* (picking up
+  where you left off), *random*, *chosen keys* only, or *no key* (long tones, the chromatic scale).
+
+**Key familiarity** comes from everything you log, tunes and exercises alike: each session counts
+toward its key, recent sessions count more (a session counts half as much after about three
+weeks), and rough ones less. The Progress tab charts it around the circle of fifths.
+
+### Notation
+
+An exercise can have notation, written once in C and shown in whichever key you pick, written for
+your instrument (B♭, E♭…), with playback at a tempo you set. Playback is synthesized in the
+browser, so it works offline.
+
+The notation editor has a tap keypad: pick a note length (whole to sixteenth, dotted, triplet),
+an accidental (applies to the next note) and an octave (stays until you change it), then tap note
+names. Under the hood it's [ABC notation](https://abcnotation.com) with an eighth note as the unit:
+`C` eighth, `C2` quarter, `C3` dotted quarter, `C4` half, `C8` whole, `C/` sixteenth, `(3CDE`
+triplet, `z2` quarter rest, `C2-C2` tie, `|` bar line; `^` sharp, `_` flat, `=` natural; lowercase
+is the octave up and `,` / `'` go further down / up. Tap ⌨ to type ABC directly.
+
 ## How tunes are picked
 
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
@@ -102,14 +132,18 @@ Layout:
 - `src/plan.js`: picking the daily set and the key for each item
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
+- `src/keystats.js`: key familiarity and choosing exercise keys
+- `src/abc.js`: building notation (ABC), note lengths, transposition
 - `src/diary.js`: practice notes and flagged to-dos
 - `src/media.js`: recorded clips (formats, storage, cleanup)
-- `src/listen.js`, `src/data/`: recordings and search links; the seed tune list
+- `src/listen.js`, `src/data/`: recordings and search links; the seed tunes and exercises
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
-  sheet (`item`), the recorder (`recorder`), and shared pieces (`shell`)
+  sheet (`item`), exercises and the notation editor (`exercise`, `notation`), the recorder
+  (`recorder`), and shared pieces (`shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
-- `test/`: unit tests for scheduling, planning, keys, storage, the diary and the recordings data
+- `test/`: unit tests for scheduling, planning, keys, exercises, notation, storage, the diary,
+  recordings and the recordings data
 
 ## Deploying
 

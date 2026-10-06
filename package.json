@@ -13,5 +13,8 @@
     "fake-indexeddb": "^6.2.5",
     "vite": "^8.3.3",
     "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "abcjs": "^6.7.1"
   }
 }

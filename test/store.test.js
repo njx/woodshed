@@ -34,6 +34,12 @@ describe('migration', () => {
     expect(s.settings).toMatchObject({ view: 'bb', listen: 'apple', hone: 2 });
   });
 
+  it('adds starter exercises to version 2 data once', () => {
+    const s = migrate(migrate(v1()));
+    expect(s.version).toBe(3);
+    expect(s.items.filter((t) => t.type === 'exercise').length).toBe(11);
+  });
+
   it('leaves current data alone', () => {
     const s = seedState();
     const before = JSON.stringify(s);
@@ -44,14 +50,18 @@ describe('migration', () => {
 describe('loading and saving', () => {
   it('seeds the tune list on first run', async () => {
     await loadState();
-    expect(store.state.items.length).toBe(301);
-    expect(store.state.items.every((t) => t.type === 'tune' && t.seedName)).toBe(true);
+    const tunes = store.state.items.filter((t) => t.type === 'tune');
+    const exercises = store.state.items.filter((t) => t.type === 'exercise');
+    expect(tunes.length).toBe(301);
+    expect(tunes.every((t) => t.seedName)).toBe(true);
+    expect(exercises.map((x) => x.name)).toContain('Major scale');
   });
 
   it('picks up data saved by version 1 and moves it to IndexedDB', async () => {
     localStorage.setItem('woodshed.v1', JSON.stringify(v1()));
     await loadState();
-    expect(store.state.items.map((t) => t.name)).toEqual(['Solar']);
+    expect(store.state.items.filter((t) => t.type === 'tune').map((t) => t.name)).toEqual(['Solar']);
+    expect(store.state.items.some((t) => t.type === 'exercise')).toBe(true); // starter exercises added
     expect((await kvGet('state')).items[0].name).toBe('Solar');
   });
 

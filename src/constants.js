@@ -12,11 +12,12 @@ export const PRIORITIES = [
 ];
 export const BUCKETS = {
   focus: { label: 'Focus', fallback: [] },
+  exercise: { label: 'Exercise', fallback: [] },
   hone: { label: 'Hone', fallback: ['learn', 'fresh'] },
   learn: { label: 'Learn', fallback: ['fresh', 'hone'] },
   fresh: { label: 'New', fallback: ['learn', 'hone'] },
 };
-export const BUCKET_ORDER = { focus: 0, hone: 1, learn: 2, fresh: 3 };
+export const BUCKET_ORDER = { focus: 0, exercise: 1, hone: 2, learn: 3, fresh: 4 };
 export const PRIORITY_WEIGHTS = {
   off: [1, 1, 1, 1],
   some: [3, 2, 1.4, 1],
@@ -53,7 +54,26 @@ export const LISTEN_SERVICES = {
   youtube: { label: 'YouTube' },
 };
 
+// Exercises: what kind of thing it is, and how its keys are chosen each session.
+export const CATEGORIES = {
+  scale: 'Scale',
+  arpeggio: 'Arpeggio',
+  pattern: 'Pattern',
+  lick: 'Lick',
+  other: 'Other',
+};
+export const KEY_MODES = {
+  weak: { label: 'Weak keys', hint: 'Keys you’ve practiced least overall and for this exercise' },
+  fourths: { label: 'Cycle of 4ths', hint: 'C, F, B♭, E♭… picking up where you left off' },
+  chromatic: { label: 'Chromatic', hint: 'C, D♭, D… picking up where you left off' },
+  random: { label: 'Random', hint: 'Any keys' },
+  fixed: { label: 'Chosen keys', hint: 'Only the keys you pick, least practiced first' },
+  none: { label: 'No key', hint: 'For things like long tones or the chromatic scale' },
+};
+export const CYCLE_OF_FOURTHS = [0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7];
+
 export const DEFAULT_SETTINGS = {
+  exercises: 2,
   hone: 2,
   learn: 2,
   fresh: 1,
