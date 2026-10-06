@@ -538,3 +538,75 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 }
 .rec-form input:focus { border-color: var(--accent); }
 .rec-form .pill-btn { background: var(--accent); color: var(--accent-ink); }
+
+/* ---------- Diary ---------- */
+.today-actions { gap: 8px; }
+.today-actions .ghost-btn { margin-top: 14px; border-style: dashed; font-size: 14px; padding: 0 10px; }
+.chip .count {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 3px;
+  border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 700;
+}
+.chip.on .count { background: var(--bg); color: var(--ink); }
+
+.notes { list-style: none; margin: 0; padding: 0; }
+.panel-list { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.note { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.note:last-child { border-bottom: 0; }
+.note:active { background: var(--surface-2); }
+.note-body { flex: 1; min-width: 0; }
+.note-body p {
+  margin: 0; font-size: 15px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.note-body small { display: block; margin-top: 3px; font-size: 12.5px; color: var(--ink-3); }
+.note.done .note-body p { color: var(--ink-3); text-decoration: line-through; }
+.note-dot { flex: none; display: grid; width: 30px; height: 30px; place-items: center; color: var(--ink-3); }
+.note-dot svg { width: 18px; height: 18px; }
+.note-check {
+  flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--line); color: var(--accent);
+}
+.note-check svg { width: 15px; height: 15px; }
+.flag-teacher .note-check { color: var(--learn); }
+.note-check.on { background: var(--good); border-color: var(--good); color: #fff; }
+
+.remember { margin-bottom: 16px; }
+.remember .section-label { display: flex; align-items: center; gap: 6px; margin-top: 0; color: var(--accent); }
+.remember .section-label svg { width: 15px; height: 15px; }
+.remember .notes { background: var(--accent-soft); border-radius: var(--radius); }
+.remember .note { border-color: color-mix(in srgb, var(--accent) 20%, transparent); }
+.remember .link-btn { margin: 8px 4px 0; }
+
+.todo-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 2px 10px; font-size: 14px; color: var(--ink-2); }
+.todo-head .pill-btn { background: var(--surface); box-shadow: var(--shadow); }
+.day { margin-top: 18px; }
+.day-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 2px 8px; font: 600 18px/1.2 var(--serif); }
+.played { display: flex; align-items: flex-start; gap: 6px; margin: -2px 2px 8px; font-size: 13px; color: var(--ink-3); }
+.played svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+
+.note-editor { position: relative; margin-top: 8px; }
+.note-editor textarea {
+  width: 100%; min-height: 130px; padding: 12px 52px 12px 14px; resize: vertical;
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface);
+  font: 16px/1.45 var(--sans); color: var(--ink); outline: 0;
+}
+.note-editor textarea:focus { border-color: var(--accent); }
+.mic-btn {
+  position: absolute; right: 8px; bottom: 10px; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface-2); color: var(--ink-2);
+}
+.mic-btn svg { width: 19px; height: 19px; }
+.mic-btn.on { background: var(--danger); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 25%, transparent); } }
+.flag-row { display: flex; gap: 8px; margin-top: 12px; }
+.flag-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px;
+  border-radius: 12px; background: var(--surface-2); font-size: 14px; font-weight: 600; color: var(--ink-2);
+}
+.flag-btn svg { width: 17px; height: 17px; }
+.flag-btn.flag-remember.on { background: var(--accent); color: var(--accent-ink); }
+.flag-btn.flag-teacher.on { background: var(--learn); color: #fff; }
+.done-toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-weight: 600; }
+.done-toggle input { width: 22px; height: 22px; accent-color: var(--good); }
+.sheet-body > .field { margin-top: 4px; }
+.day-head .link-btn { font: 600 13px/1 var(--sans); }

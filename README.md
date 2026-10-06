@@ -34,6 +34,21 @@ suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
 - **Transposition.** Pick the instruments you play (Concert, B♭, E♭, F). Keys are shown for
   whichever one is active; tap **Keys in …** to switch.
 
+## Diary
+
+The **Diary** tab keeps notes about your practice, typed or dictated: the editor's mic button uses
+the browser's speech recognition where it's available, and the keyboard's mic works everywhere. A
+note can be about a specific tune, and then it also shows in that tune's details. Each day in the
+diary also lists what you played.
+
+Flag a note **Remember** or **Ask teacher** and it becomes a to-do until you tick it off:
+
+- **Remember** items show at the top of the Today screen.
+- **Ask teacher** items collect under the diary's "For teacher" filter, where **Share list** sends
+  the open ones as plain text (or copies them) before a lesson.
+
+Notes save automatically when you close the editor, however you close it.
+
 ## Listening
 
 Each tune's detail sheet has a **Listen** section with classic recordings of it: 277 of the
@@ -72,12 +87,13 @@ Layout:
 - `src/plan.js`: picking the daily set and the key for each item
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
+- `src/diary.js`: practice notes and flagged to-dos
 - `src/listen.js`, `src/data/`: recordings and search links; the seed tune list
-- `src/ui/`: one module per screen (`today`, `tunes`, `progress`, `settings`), the tune detail
+- `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
   sheet (`item`), and shared pieces (`shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
-- `test/`: unit tests for scheduling, planning, keys, storage and the recordings data
+- `test/`: unit tests for scheduling, planning, keys, storage, the diary and the recordings data
 
 ## Deploying
 

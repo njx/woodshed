@@ -8,6 +8,8 @@ import {
 } from '../practice.js';
 import { syncFocus } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
+import { entriesFor } from '../diary.js';
+import { noteHtml, bindNotes, openNote } from './diary.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
 } from './shell.js';
@@ -98,6 +100,13 @@ export function openItem(id) {
             <span>${e.key != null ? esc(kn(e.key)) : e.shift ? esc(SHIFTS[e.shift]) : ''}${e.alt ? ' <em>new key</em>' : ''}</span>
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
+        <div class="field-label row-label"><span>Diary</span><button class="link-btn" id="add-tune-note">${ICON.plus}Add a note</button></div>
+        ${(() => {
+          const notes = entriesFor(t.id);
+          return notes.length
+            ? `<ul class="notes panel-list">${notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>`
+            : '<p class="fine">Notes you write about this tune show up here.</p>';
+        })()}
         <button class="danger-btn" id="delete">Delete tune</button>`}
     `;
   };
@@ -207,6 +216,9 @@ export function openItem(id) {
         save();
         refresh();
       };
+      const back = () => openItem(t.id);
+      $('#add-tune-note', sheet).onclick = () => openNote(null, { itemId: t.id, back });
+      bindNotes(sheet, back, refresh);
       $('#delete', sheet).onclick = () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
         closeSheet();

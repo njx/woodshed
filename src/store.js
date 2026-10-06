@@ -12,6 +12,7 @@ import { kvGet, kvSet } from './db.js';
 //               notes, mine, focus, ivl, due, levelSetAt, recordings? }
 //   log:      { id, date, itemId, at, key, alt, shift, rating, prev: { ivl, due } }
 //   plan:     today's set { date, items: [{ itemId, bucket, key, alt, shift }], skipped, focusSkipped }
+//   diary:    practice notes { id, date, at, text, flag, done, itemId? } (see diary.js)
 //   settings: see DEFAULT_SETTINGS
 export const SCHEMA_VERSION = 2;
 const STATE_KEY = 'state';
@@ -37,6 +38,7 @@ export function seedState() {
       due: null,
     })),
     log: [],
+    diary: [],
     plan: null,
     settings: { ...DEFAULT_SETTINGS },
   };
@@ -64,6 +66,7 @@ export function migrate(s) {
 export function normalize(s) {
   s.items ||= [];
   s.log ||= [];
+  s.diary ||= [];
   s.plan ??= null;
   s.settings = { ...DEFAULT_SETTINGS, ...s.settings };
   if (!s.settings.instruments?.length) s.settings.instruments = ['c'];

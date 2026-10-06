@@ -6,8 +6,9 @@ import { renderToday } from './ui/today.js';
 import { renderTunes } from './ui/tunes.js';
 import { renderProgress } from './ui/progress.js';
 import { renderSettings } from './ui/settings.js';
+import { renderDiary } from './ui/diary.js';
 
-registerViews({ today: renderToday, tunes: renderTunes, progress: renderProgress, settings: renderSettings });
+registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
 setSaveErrorHandler(() => toast('Could not save — storage is full or blocked'));
 
 // Ask the browser not to evict our data (matters most on iOS).
