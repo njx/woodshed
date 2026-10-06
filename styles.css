@@ -296,6 +296,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .sheet-grab span { width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
 .sheet-body { overflow-y: auto; padding: 4px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; }
 .title-input {
+  display: block; resize: none; overflow: hidden;
   width: 100%; border: 0; outline: 0; background: none; padding: 4px 0 8px;
   font: 600 26px/1.2 var(--serif); color: var(--ink);
   border-bottom: 1.5px solid transparent;
@@ -426,3 +427,11 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .suggest.down { background: var(--surface-2); }
 .suggest.down .pill-btn { background: var(--ink-2); color: var(--bg); }
 .sheet-body > .suggest { margin-top: 14px; }
+
+/* Keep the list header on one line on narrow phones. */
+.list-head .transpose span { display: none; }
+.list-head #count { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sort { min-width: 0; }
+.sort select { max-width: 150px; text-overflow: ellipsis; }
+.view { overflow-x: clip; }
+.row-label > span { white-space: nowrap; }

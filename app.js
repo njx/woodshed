@@ -801,7 +801,7 @@ function openTune(id) {
     const entries = state.log.filter((e) => e.tuneId === t.id).sort((a, b) => b.date.localeCompare(a.date));
     const played = isPlayedToday(t.id);
     return `
-      <input class="title-input" id="f-name" value="${esc(t.name)}" placeholder="Tune name" aria-label="Tune name" ${isNew ? 'autofocus' : ''}>
+      <textarea class="title-input" id="f-name" rows="1" placeholder="Tune name" aria-label="Tune name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
       <label class="field-label">How well do you know it?</label>
       ${isNew ? '' : suggestionHtml(t)}
       <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
@@ -844,7 +844,17 @@ function openTune(id) {
   const bind = () => {
     const sug = $('.suggest [data-level]', sheet);
     if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
-    $('#f-name', sheet).oninput = (e) => { t.name = e.target.value; if (!isNew && t.name.trim()) commit(); };
+    // The name field wraps onto as many lines as it needs, but stays a single line of text.
+    const nameEl = $('#f-name', sheet);
+    const fit = () => { nameEl.style.height = 'auto'; nameEl.style.height = `${nameEl.scrollHeight}px`; };
+    fit();
+    nameEl.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); } };
+    nameEl.oninput = () => {
+      if (/\n/.test(nameEl.value)) nameEl.value = nameEl.value.replace(/\s*\n\s*/g, ' ');
+      fit();
+      t.name = nameEl.value;
+      if (!isNew && t.name.trim()) commit();
+    };
     $('#f-style', sheet).onchange = (e) => { t.style = e.target.value.trim() || 'Standard'; commit(); };
     $('#f-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
     $('#keygrids', sheet).onclick = (e) => {
