@@ -17,8 +17,10 @@ suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
   further out: "OK" stretches the interval by about 1.6×, "Solid" by 2.5×, and "Rough" brings it
   back tomorrow. Starting intervals depend on familiarity (Familiar 2 days, Proficient 4,
-  Mastered 7). Tunes that are most overdue are the most likely picks. After three solid sessions
-  in a row, the app offers to bump the tune's familiarity level.
+  Mastered 7). Tunes that are most overdue are the most likely picks.
+- **Familiarity changes.** Once you've played a tune, its card lets you change how well you know
+  it on the spot. The app also suggests a change: up a level after 3 Solid sessions in a row, down
+  after 2 Rough ones (counting only sessions since the level last changed).
 - **Priority** (Critical / High / Medium / Low) tips the balance among tunes that are due. You can
   set how much it matters, or turn it off.
 - **Keys.** Each tune stores its usual concert key(s). Tunes that are commonly played in more than

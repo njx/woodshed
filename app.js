@@ -363,16 +363,40 @@ function unmarkPlayed(tuneId) {
   if (t && e.prev) { t.ivl = e.prev.ivl; t.due = e.prev.due; }
   state.log = state.log.filter((x) => x !== e);
 }
-// After three solid run-throughs in a row, offer to bump the familiarity level.
-function maybeSuggestLevelUp(t) {
-  if (t.level === 3) return;
-  const recent = state.log.filter((e) => e.tuneId === t.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
-  if (recent.length < 3 || recent.some((e) => e.rating !== 'solid')) return;
-  const next = t.level == null ? 0 : t.level + 1;
-  toast(`Three solid sessions on ${t.name}.`, {
-    label: `Mark ${LEVELS[next].label}`,
-    fn: () => { t.level = next; save(); render(); toast(`${t.name} is now ${LEVELS[next].label}`); },
-  });
+// Change a tune's familiarity. Ratings logged before the change no longer count toward
+// level suggestions, and a tune played today is rescheduled for its new level.
+function setLevel(t, level) {
+  if (t.level === level) return;
+  t.level = level;
+  t.levelSetAt = Date.now();
+  const e = todaysEntry(t.id);
+  if (e) schedule(t, e.rating, e.prev);
+}
+
+// Suggest moving up after 3 solid sessions in a row, or down after 2 rough ones,
+// counting only sessions since the level was last changed.
+const SOLID_TO_LEVEL_UP = 3;
+const ROUGH_TO_LEVEL_DOWN = 2;
+function levelSuggestion(t) {
+  const recent = state.log
+    .filter((e) => e.tuneId === t.id && (e.at || 0) > (t.levelSetAt || 0))
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+  const streak = (rating, n) => recent.length >= n && recent.slice(0, n).every((e) => e.rating === rating);
+  if (t.level !== 3 && streak('solid', SOLID_TO_LEVEL_UP)) {
+    const to = t.level == null ? 1 : t.level + 1;
+    return { to, up: true, text: `${SOLID_TO_LEVEL_UP} solid sessions in a row — ready for ${LEVELS[to].label}?` };
+  }
+  if (t.level > 0 && streak('rough', ROUGH_TO_LEVEL_DOWN)) {
+    const to = t.level - 1;
+    return { to, up: false, text: `${ROUGH_TO_LEVEL_DOWN} rough sessions in a row — mark it ${LEVELS[to].label} for now?` };
+  }
+  return null;
+}
+function suggestionHtml(t) {
+  const sug = levelSuggestion(t);
+  if (!sug) return '';
+  return `<div class="suggest ${sug.up ? 'up' : 'down'}"><span>${esc(sug.text)}</span>
+    <button class="pill-btn" data-level="${sug.to}">${sug.up ? '↑' : '↓'} ${esc(LEVELS[sug.to].label)}</button></div>`;
 }
 
 // ---------- Toast ----------
@@ -547,9 +571,16 @@ function renderToday(root) {
       rate(item.tuneId, b.dataset.v);
       save();
       render();
-      if (b.dataset.v === 'solid') maybeSuggestLevelUp(tuneById(item.tuneId));
     }));
-    card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating')) openTune(item.tuneId); };
+    $$('[data-level]', card).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      const t = tuneById(item.tuneId);
+      setLevel(t, Number(b.dataset.level));
+      save();
+      render();
+      toast(`${t.name}: ${LEVELS[t.level].label}`);
+    }));
+    card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .levels-row, .suggest')) openTune(item.tuneId); };
     attachSwipe(card, {
       right: toggle,
       left: isPlayedToday(item.tuneId) ? null : swap,
@@ -595,6 +626,11 @@ function cardHtml(it, i, stats) {
           : `<button class="swap icon-btn small" aria-label="Swap for a different tune">${ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
+      ${played ? `
+        ${suggestionHtml(t)}
+        <div class="levels-row" role="group" aria-label="How well do you know it now?">
+          ${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-level="${l.v}" aria-pressed="${t.level === l.v}">${l.label}</button>`).join('')}
+        </div>` : ''}
     </article>
   </li>`;
 }
@@ -767,6 +803,7 @@ function openTune(id) {
     return `
       <input class="title-input" id="f-name" value="${esc(t.name)}" placeholder="Tune name" aria-label="Tune name" ${isNew ? 'autofocus' : ''}>
       <label class="field-label">How well do you know it?</label>
+      ${isNew ? '' : suggestionHtml(t)}
       <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
       <label class="field-label">Priority</label>
       <div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>
@@ -798,7 +835,15 @@ function openTune(id) {
 
   const sheet = openSheet(body(), () => { if (!isNew) render(); });
   const commit = () => { if (!isNew) save(); };
+  const refresh = () => {
+    const y = $('.sheet-body', sheet).scrollTop;
+    $('.sheet-body', sheet).innerHTML = body();
+    $('.sheet-body', sheet).scrollTop = y;
+    bind();
+  };
   const bind = () => {
+    const sug = $('.suggest [data-level]', sheet);
+    if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
     $('#f-name', sheet).oninput = (e) => { t.name = e.target.value; if (!isNew && t.name.trim()) commit(); };
     $('#f-style', sheet).onchange = (e) => { t.style = e.target.value.trim() || 'Standard'; commit(); };
     $('#f-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
@@ -814,6 +859,11 @@ function openTune(id) {
       seg.onclick = (e) => {
         const b = e.target.closest('button');
         if (!b) return;
+        if (seg.dataset.field === 'level') {
+          setLevel(t, Number(b.dataset.v));
+          commit();
+          return refresh();
+        }
         t[seg.dataset.field] = Number(b.dataset.v);
         $$('button', seg).forEach((x) => x.classList.toggle('on', x === b));
         commit();
@@ -839,8 +889,7 @@ function openTune(id) {
           haptic();
         }
         save();
-        $('.sheet-body', sheet).innerHTML = body();
-        bind();
+        refresh();
       };
       $('#delete', sheet).onclick = () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
