@@ -472,6 +472,18 @@ function priBadge(p) {
 function keysText(t) {
   return t.keys.length ? t.keys.map((k) => keyName(k)).join(' / ') : '';
 }
+function progressRing(done, total) {
+  const R = 19, C = 2 * Math.PI * R;
+  const frac = total ? done / total : 0;
+  const complete = total > 0 && done === total;
+  return `<div class="ring ${complete ? 'complete' : ''}" role="img" aria-label="${done} of ${total} played">
+    <svg viewBox="0 0 44 44" aria-hidden="true">
+      <circle class="ring-track" cx="22" cy="22" r="${R}"/>
+      <circle class="ring-fill" cx="22" cy="22" r="${R}" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/>
+    </svg>
+    <span>${complete ? ICON.check : `${done}<small>/${total}</small>`}</span>
+  </div>`;
+}
 function transposeToggle() {
   const ins = state.settings.instruments;
   const cur = TRANSPOSITIONS[state.settings.view];
@@ -518,10 +530,13 @@ function renderToday(root) {
   root.innerHTML = `
     <header class="top">
       <div>
-        <p class="eyebrow">${esc(niceDate(today))}</p>
+        <p class="eyebrow eyebrow-row"><span>${esc(niceDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>${transposeToggle()}</p>
         <h1>Today’s set</h1>
       </div>
-      <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)">${ICON.shuffle}</button>
+      <div class="top-actions">
+        ${progressRing(done, items.length)}
+        <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)">${ICON.shuffle}</button>
+      </div>
     </header>
     ${state.settings.instrumentsChosen ? '' : `
     <div class="welcome">
@@ -531,13 +546,6 @@ function renderToday(root) {
       <p>${Object.values(TRANSPOSITIONS).map((tr) => `<b>${esc(tr.label)}</b>: ${esc(tr.hint)}`).join('<br>')}</p>
       <button class="primary-btn" id="ins-done">Done</button>
     </div>`}
-    <div class="progress-row">
-      <div class="progress" aria-label="${done} of ${items.length} played">
-        <div class="bar"><span style="width:${items.length ? (done / items.length) * 100 : 0}%"></span></div>
-        <p>${done === items.length && items.length ? 'All done — nice work 🎷' : `${done} of ${items.length} played`}</p>
-      </div>
-      ${transposeToggle()}
-    </div>
     ${items.length ? '' : '<p class="empty">No tunes yet. Add some on the Tunes tab.</p>'}
     <ul class="cards">${state.plan.items.map((it, i) => cardHtml(it, i, stats)).join('')}</ul>
     <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
@@ -579,7 +587,11 @@ function renderToday(root) {
     const item = state.plan.items[i];
     const toggle = () => {
       if (isPlayedToday(item.tuneId)) unmarkPlayed(item.tuneId);
-      else { markPlayed(item.tuneId, item); haptic(); }
+      else {
+        markPlayed(item.tuneId, item);
+        haptic();
+        if (state.plan.items.every((it) => !tuneById(it.tuneId) || isPlayedToday(it.tuneId))) toast('All done for today — nice work 🎷');
+      }
       save();
       render();
     };

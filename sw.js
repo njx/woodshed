@@ -1,5 +1,5 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = 'woodshed-v4';
+const CACHE = 'woodshed-v5';
 const ASSETS = [
   './',
   'index.html',

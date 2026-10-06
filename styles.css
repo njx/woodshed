@@ -457,3 +457,23 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 }
 .focus-toggle input:checked { background: var(--focus); }
 .focus-toggle input:checked::after { transform: translateX(20px); }
+
+/* ---------- Today header: progress ring + compact transposition toggle ---------- */
+.top-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.ring { position: relative; width: 44px; height: 44px; flex: none; }
+.ring svg { width: 44px; height: 44px; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 4; }
+.ring-track { stroke: var(--surface-2); }
+.ring-fill { stroke: var(--good); stroke-linecap: round; transition: stroke-dashoffset .4s ease; }
+.ring > span { position: absolute; inset: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.ring small { font-size: 11px; font-weight: 600; color: var(--ink-3); }
+.ring > span { display: flex; align-items: baseline; justify-content: center; padding-top: 12px; }
+.ring.complete > span { padding-top: 0; align-items: center; color: var(--good); }
+.ring.complete > span svg { width: 22px; height: 22px; transform: none; stroke-width: 3; }
+.eyebrow-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.eyebrow-row .transpose {
+  height: 22px; padding: 0 8px; border-radius: 11px; gap: 3px;
+  box-shadow: none; background: var(--surface-2);
+  font-size: 11.5px; letter-spacing: .02em; text-transform: none;
+}
+.eyebrow-row .transpose svg { width: 12px; height: 12px; }
