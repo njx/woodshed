@@ -3,6 +3,7 @@ import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr } from '../dates.js';
 import { esc } from '../util.js';
 import { buildPlan } from '../plan.js';
+import { mediaStats, fmtSize } from '../media.js';
 import { $, $$, ICON, render, toast, goTo } from './shell.js';
 
 export function renderSettings(root) {
@@ -60,6 +61,10 @@ export function renderSettings(root) {
     <section class="panel">
       <h3 class="section-label">Your data</h3>
       <p class="fine">Everything is stored on this device only. Export a backup now and then — and before switching phones.</p>
+      ${(() => {
+        const m = mediaStats(store.state);
+        return m.count ? `<p class="fine">Recordings: ${m.count} (${fmtSize(m.bytes)}). They aren’t included in backups — save the ones you want to keep from their diary notes.</p>` : '';
+      })()}
       <div class="btn-row">
         <button class="ghost-btn" id="export">Export backup</button>
         <label class="ghost-btn file-btn">Import backup<input type="file" id="import" accept="application/json,.json"></label>

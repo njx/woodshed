@@ -14,6 +14,8 @@ import {
 import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
+import { openRecorder } from './recorder.js';
+import { canRecord } from '../media.js';
 
 export function renderToday(root) {
   const state = store.state;
@@ -40,9 +42,10 @@ export function renderToday(root) {
     ${rememberPanel()}
     ${items.length ? '' : '<p class="empty">No tunes yet. Add some on the Tunes tab.</p>'}
     <ul class="cards">${state.plan.items.map((it, i) => cardHtml(it, i, stats)).join('')}</ul>
+    <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
     <div class="btn-row today-actions">
-      <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
       <button class="ghost-btn" id="today-note">${ICON.note}<span>Add a note</span></button>
+      ${canRecord() ? `<button class="ghost-btn" id="today-rec">${ICON.rec}<span>Record</span></button>` : ''}
     </div>
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
@@ -61,6 +64,8 @@ export function renderToday(root) {
     render();
   };
   $('#today-note').onclick = () => openNote(null);
+  const rec = $('#today-rec', root);
+  if (rec) rec.onclick = () => openRecorder();
   bindNotes(root);
   $$('.list .row', root).forEach((row) => (row.onclick = () => openItem(row.dataset.id)));
   $$('.card', root).forEach((card) => bindCard(card));

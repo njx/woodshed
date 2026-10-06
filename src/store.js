@@ -12,7 +12,8 @@ import { kvGet, kvSet } from './db.js';
 //               notes, mine, focus, ivl, due, levelSetAt, recordings? }
 //   log:      { id, date, itemId, at, key, alt, shift, rating, prev: { ivl, due } }
 //   plan:     today's set { date, items: [{ itemId, bucket, key, alt, shift }], skipped, focusSkipped }
-//   diary:    practice notes { id, date, at, text, flag, done, itemId? } (see diary.js)
+//   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,
+//             media.js; recorded clips themselves live in IndexedDB's media store)
 //   settings: see DEFAULT_SETTINGS
 export const SCHEMA_VERSION = 2;
 const STATE_KEY = 'state';

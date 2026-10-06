@@ -10,6 +10,8 @@ import { syncFocus } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
 import { entriesFor } from '../diary.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
+import { openRecorder } from './recorder.js';
+import { canRecord } from '../media.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
 } from './shell.js';
@@ -100,7 +102,9 @@ export function openItem(id) {
             <span>${e.key != null ? esc(kn(e.key)) : e.shift ? esc(SHIFTS[e.shift]) : ''}${e.alt ? ' <em>new key</em>' : ''}</span>
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
-        <div class="field-label row-label"><span>Diary</span><button class="link-btn" id="add-tune-note">${ICON.plus}Add a note</button></div>
+        <div class="field-label row-label"><span>Diary</span><span class="row-links">
+          ${canRecord() ? `<button class="link-btn" id="rec-tune">${ICON.rec}Record</button>` : ''}
+          <button class="link-btn" id="add-tune-note">${ICON.plus}Add a note</button></span></div>
         ${(() => {
           const notes = entriesFor(t.id);
           return notes.length
@@ -218,6 +222,8 @@ export function openItem(id) {
       };
       const back = () => openItem(t.id);
       $('#add-tune-note', sheet).onclick = () => openNote(null, { itemId: t.id, back });
+      const recTune = $('#rec-tune', sheet);
+      if (recTune) recTune.onclick = () => openRecorder({ itemId: t.id, back });
       bindNotes(sheet, back, refresh);
       $('#delete', sheet).onclick = () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;

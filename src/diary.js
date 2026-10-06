@@ -4,7 +4,8 @@ import { uid } from './util.js';
 import { itemById } from './practice.js';
 
 // Practice diary. Entries:
-//   { id, date, at, text, flag: null | 'remember' | 'teacher', done, itemId? }
+//   { id, date, at, text, flag: null | 'remember' | 'teacher', done, itemId?, media? }
+// media: recorded clips (see media.js). A note with a recording doesn't need text.
 // Flagged entries work as a to-do list until marked done.
 
 export const FLAGS = {
@@ -12,8 +13,8 @@ export const FLAGS = {
   teacher: { label: 'Ask teacher', long: 'For my teacher' },
 };
 
-export function addEntry({ text, flag = null, itemId = null, date = dateStr() }) {
-  const e = { id: uid(), date, at: Date.now(), text: text.trim(), flag, done: false, itemId };
+export function addEntry({ text = '', flag = null, itemId = null, date = dateStr(), media = [] }) {
+  const e = { id: uid(), date, at: Date.now(), text: text.trim(), flag, done: false, itemId, media };
   store.state.diary.push(e);
   return e;
 }
@@ -68,7 +69,8 @@ export function todoText(flag) {
     `${head} (${niceDate(dateStr(), { month: 'short', day: 'numeric' })})`,
     ...items.map((e) => {
       const tune = e.itemId ? itemById(e.itemId)?.name : null;
-      return `• ${tune ? `${tune}: ` : ''}${e.text.replace(/\s*\n\s*/g, ' ')}`;
+      const text = e.text || (e.media?.length ? '(recording)' : '');
+      return `• ${tune ? `${tune}: ` : ''}${text.replace(/\s*\n\s*/g, ' ')}`;
     }),
   ].join('\n');
 }

@@ -7,6 +7,7 @@ import { renderTunes } from './ui/tunes.js';
 import { renderProgress } from './ui/progress.js';
 import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
+import { cleanupMedia } from './media.js';
 
 registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
 setSaveErrorHandler(() => toast('Could not save — storage is full or blocked'));
@@ -27,7 +28,10 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => flush());
 
-loadState().then(render);
+loadState().then(() => {
+  render();
+  cleanupMedia();
+});
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -610,3 +610,69 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .done-toggle input { width: 22px; height: 22px; accent-color: var(--good); }
 .sheet-body > .field { margin-top: 4px; }
 .day-head .link-btn { font: 600 13px/1 var(--sans); }
+
+/* ---------- Recordings ---------- */
+.today-actions .ghost-btn { margin-top: 8px; }
+.row-links { display: inline-flex; gap: 14px; }
+.link-btn.danger { color: var(--danger); }
+.muted { color: var(--ink-3); font-style: italic; }
+
+.clip-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.clip-pill {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px 0 8px;
+  border-radius: 15px; background: var(--accent-soft); color: var(--ink); font-size: 13px; font-weight: 600;
+}
+.clip-pill svg { width: 15px; height: 15px; color: var(--accent); }
+.clip-pill.audio svg { fill: currentColor; stroke: none; }
+.clip-pill.playing { background: var(--accent); color: var(--accent-ink); }
+.clip-pill.playing svg { color: var(--accent-ink); }
+
+.clips { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.clips li { background: var(--surface); border-radius: 14px; padding: 10px; }
+.clip-player audio { width: 100%; display: block; }
+.clip-player video { width: 100%; display: block; border-radius: 10px; background: #000; max-height: 50vh; }
+.clip-meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 13px; color: var(--ink-3); }
+.clip-meta span { flex: 1; }
+.rec-start { border-style: solid; }
+.rec-start svg, .today-actions #today-rec svg, #diary-rec svg, #rec-tune svg { color: var(--danger); }
+
+.recorder { padding-bottom: 4px; }
+.rec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rec-head .seg { flex: 1; }
+.rec-head .seg[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+.rec-stage {
+  position: relative; border-radius: 18px; background: var(--surface); overflow: hidden;
+  display: grid; place-items: center; min-height: 170px; color: var(--accent);
+}
+.rec-stage canvas { width: 100%; height: 140px; display: block; }
+.rec-stage.video { background: #000; min-height: 0; }
+.rec-stage.video video { width: 100%; max-height: 46vh; display: block; object-fit: cover; }
+.rec-stage.video canvas { position: absolute; left: 0; right: 0; bottom: 0; height: 60px; color: #fff; }
+.rec-stage video.mirror { transform: scaleX(-1); }
+.rec-stage.review { background: none; min-height: 0; }
+.rec-stage.review audio { width: 100%; }
+.rec-stage.review video { width: 100%; max-height: 50vh; border-radius: 14px; background: #000; }
+.rec-stage.blocked { padding: 20px; text-align: center; color: var(--ink); place-items: center; gap: 4px; }
+.rec-stage.blocked p { margin: 0; }
+.rec-wait { position: absolute; margin: 0; font-size: 14px; color: var(--ink-3); }
+.rec-stage.video .rec-wait { color: #ccc; }
+.rec-controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin: 18px 0 6px; }
+.rec-time { font: 600 22px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.rec-time.live { color: var(--danger); }
+.rec-hint { justify-self: end; font-size: 13px; color: var(--ink-3); }
+.rec-btn {
+  width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center;
+  border: 4px solid var(--line); background: var(--surface);
+}
+.rec-btn span { width: 54px; height: 54px; border-radius: 50%; background: var(--danger); transition: all .2s; }
+.rec-btn.stop span { width: 28px; height: 28px; border-radius: 6px; }
+.rec-btn:disabled { opacity: .4; }
+.rec-btn:active { transform: scale(.95); }
+.recorder textarea, .recorder input {
+  width: 100%; margin-top: 12px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--surface); font-size: 16px; outline: 0; resize: vertical;
+}
+.recorder textarea:focus, .recorder input:focus { border-color: var(--accent); }
+.rec-actions { display: flex; gap: 8px; }
+.rec-actions .ghost-btn { border-style: solid; }
+#rec-discard { color: var(--danger); }

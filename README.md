@@ -49,6 +49,21 @@ Flag a note **Remember** or **Ask teacher** and it becomes a to-do until you tic
 
 Notes save automatically when you close the editor, however you close it.
 
+### Recordings
+
+Record audio or video of your practice from Today, the Diary, a tune's details, or a note. The
+recorder shows a live level meter (or camera preview) and a timer; when you stop, play it back
+and **Keep** it (with an optional note and tune) or **Discard** it. Kept recordings attach to a
+diary note: audio plays right from the list, and the note shows players for each clip, with
+**Save** to put a copy in Files/Photos or send it somewhere.
+
+- Audio is recorded with the phone's voice processing turned off (echo cancellation, noise
+  suppression, automatic gain), which otherwise mangles the sound of an instrument.
+- Closing the recorder mid-take keeps what you recorded; Discard is the only way to throw it away.
+- Recordings are stored on the device (in IndexedDB) and are **not** part of the JSON backup —
+  they're too big. Save the ones you want to keep. Settings shows how much space they use.
+- iOS may ask for microphone/camera permission again after the app has been closed for a while.
+
 ## Listening
 
 Each tune's detail sheet has a **Listen** section with classic recordings of it: 277 of the
@@ -88,9 +103,10 @@ Layout:
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/diary.js`: practice notes and flagged to-dos
+- `src/media.js`: recorded clips (formats, storage, cleanup)
 - `src/listen.js`, `src/data/`: recordings and search links; the seed tune list
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
-  sheet (`item`), and shared pieces (`shell`)
+  sheet (`item`), the recorder (`recorder`), and shared pieces (`shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
 - `test/`: unit tests for scheduling, planning, keys, storage, the diary and the recordings data

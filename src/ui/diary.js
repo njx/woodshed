@@ -3,6 +3,8 @@ import { dateStr, niceDate } from '../dates.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { FLAGS, addEntry, entryById, deleteEntry, openTodos, diaryDays, todoText } from '../diary.js';
+import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize } from '../media.js';
+import { openRecorder } from './recorder.js';
 import { $, $$, ICON, ui, render, goTo, toast, withUndo, openSheet, closeSheet } from './shell.js';
 
 const FLAG_ICON = { remember: ICON.pin, teacher: ICON.teacher };
@@ -26,12 +28,43 @@ export function noteHtml(e, { showDate = false } = {}) {
     <li class="note ${e.flag ? `flag-${e.flag}` : ''} ${e.done ? 'done' : ''}" data-note="${e.id}">
       ${e.flag
         ? `<button class="note-check ${e.done ? 'on' : ''}" data-done="${e.id}" aria-label="${e.done ? 'Mark not done' : 'Mark done'}" aria-pressed="${e.done}">${e.done ? ICON.check : FLAG_ICON[e.flag]}</button>`
-        : `<span class="note-dot">${ICON.note}</span>`}
+        : `<span class="note-dot">${e.media?.length ? (e.media.some((c) => c.kind === 'video') ? ICON.video : ICON.mic) : ICON.note}</span>`}
       <div class="note-body">
-        <p>${esc(e.text)}</p>
+        ${e.text ? `<p>${esc(e.text)}</p>` : e.media?.length ? '' : '<p class="muted">(empty)</p>'}
+        ${clipPills(e)}
         <small>${meta.map(esc).join(' · ')}</small>
       </div>
     </li>`;
+}
+
+function clipPills(e) {
+  if (!e.media?.length) return '';
+  return `<div class="clip-pills">${e.media.map((c) => `
+    <button class="clip-pill ${c.kind}" ${c.kind === 'audio' ? `data-play="${e.id}:${c.id}"` : ''} aria-label="Play ${c.kind} recording, ${fmtDuration(c.ms)}">
+      ${c.kind === 'audio' ? ICON.play : ICON.video}<span>${fmtDuration(c.ms)}</span>
+    </button>`).join('')}</div>`;
+}
+
+// One shared player for audio clips played straight from a list.
+let listPlayer = null;
+async function toggleListPlay(btn) {
+  const [entryId, clipId] = btn.dataset.play.split(':');
+  const playing = btn.classList.contains('playing');
+  if (listPlayer) {
+    listPlayer.audio.pause();
+    URL.revokeObjectURL(listPlayer.url);
+    listPlayer.btn.classList.remove('playing');
+    listPlayer = null;
+  }
+  if (playing) return;
+  const clip = entryById(entryId)?.media?.find((c) => c.id === clipId);
+  const url = clip && (await clipUrl(clip));
+  if (!url) return toast('This recording isn’t on this device');
+  const audio = new Audio(url);
+  listPlayer = { audio, url, btn };
+  btn.classList.add('playing');
+  audio.onended = () => { btn.classList.remove('playing'); URL.revokeObjectURL(url); listPlayer = null; };
+  audio.play().catch(() => { btn.classList.remove('playing'); toast('Couldn’t play this recording'); });
 }
 
 // Tapping a note opens it; tapping its check toggles done. Works in any list of notes.
@@ -44,6 +77,7 @@ export function bindNotes(root, back, onChange = render) {
     onChange();
     if (e.done) toast('Marked done', { label: 'Undo', fn: () => { e.done = false; save(); onChange(); } });
   }));
+  $$('[data-play]', root).forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); toggleListPlay(b); }));
   $$('[data-note]', root).forEach((li) => (li.onclick = () => openNote(li.dataset.note, { back })));
   $$('[data-goto-diary]', root).forEach((b) => (b.onclick = () => goTo('diary')));
 }
@@ -69,7 +103,10 @@ export function renderDiary(root) {
   root.innerHTML = `
     <header class="top">
       <div><p class="eyebrow">Practice notes</p><h1>Diary</h1></div>
-      <button class="icon-btn accent" id="add-note" aria-label="Add a note">${ICON.plus}</button>
+      <div class="top-actions">
+        ${canRecord() ? `<button class="icon-btn" id="diary-rec" aria-label="Record">${ICON.rec}</button>` : ''}
+        <button class="icon-btn accent" id="add-note" aria-label="Add a note">${ICON.plus}</button>
+      </div>
     </header>
     <div class="chips">${FILTERS.map((f) => `<button class="chip ${filter === f.id ? 'on' : ''}" data-df="${f.id}">${f.label}${counts[f.id] ? ` <span class="count">${counts[f.id]}</span>` : ''}</button>`).join('')}</div>
     ${filter !== 'all' ? `
@@ -83,6 +120,8 @@ export function renderDiary(root) {
   `;
 
   $('#add-note').onclick = () => openNote(null, { flag: filter === 'all' ? null : filter });
+  const rec = $('#diary-rec', root);
+  if (rec) rec.onclick = () => openRecorder({ flag: filter === 'all' ? null : filter });
   $$('[data-add-today]', root).forEach((b) => (b.onclick = () => openNote(null)));
   $$('[data-df]', root).forEach((c) => (c.onclick = () => { ui.diaryFilter = c.dataset.df; render(); }));
   const share = $('#share-todos', root);
@@ -148,17 +187,93 @@ export function openNote(id, opts = {}) {
       <input id="n-tune" list="n-tunes" value="${esc(tuneName())}" placeholder="Which tune is this about?" autocomplete="off">
       <datalist id="n-tunes">${tunes.map((t) => `<option value="${esc(t.name)}">`).join('')}</datalist>
     </label>
+    ${e.media?.length ? `<div class="field-label">Recordings</div><ul class="clips" id="n-clips">${e.media.map((c, i) => `
+      <li data-clip="${i}">
+        <div class="clip-player ${c.kind}"><span class="fine">Loading…</span></div>
+        <div class="clip-meta">
+          <span>${c.kind === 'video' ? 'Video' : 'Audio'} · ${fmtDuration(c.ms)} · ${fmtSize(c.size)}</span>
+          <button class="link-btn" data-clip-share="${i}">${ICON.share}Save</button>
+          <button class="link-btn danger" data-clip-rm="${i}">${ICON.skip}Remove</button>
+        </div>
+      </li>`).join('')}</ul>` : ''}
+    ${canRecord() ? `<button class="ghost-btn rec-start" id="n-record">${ICON.rec}<span>${e.media?.length ? 'Record another' : 'Record audio or video'}</span></button>` : ''}
     ${!isNew && e.flag ? `<label class="done-toggle"><input type="checkbox" id="n-done" ${e.done ? 'checked' : ''}> Done</label>` : ''}
     <button class="primary-btn" id="n-save">${isNew ? 'Save note' : 'Done'}</button>
     ${isNew ? '' : '<button class="danger-btn" id="n-delete">Delete note</button>'}
   `, () => {
     // Closing the sheet any way (button, backdrop, swipe down) keeps what you typed.
     stopListening();
+    urls.forEach((u) => URL.revokeObjectURL(u));
     if (!finished && commit() && isNew) toast('Note saved');
     render();
-    opts.back?.();
+    if (next) next();
+    else opts.back?.();
   });
   let finished = false;
+  let next = null; // where to go after closing, instead of opts.back (e.g. the recorder)
+  const urls = [];
+
+  // Players for this note's clips.
+  (e.media || []).forEach(async (c, i) => {
+    const url = await clipUrl(c);
+    const slot = $(`[data-clip="${i}"] .clip-player`, sheet);
+    if (!slot) return;
+    if (!url) { slot.innerHTML = '<span class="fine">Not on this device (recordings aren’t included in backups).</span>'; return; }
+    urls.push(url);
+    slot.innerHTML = c.kind === 'video' ? `<video src="${url}" controls playsinline preload="metadata"></video>` : `<audio src="${url}" controls preload="metadata"></audio>`;
+  });
+  $$('[data-clip-share]', sheet).forEach((b) => (b.onclick = async () => {
+    const c = e.media[Number(b.dataset.clipShare)];
+    const file = await clipFile(c, `woodshed-${e.date}-${c.id.slice(0, 4)}`);
+    if (!file) return toast('This recording isn’t on this device');
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (err) { if (err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }));
+  $$('[data-clip-rm]', sheet).forEach((b) => (b.onclick = () => {
+    if (!confirm('Remove this recording?')) return;
+    const i = Number(b.dataset.clipRm);
+    e.media = e.media.filter((_, j) => j !== i);
+    // The clip file itself is cleaned up the next time the app starts.
+    if (!commit()) {
+      // Nothing left in the note: no text and no recordings.
+      deleteEntry(e.id);
+      save();
+      finished = true;
+      closeSheet();
+      return toast('Note deleted');
+    }
+    finished = true;
+    next = () => openNote(e.id, opts); // reopen to redraw the clip list
+    closeSheet();
+  }));
+  const recBtn = $('#n-record', sheet);
+  if (recBtn) recBtn.onclick = () => {
+    const back = opts.back;
+    if (!isNew) {
+      commit();
+      finished = true;
+      next = () => openRecorder({ entryId: e.id, back: () => openNote(e.id, { back }) });
+    } else if (text.value.trim()) {
+      commit();
+      const created = store.state.diary[store.state.diary.length - 1];
+      finished = true;
+      next = () => openRecorder({ entryId: created.id, back: () => openNote(created.id, { back }) });
+    } else {
+      const name = $('#n-tune', sheet).value.trim().toLowerCase();
+      const tune = name ? tunes.find((t) => t.name.toLowerCase() === name) : null;
+      finished = true;
+      next = () => openRecorder({ itemId: tune?.id || opts.itemId, flag: e.flag, back });
+    }
+    closeSheet();
+  };
 
   const text = $('#n-text', sheet);
   $$('[data-flag]', sheet).forEach((b) => (b.onclick = () => {
@@ -204,7 +319,7 @@ export function openNote(id, opts = {}) {
     const name = $('#n-tune', sheet).value.trim().toLowerCase();
     const tune = name ? tunes.find((t) => t.name.toLowerCase() === name) : null;
     const fields = { text: text.value, flag: e.flag, itemId: tune?.id || null };
-    if (!fields.text.trim()) return false;
+    if (!fields.text.trim() && !e.media?.length) return false;
     if (isNew) addEntry(fields);
     else {
       Object.assign(e, fields, { text: fields.text.trim() });
@@ -217,7 +332,7 @@ export function openNote(id, opts = {}) {
   };
 
   $('#n-save', sheet).onclick = () => {
-    if (!text.value.trim()) {
+    if (!text.value.trim() && !e.media?.length) {
       if (isNew) return text.focus();
       return toast('A note needs some text — or delete it');
     }
