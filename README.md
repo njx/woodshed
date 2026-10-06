@@ -9,6 +9,9 @@ Each day it hands you a short set of tunes to play:
 - **Learn**: tunes you're familiar with, to get them under your fingers
 - **New**: one tune you don't know yet
 
+Turn on **Focus** for a tune (in its detail sheet) and it's in your set every day, on top of the
+regular mix, until you turn it off. Swipe a Focus card left to skip it for just today.
+
 Swipe a card **right** (or tap ✓) when you've played it, and **left** to swap in a different
 suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
 
@@ -18,9 +21,10 @@ suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
   further out: "OK" stretches the interval by about 1.6×, "Solid" by 2.5×, and "Rough" brings it
   back tomorrow. Starting intervals depend on familiarity (Familiar 2 days, Proficient 4,
   Mastered 7). Tunes that are most overdue are the most likely picks.
-- **Familiarity changes.** Once you've played a tune, its card lets you change how well you know
-  it on the spot. The app also suggests a change: up a level after 3 Solid sessions in a row, down
-  after 2 Rough ones (counting only sessions since the level last changed).
+- **Familiarity changes.** You set how well you know a tune in its detail sheet. After you play a
+  tune, its card suggests a change when your ratings point that way: up a level after 3 Solid
+  sessions in a row, down after 2 Rough ones (counting only sessions since the level last
+  changed).
 - **Priority** (Critical / High / Medium / Low) tips the balance among tunes that are due. You can
   set how much it matters, or turn it off.
 - **Keys.** Each tune stores its usual concert key(s). Tunes that are commonly played in more than

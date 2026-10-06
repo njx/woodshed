@@ -18,6 +18,7 @@ const PRIORITIES = [
   { v: 4, label: 'Low' },
 ];
 const BUCKETS = {
+  focus: { label: 'Focus', fallback: [] },
   hone: { label: 'Hone', fallback: ['learn', 'fresh'] },
   learn: { label: 'Learn', fallback: ['fresh', 'hone'] },
   fresh: { label: 'New', fallback: ['learn', 'hone'] },
@@ -284,7 +285,7 @@ function chooseKey(t, stats) {
 
 function pickTune(bucket, exclude, stats) {
   for (const b of [bucket, ...BUCKETS[bucket].fallback]) {
-    const pool = state.tunes.filter((t) => bucketOf(t) === b && !exclude.has(t.id));
+    const pool = state.tunes.filter((t) => !t.focus && bucketOf(t) === b && !exclude.has(t.id));
     const t = weightedPick(pool, (t) => weightFor(t, stats, b));
     if (t) return t;
   }
@@ -309,7 +310,7 @@ function buildPlan(keepPlayed = false) {
   const kept = prev ? prev.items.filter((it) => isPlayedToday(it.tuneId)) : [];
   const exclude = new Set(prev ? [...prev.skipped, ...prev.items.map((i) => i.tuneId)] : []);
   const items = [...kept];
-  const counts = { hone: 0, learn: 0, fresh: 0 };
+  const counts = { focus: 0, hone: 0, learn: 0, fresh: 0 };
   kept.forEach((it) => counts[it.bucket]++);
   for (const b of ['hone', 'learn', 'fresh']) {
     for (let i = counts[b]; i < state.settings[b]; i++) {
@@ -319,14 +320,40 @@ function buildPlan(keepPlayed = false) {
       items.push(makeItem(t, stats));
     }
   }
-  const order = { hone: 0, learn: 1, fresh: 2 };
-  items.sort((a, b) => order[a.bucket] - order[b.bucket]);
-  state.plan = { date: today, items, skipped: prev ? [...exclude].filter((id) => !items.some((i) => i.tuneId === id)) : [] };
+  state.plan = {
+    date: today,
+    items,
+    skipped: prev ? [...exclude].filter((id) => !items.some((i) => i.tuneId === id)) : [],
+    focusSkipped: prev?.focusSkipped || [],
+  };
+  syncFocus();
   save();
+}
+
+const BUCKET_ORDER = { focus: 0, hone: 1, learn: 2, fresh: 3 };
+
+// Focus tunes are in every day's set (on top of the regular mix) unless skipped for today.
+function syncFocus() {
+  const plan = state.plan;
+  plan.focusSkipped ||= [];
+  const stats = tuneStats();
+  for (const it of plan.items) {
+    const t = tuneById(it.tuneId);
+    if (!t) continue;
+    if (t.focus) it.bucket = 'focus';
+    else if (it.bucket === 'focus') it.bucket = bucketOf(t);
+  }
+  for (const t of state.tunes) {
+    if (t.focus && !plan.focusSkipped.includes(t.id) && !plan.items.some((i) => i.tuneId === t.id)) {
+      plan.items.push(makeItem(t, stats, 'focus'));
+    }
+  }
+  plan.items.sort((a, b) => BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket]);
 }
 
 function ensurePlan() {
   if (!state.plan || state.plan.date !== dateStr()) buildPlan();
+  else syncFocus();
 }
 
 // ---------- Logging ----------
@@ -472,6 +499,8 @@ const ICON = {
   shuffle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2.9 4.3 2.6l2.4 4.8c1.1 1.7 2.3 2.6 4.3 2.6H21M3 17h3.5c1.4 0 2.4-.5 3.3-1.4M14.2 8.4c.9-.9 1.9-1.4 3.3-1.4H21M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   key: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+  skip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  focus: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>',
 };
 
@@ -556,6 +585,12 @@ function renderToday(root) {
     };
     const swap = () => {
       if (isPlayedToday(item.tuneId)) return;
+      if (item.bucket === 'focus') {
+        return withUndo(`Skipped ${tuneById(item.tuneId).name} for today`, () => {
+          state.plan.focusSkipped.push(item.tuneId);
+          state.plan.items.splice(i, 1);
+        });
+      }
       const t = pickTune(item.bucket, excludedIds(), tuneStats());
       if (!t) return toast('No other tunes to suggest');
       withUndo(`Swapped out ${tuneById(item.tuneId).name}`, () => {
@@ -572,15 +607,16 @@ function renderToday(root) {
       save();
       render();
     }));
-    $$('[data-level]', card).forEach((b) => (b.onclick = (e) => {
+    const sug = $('.suggest [data-level]', card);
+    if (sug) sug.onclick = (e) => {
       e.stopPropagation();
       const t = tuneById(item.tuneId);
-      setLevel(t, Number(b.dataset.level));
+      setLevel(t, Number(sug.dataset.level));
       save();
       render();
-      toast(`${t.name}: ${LEVELS[t.level].label}`);
-    }));
-    card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .levels-row, .suggest')) openTune(item.tuneId); };
+      toast(`${t.name} is now ${LEVELS[t.level].label}`);
+    };
+    card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest')) openTune(item.tuneId); };
     attachSwipe(card, {
       right: toggle,
       left: isPlayedToday(item.tuneId) ? null : swap,
@@ -604,12 +640,12 @@ function cardHtml(it, i, stats) {
   const s = stats.get(t.id);
   const entry = todaysEntry(t.id);
   const played = !!entry;
-  const late = !played && it.bucket !== 'fresh' && s?.count && overdue(t, stats) >= 1.5;
+  const late = !played && (it.bucket === 'hone' || it.bucket === 'learn') && s?.count && overdue(t, stats) >= 1.5;
   return `
   <li class="card-wrap">
     <div class="swipe-bg" aria-hidden="true">
       <span class="bg-right">${ICON.check}${played ? 'Unmark' : 'Played'}</span>
-      <span class="bg-left">Swap${ICON.swap}</span>
+      <span class="bg-left">${it.bucket === 'focus' ? 'Skip today' : 'Swap'}${ICON.swap}</span>
     </div>
     <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" tabindex="0">
       <div class="card-top">
@@ -623,14 +659,10 @@ function cardHtml(it, i, stats) {
       <div class="card-actions">
         ${played
           ? `<div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>`
-          : `<button class="swap icon-btn small" aria-label="Swap for a different tune">${ICON.swap}</button>`}
+          : `<button class="swap icon-btn small" aria-label="${it.bucket === 'focus' ? 'Skip for today' : 'Swap for a different tune'}">${it.bucket === 'focus' ? ICON.skip : ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
-      ${played ? `
-        ${suggestionHtml(t)}
-        <div class="levels-row" role="group" aria-label="How well do you know it now?">
-          ${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-level="${l.v}" aria-pressed="${t.level === l.v}">${l.label}</button>`).join('')}
-        </div>` : ''}
+      ${played ? suggestionHtml(t) : ''}
     </article>
   </li>`;
 }
@@ -697,7 +729,7 @@ function rowHtml(t, stats) {
   return `
   <li class="row" data-id="${t.id}" role="button" tabindex="0">
     <div class="row-main">
-      <b>${esc(t.name)}${t.mine ? ' <span class="mine">mine</span>' : ''}</b>
+      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.mine ? ' <span class="mine">mine</span>' : ''}</b>
       <span class="row-sub">${keys ? `<span class="row-key">${esc(keys)}</span> · ` : ''}${esc(t.style)} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}</span>
     </div>
     ${pips(t.level)}
@@ -708,6 +740,7 @@ function rowHtml(t, stats) {
 const FILTERS = [
   { id: 'all', label: 'All', fn: () => true },
   { id: 'due', label: 'Due', fn: (t, s) => t.level >= 1 && (!t.due || t.due <= dateStr()) && s.get(t.id)?.last !== dateStr() },
+  { id: 'focus', label: 'Focus', fn: (t) => t.focus },
   { id: 'l3', label: 'Mastered', fn: (t) => t.level === 3 },
   { id: 'l2', label: 'Proficient', fn: (t) => t.level === 2 },
   { id: 'l1', label: 'Familiar', fn: (t) => t.level === 1 },
@@ -802,6 +835,11 @@ function openTune(id) {
     const played = isPlayedToday(t.id);
     return `
       <textarea class="title-input" id="f-name" rows="1" placeholder="Tune name" aria-label="Tune name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
+      <label class="focus-toggle">
+        <span class="focus-icon">${ICON.focus}</span>
+        <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
+        <input type="checkbox" id="f-focus" role="switch" ${t.focus ? 'checked' : ''}>
+      </label>
       <label class="field-label">How well do you know it?</label>
       ${isNew ? '' : suggestionHtml(t)}
       <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
@@ -842,6 +880,14 @@ function openTune(id) {
     bind();
   };
   const bind = () => {
+    $('#f-focus', sheet).onchange = (e) => {
+      t.focus = e.target.checked;
+      if (!isNew && state.plan?.date === dateStr()) {
+        if (t.focus) state.plan.focusSkipped = (state.plan.focusSkipped || []).filter((id) => id !== t.id);
+        syncFocus();
+      }
+      commit();
+    };
     const sug = $('.suggest [data-level]', sheet);
     if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
     // The name field wraps onto as many lines as it needs, but stays a single line of text.
@@ -1067,7 +1113,7 @@ function renderSettings(root) {
       ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
       ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
       ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
-      <p class="fine">Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
+      <p class="fine">Focus tunes come on top of this mix, every day. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
     </section>
 
