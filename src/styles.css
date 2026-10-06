@@ -499,3 +499,42 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
   .rating > span { display: none; }
   .rating button { flex: 1; }
 }
+
+/* ---------- Listen (recordings in the detail sheet) ---------- */
+.link-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; font-weight: 600; color: var(--accent); text-transform: none; letter-spacing: 0;
+}
+.link-btn svg { width: 15px; height: 15px; }
+.recordings { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: 14px; overflow: hidden; }
+.recordings li { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.recordings li:last-child { border-bottom: 0; }
+.recordings a {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; color: inherit; text-decoration: none; min-height: 52px;
+}
+.recordings a:active { background: var(--surface-2); }
+.rec-play {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent);
+}
+.rec-play svg { width: 14px; height: 14px; fill: currentColor; stroke: none; margin-left: 2px; }
+.rec-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rec-text b, .rec-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-text b { font-weight: 600; font-size: 15px; }
+.rec-text small { font-size: 13px; color: var(--ink-3); }
+.rec-out { color: var(--ink-3); display: grid; }
+.rec-out svg { width: 17px; height: 17px; }
+.rec-remove { flex: none; width: 40px; height: 52px; display: grid; place-items: center; color: var(--ink-3); }
+.rec-remove svg { width: 16px; height: 16px; }
+.rec-more a { gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink-2); min-height: 44px; }
+.rec-more a svg { width: 17px; height: 17px; color: var(--ink-3); }
+.rec-more .link-btn { padding: 0 14px; min-height: 44px; }
+.rec-form { display: flex; gap: 6px; margin-top: 8px; }
+.rec-form[hidden] { display: none; }
+.rec-form input {
+  flex: 1; min-width: 0; height: 40px; padding: 0 10px; border: 1.5px solid var(--line);
+  border-radius: 10px; background: var(--surface); font-size: 16px; outline: 0;
+}
+.rec-form input:focus { border-color: var(--accent); }
+.rec-form .pill-btn { background: var(--accent); color: var(--accent-ink); }

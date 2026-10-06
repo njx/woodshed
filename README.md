@@ -34,27 +34,55 @@ suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
 - **Transposition.** Pick the instruments you play (Concert, B♭, E♭, F). Keys are shown for
   whichever one is active; tap **Keys in …** to switch.
 
+## Listening
+
+Each tune's detail sheet has a **Listen** section with classic recordings of it: 277 of the
+301 tunes have at least one (207 with a specific album), and you can add your own. The rest get a
+plain search link. Tapping a recording searches Apple Music, Spotify or YouTube (your choice in
+Settings) for that tune by that artist. Links are searches rather than direct track links, because
+linking to exact tracks would need each service's developer API (and for Spotify, logging in). The
+list is in `src/data/recordings.js`. It was compiled from well-known discographies, with a sample
+of album track lists checked online.
+
 ## Data
 
-- The starting list (`tunes.js`) was imported from the spreadsheet: the "My List" column (A–D)
-  became the familiarity level, and the priority column became the priority. The usual keys come
-  from the iReal Pro jazz collection via
+- The starting list (`src/data/tunes.js`) was imported from the spreadsheet: the "My List" column
+  (A–D) became the familiarity level, and the priority column became the priority. The usual keys
+  come from the iReal Pro jazz collection via
   [mikeoliphant/JazzStandards](https://github.com/mikeoliphant/JazzStandards), with a few hand
   edits for tunes that are often called in more than one key.
-- All your data (edits, practice log, settings) lives in the browser's local storage on your
-  device. Use **Settings → Export backup** now and then, and before switching phones.
+- All your data (edits, practice log, settings) is stored in IndexedDB on your device. Data saved
+  by the first version (in `localStorage`) is picked up automatically. Use **Settings → Export
+  backup** now and then, and before switching phones.
 
-## Running it
+## Development
 
-It's a static site with no build step: plain HTML, CSS and ES modules, plus a service worker so
-it works offline.
+It's a small Vite project in plain JavaScript (no framework), with Vitest for tests.
 
 ```sh
-python3 -m http.server 8000   # then open http://localhost:8000
+npm install
+npm run dev      # local dev server
+npm test         # unit tests
+npm run build    # production build in dist/
 ```
 
-**On your phone:** host it anywhere static. This repo includes a GitHub Pages workflow
-(`.github/workflows/pages.yml`) that deploys on every push to `main`. Enable it under *Settings →
-Pages → Source: GitHub Actions*. Then open the site and choose **Share → Add to Home Screen** on
-iOS, or **Install app** on Android. Installing matters on iOS: Safari can clear storage for sites
-you haven't visited in a while, but installed home-screen apps are exempt.
+Layout:
+
+- `src/practice.js`: practice log, spaced-repetition scheduling, level suggestions
+- `src/plan.js`: picking the daily set and the key for each item
+- `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
+- `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
+- `src/listen.js`, `src/data/`: recordings and search links; the seed tune list
+- `src/ui/`: one module per screen (`today`, `tunes`, `progress`, `settings`), the tune detail
+  sheet (`item`), and shared pieces (`shell`)
+- `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
+  app works offline.
+- `test/`: unit tests for scheduling, planning, keys, storage and the recordings data
+
+## Deploying
+
+`.github/workflows/pages.yml` runs the tests, builds, and deploys `dist/` to GitHub Pages on
+every push to `main` (*Settings → Pages → Source: GitHub Actions*). On your phone, open the site
+and choose **Share → Add to Home Screen** on iOS, or **Install app** on Android. Installing
+matters on iOS: Safari can clear storage for sites you haven't visited in a while, but installed
+home-screen apps are exempt.
