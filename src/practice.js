@@ -70,6 +70,7 @@ export function markPlayed(itemId, planItem) {
     key: planItem?.key ?? null, alt: !!planItem?.alt, shift: planItem?.shift ?? null,
     ...(planItem?.keys?.length ? { keys: [...planItem.keys] } : {}),
     rating: 'ok', prev: { ivl: t.ivl, due: t.due },
+    ...(t.tempo ? { bpm: t.tempo } : {}),
   };
   store.state.log.push(entry);
   schedule(t, entry.rating, entry.prev);

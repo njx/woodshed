@@ -12,6 +12,8 @@ import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
+import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
+import { tempoSuggestion } from '../tempo.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml,
 } from './shell.js';
@@ -60,11 +62,12 @@ export function openExercise(id, opts = {}) {
           <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
           <div class="play-row">
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
-            <label class="tempo">♩ = <input type="number" id="x-tempo" min="30" max="300" value="${t.tempo || 100}" inputmode="numeric"></label>
+            <span class="fine">at ${t.tempo || 100} bpm</span>
           </div>
           ${todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
 
+      ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
 
@@ -99,7 +102,7 @@ export function openExercise(id, opts = {}) {
           </div>
           ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
             <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
-            <span>${esc(exerciseKeysText(entryKeys(e)))}</span>
+            <span>${esc(exerciseKeysText(entryKeys(e)))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
@@ -167,14 +170,7 @@ export function openExercise(id, opts = {}) {
         toast('Couldn’t play audio on this device');
       }
     };
-    const tempo = $('#x-tempo', sheet);
-    if (tempo) tempo.onchange = async () => {
-      t.tempo = Math.max(30, Math.min(300, Number(tempo.value) || 100));
-      tempo.value = t.tempo;
-      commit();
-      stopFn?.();
-      tune = await drawNotation();
-    };
+
     const editAbc = $('#x-edit-abc', sheet) || $('#x-add-abc', sheet);
     if (editAbc) editAbc.onclick = () => {
       if (isNew) return toast('Add the exercise first, then its notation');
@@ -249,6 +245,9 @@ export function openExercise(id, opts = {}) {
       refresh();
     };
     $('#x-note', sheet).onclick = () => goTo(() => openNote(null, { itemId: t.id, back }));
+    bindTempo($('[data-item-id]', sheet) || sheet, { onChange: refresh });
+    // Opening the metronome leaves this sheet; come back to it afterwards.
+    $$('[data-metro]', sheet).forEach((b) => (b.onclick = () => goTo(() => openMetronome({ itemId: t.id, back }))));
     const rec = $('#x-rec', sheet);
     if (rec) rec.onclick = () => goTo(() => openRecorder({ itemId: t.id, back }));
     bindNotes(sheet, back, refresh);

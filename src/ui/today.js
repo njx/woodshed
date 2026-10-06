@@ -16,6 +16,8 @@ import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText } from './exercise.js';
+import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
+import { tempoSuggestion } from '../tempo.js';
 import { CATEGORIES } from '../constants.js';
 import { canRecord } from '../media.js';
 
@@ -45,9 +47,10 @@ export function renderToday(root) {
     ${items.length ? '' : '<p class="empty">No tunes yet. Add some on the Tunes tab.</p>'}
     <ul class="cards">${state.plan.items.map((it, i) => cardHtml(it, i, stats)).join('')}</ul>
     <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
-    <div class="btn-row today-actions">
-      <button class="ghost-btn" id="today-note">${ICON.note}<span>Add a note</span></button>
-      ${canRecord() ? `<button class="ghost-btn" id="today-rec">${ICON.rec}<span>Record</span></button>` : ''}
+    <div class="today-tools">
+      <button id="today-note">${ICON.note}<span>Note</span></button>
+      ${canRecord() ? `<button id="today-rec">${ICON.rec}<span>Record</span></button>` : ''}
+      <button id="today-metro">${ICON.metro}<span>Metronome</span></button>
     </div>
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
@@ -66,6 +69,7 @@ export function renderToday(root) {
     render();
   };
   $('#today-note').onclick = () => openNote(null);
+  $('#today-metro').onclick = () => openMetronome();
   const rec = $('#today-rec', root);
   if (rec) rec.onclick = () => openRecorder();
   bindNotes(root);
@@ -120,7 +124,8 @@ function bindCard(card) {
     render();
     toast(`${t.name} is now ${LEVELS[t.level].label}`);
   };
-  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest')) openItem(item.itemId, { keys: item.keys }); };
+  bindTempo(card, { onChange: render });
+  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip')) openItem(item.itemId, { keys: item.keys }); };
   attachSwipe(card, {
     right: toggle,
     left: isPlayedToday(item.itemId) ? null : swap,
@@ -156,14 +161,14 @@ function cardHtml(it, i, stats) {
       <span class="bg-right">${ICON.check}${played ? 'Unmark' : 'Played'}</span>
       <span class="bg-left">${focus ? 'Skip today' : 'Swap'}${ICON.swap}</span>
     </div>
-    <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" tabindex="0">
+    <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" data-item-id="${t.id}" tabindex="0">
       <div class="card-top">
         <span class="bucket"><i></i>${BUCKETS[it.bucket].label}</span>
         <span class="style">${esc(t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style)}</span>
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>
-      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span></div>
+      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${tempoChip(t)}</div>
       <div class="card-actions">
         ${keyChip(it, t)}
         ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
@@ -171,6 +176,7 @@ function cardHtml(it, i, stats) {
       </div>
       ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}
       ${played ? suggestionHtml(t, levelSuggestion(t)) : ''}
+      ${played ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}
     </article>
   </li>`;
 }

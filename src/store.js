@@ -13,8 +13,9 @@ import { kvGet, kvSet } from './db.js';
 //             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings? }
 //             exercise: { category, keyMode, keysPerSession, keys [roots 0–11, for 'fixed'],
 //                         abc (notation written in C), meter }
-//   log:      { id, date, itemId, at, key, keys?, alt, shift, rating, prev: { ivl, due } }
-//             (exercises log every key practiced in keys)
+//             all items may have tempo (working BPM), goalTempo, tempoSetAt (see tempo.js)
+//   log:      { id, date, itemId, at, key, keys?, alt, shift, rating, bpm?, prev: { ivl, due } }
+//             (exercises log every key practiced in keys; bpm is the tempo it was played at)
 //   plan:     today's set { date, items: [{ itemId, bucket, key, keys?, alt, shift }], skipped,
 //             focusSkipped }
 //   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,

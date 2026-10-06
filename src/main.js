@@ -8,7 +8,9 @@ import { renderProgress } from './ui/progress.js';
 import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
 import { cleanupMedia } from './media.js';
+import { mountMetronomePill } from './ui/metronome.js';
 
+mountMetronomePill();
 registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
 setSaveErrorHandler(() => toast('Could not save — storage is full or blocked'));
 

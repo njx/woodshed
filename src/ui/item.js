@@ -12,6 +12,8 @@ import { entriesFor } from '../diary.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { openExercise } from './exercise.js';
+import { tempoRowHtml, tempoSuggestionHtml, bindTempo } from './metronome.js';
+import { tempoSuggestion } from '../tempo.js';
 import { canRecord } from '../media.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
@@ -77,6 +79,7 @@ export function openItem(id, opts) {
         <input type="checkbox" id="f-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
       ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
+      ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
       <label class="field-label">How well do you know it?</label>
       ${isNew ? '' : suggestionHtml(t, levelSuggestion(t))}
       <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
@@ -101,7 +104,7 @@ export function openItem(id, opts) {
           </div>
           ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
             <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
-            <span>${e.key != null ? esc(kn(e.key)) : e.shift ? esc(SHIFTS[e.shift]) : ''}${e.alt ? ' <em>new key</em>' : ''}</span>
+            <span>${e.key != null ? esc(kn(e.key)) : e.shift ? esc(SHIFTS[e.shift]) : ''}${e.alt ? ' <em>new key</em>' : ''}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
@@ -223,6 +226,7 @@ export function openItem(id, opts) {
         refresh();
       };
       const back = () => openItem(t.id);
+      bindTempo(sheet, { back, onChange: refresh });
       $('#add-tune-note', sheet).onclick = () => openNote(null, { itemId: t.id, back });
       const recTune = $('#rec-tune', sheet);
       if (recTune) recTune.onclick = () => openRecorder({ itemId: t.id, back });

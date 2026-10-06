@@ -45,6 +45,26 @@ names. Under the hood it's [ABC notation](https://abcnotation.com) with an eight
 triplet, `z2` quarter rest, `C2-C2` tie, `|` bar line; `^` sharp, `_` flat, `=` natural; lowercase
 is the octave up and `,` / `'` go further down / up. Tap ⌨ to type ABC directly.
 
+## Metronome and tempo
+
+Open the **metronome** from Today, or from the tempo button on any tune or exercise card (or its
+details). It has ±1/±5 buttons, a slider, tap tempo, beats per bar with an accented downbeat, and
+pulsing beat dots. Clicks are scheduled on the Web Audio clock so the beat stays steady. It keeps
+running while you move around the app (a small pill shows the tempo; tap it to reopen, × to stop),
+keeps the screen awake, and plays through the iPhone's silent switch where Safari allows it.
+
+Each tune and exercise has a **working tempo** (and an optional goal). Opening the metronome from
+an item sets its tempo, and logging a session saves the tempo you played at, shown in the item's
+history. After you rate a session:
+
+- **Solid twice in a row** at the working tempo → a suggestion to speed up about 5% (never past
+  your goal; reaching the goal gets a 🎉).
+- **Rough** → a suggestion to slow down about 10%.
+- **OK** → keep going at the same tempo.
+
+Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
+you actually played. Nudging the metronome while you practice updates today's session too.
+
 ## How tunes are picked
 
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
@@ -133,13 +153,14 @@ Layout:
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/keystats.js`: key familiarity and choosing exercise keys
+- `src/tempo.js`, `src/metronome.js`: working tempos and suggestions; the metronome engine
 - `src/abc.js`: building notation (ABC), note lengths, transposition
 - `src/diary.js`: practice notes and flagged to-dos
 - `src/media.js`: recorded clips (formats, storage, cleanup)
 - `src/listen.js`, `src/data/`: recordings and search links; the seed tunes and exercises
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
   sheet (`item`), exercises and the notation editor (`exercise`, `notation`), the recorder
-  (`recorder`), and shared pieces (`shell`)
+  (`recorder`), the metronome (`metronome`), and shared pieces (`shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
 - `test/`: unit tests for scheduling, planning, keys, exercises, notation, storage, the diary,
