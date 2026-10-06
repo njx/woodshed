@@ -637,13 +637,14 @@ function renderToday(root) {
 }
 
 function keyChip(it, t) {
+  const chip = (cls, main, sub) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   if (it.alt) {
-    if (it.key == null) return `<div class="keychip alt">${ICON.key}<span>Transpose it <b>${SHIFTS[it.shift]}</b></span></div>`;
-    return `<div class="keychip alt">${ICON.key}<span>Try it in <b>${keyName(it.key)}</b></span><small>usually ${esc(keysText(t))}</small></div>`;
+    if (it.key == null) return chip('alt', `Transpose it <b>${SHIFTS[it.shift]}</b>`);
+    return chip('alt', `Try it in <b>${keyName(it.key)}</b>`, `usually ${esc(keysText(t))}`);
   }
   if (it.key == null) return '';
   const others = t.keys.filter((k) => k !== it.key);
-  return `<div class="keychip">${ICON.key}<span>Key of <b>${keyName(it.key)}</b></span>${others.length ? `<small>also ${others.map((k) => keyName(k)).join(', ')}</small>` : ''}</div>`;
+  return chip('', `Key of <b>${keyName(it.key)}</b>`, others.length ? `also ${others.map((k) => keyName(k)).join(', ')}` : '');
 }
 
 function cardHtml(it, i, stats) {
@@ -667,13 +668,12 @@ function cardHtml(it, i, stats) {
       </div>
       <h2>${esc(t.name)}</h2>
       <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span></div>
-      ${keyChip(it, t)}
       <div class="card-actions">
-        ${played
-          ? `<div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>`
-          : `<button class="swap icon-btn small" aria-label="${it.bucket === 'focus' ? 'Skip for today' : 'Swap for a different tune'}">${it.bucket === 'focus' ? ICON.skip : ICON.swap}</button>`}
+        ${keyChip(it, t)}
+        ${played ? '' : `<button class="swap icon-btn small" aria-label="${it.bucket === 'focus' ? 'Skip for today' : 'Swap for a different tune'}">${it.bucket === 'focus' ? ICON.skip : ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
+      ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}
       ${played ? suggestionHtml(t) : ''}
     </article>
   </li>`;

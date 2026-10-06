@@ -132,7 +132,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .welcome .chip.on { background: var(--accent); color: var(--accent-ink); }
 
 /* ---------- Cards ---------- */
-.cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .card-wrap { position: relative; border-radius: var(--radius); --reveal: 0; }
 .swipe-bg {
   position: absolute; inset: 0; border-radius: var(--radius);
@@ -477,3 +477,25 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
   font-size: 11.5px; letter-spacing: .02em; text-transform: none;
 }
 .eyebrow-row .transpose svg { width: 12px; height: 12px; }
+
+/* ---------- Key chip shares a row with the card buttons ---------- */
+.card-actions { margin-top: 12px; }
+.card-actions .keychip {
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
+  margin: 0; min-width: 0; max-width: calc(100% - 112px); min-height: 44px;
+  padding: 6px 14px 6px 10px; font-size: 15px; line-height: 1.25;
+}
+.kc-text { display: flex; flex-direction: column; min-width: 0; }
+.kc-text span, .kc-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-actions .keychip small { flex-basis: auto; padding: 0; margin: 0; }
+.card.done .card-actions .keychip { max-width: calc(100% - 60px); }
+.card-actions .swap { margin-left: auto; }
+.card-actions .swap + .check { margin-left: 0; }
+.rating { margin-top: 10px; align-items: center; }
+.rating > span { flex: 1; padding-left: 9px; font-size: 13.5px; color: var(--ink-3); white-space: nowrap; }
+.rating > span { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.rating button { flex: 0 1 auto; }
+@media (max-width: 359px) {
+  .rating > span { display: none; }
+  .rating button { flex: 1; }
+}
