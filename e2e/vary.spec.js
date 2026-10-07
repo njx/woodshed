@@ -16,6 +16,7 @@ test('a scale exercise shows each scale type, and settings change what comes up 
   await page.locator('.type-strip button', { hasText: 'harm min' }).click();
   await expect(page.locator('.type-strip button.on')).toHaveText('harm min');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await page.locator('.pattern-card').scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('scales.png') });
   await ui.expectNoSideScroll();
 
@@ -26,14 +27,21 @@ test('a scale exercise shows each scale type, and settings change what comes up 
   await expect.poll(async () => (await ui.saved()).state.items.find((t) => t.name === 'Scales: major and minors').vary.types)
     .toEqual(['major', 'dorian', 'harmonic', 'melodic', 'dimHW', 'lydian']);
 
-  // Shapes, including your own pattern.
+  // Patterns: presets show their numbers; changing them makes the pattern your own.
   await page.locator('[data-shape="thirds"]').click();
+  await expect(page.locator('#x-pattern')).toHaveText('1 3 2 4 3 5 4 6 5 7 6 8 7 9 8');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
-  await page.locator('[data-shape="custom"]').click();
-  await page.fill('#x-pattern', '1 x');
-  await expect(page.locator('#x-pattern-msg')).toHaveClass(/error/);
-  await page.fill('#x-pattern', '1 2 3 5 8');
-  await expect(page.locator('#x-pattern-msg')).toHaveText('Looks good.');
+  await page.locator('[data-shape="updown"]').click();
+  for (let i = 0; i < 7; i++) await page.click('[data-pn="back"]'); // drop the way down
+  await expect(page.locator('#x-pattern')).toHaveText('1 2 3 4 5 6 7 8');
+  await expect(page.locator('[data-shape="custom"]')).toHaveClass(/on/);
+  await page.click('[data-pn="clear"]');
+  await expect(page.locator('#x-pattern-msg')).toHaveText('Tap some numbers.');
+  for (const n of ['1', '2', '3', '5', '8']) await page.click(`[data-pn="${n}"]`);
+  await expect(page.locator('#x-pattern')).toHaveText('1 2 3 5 8');
+  await expect(page.locator('#x-pattern-msg')).not.toHaveClass(/error/);
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await ui.expectNoSideScroll();
   await expect.poll(async () => (await ui.saved()).state.items.find((t) => t.name === 'Scales: major and minors').vary)
     .toMatchObject({ shape: 'custom', pattern: '1 2 3 5 8' });
 });
@@ -43,6 +51,8 @@ test('chord types; a written exercise can be switched to vary @narrow', async ({
   await openExercise(page, ui, 'Seventh-chord arpeggios');
   await expect(page.locator('.type-strip button')).toHaveText(['maj7', 'm7', '7', 'ø7', '°7']);
   await expect(page.locator('[data-shape]')).toHaveText(['Up and down', 'Two octaves', 'Inversions', 'My own']);
+  await expect(page.locator('#x-pattern')).toHaveText('1 3 5 7 8 7 5 3 1');
+  await expect(page.locator('[data-pn]')).toHaveText(['1', '3', '5', '7', '8', '10', '12', '14', '15', '⌫', 'Clear']);
   await page.locator('.type-strip button', { hasText: '°7' }).click();
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('chords.png') });
@@ -53,6 +63,8 @@ test('chord types; a written exercise can be switched to vary @narrow', async ({
   await expect(page.locator('#x-edit-abc')).toHaveCount(1);
   await page.click('#x-vary [data-vary="scale"]');
   await expect(page.locator('#x-edit-abc')).toHaveCount(0);
+  await page.click('#x-to-pattern');
+  await expect(page.locator('.pattern-card')).toBeInViewport();
   await expect(page.locator('.type-strip button')).toHaveCount(6);
   await page.click('#x-vary [data-vary=""]');
   await expect(page.locator('.type-strip')).toHaveCount(0);

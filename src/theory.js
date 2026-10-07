@@ -58,6 +58,12 @@ export const SHAPES = {
   custom: { label: 'My own', kinds: ['scale', 'chord'] },
 };
 
+// Numbers to tap when writing your own pattern.
+export const PATTERN_PAD = {
+  scale: [...Array(15).keys()].map((i) => i + 1),
+  chord: [1, 3, 5, 7, 8, 10, 12, 14, 15],
+};
+
 export const typesOf = (kind) => VARY[kind]?.types || {};
 export const typeInfo = (kind, id) => typesOf(kind)[id] || null;
 
@@ -105,6 +111,15 @@ export function parsePattern(text, kind) {
     } else numbers.push(v);
   }
   return { numbers };
+}
+
+// A pattern as note numbers to show and edit: your own as typed, or a preset as it comes out on a
+// 7-note scale or a 4-note chord (written as chord tones 1 3 5 7, 8 10 12 14…).
+export function patternText(kind, shape, pattern = '') {
+  if (shape === 'custom') return String(pattern || '').trim().split(/[\s,–-]+/).filter(Boolean).join(' ');
+  const numbers = shapeNumbers(shape, kind === 'chord' ? 4 : 7, kind);
+  if (kind !== 'chord') return numbers.join(' ');
+  return numbers.map((v) => [1, 3, 5, 7][(v - 1) % 4] + 7 * Math.floor((v - 1) / 4)).join(' ');
 }
 
 // ABC notation (in C, L:1/8, eighth notes) for a shape on a scale or chord type.

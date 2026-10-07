@@ -80,3 +80,22 @@ describe('choosing types', () => {
     expect(chooseTypes({ kind: 'scale', types: ['nope'] }, 2)).toEqual([]);
   });
 });
+
+describe('patterns as numbers', () => {
+  it('shows presets as note numbers, and chord patterns as chord tones', async () => {
+    const { patternText } = await import('../src/theory.js');
+    expect(patternText('scale', 'updown')).toBe('1 2 3 4 5 6 7 8 7 6 5 4 3 2 1');
+    expect(patternText('scale', 'p1235').startsWith('1 2 3 5 2 3 4 6')).toBe(true);
+    expect(patternText('chord', 'updown')).toBe('1 3 5 7 8 7 5 3 1');
+    expect(patternText('chord', 'inversions')).toBe('1 3 5 7 3 5 7 8 5 7 8 10 7 8 10 12 15');
+    expect(patternText('scale', 'custom', ' 1  2,3-5 ')).toBe('1 2 3 5');
+  });
+
+  it('a preset written out as your own pattern gives the same notes', async () => {
+    const { patternText } = await import('../src/theory.js');
+    for (const [kind, id, shape] of [['scale', 'dorian', 'thirds'], ['chord', 'm7', 'inversions'], ['chord', 'dom7', 'updown2']]) {
+      const pattern = patternText(kind, shape);
+      expect(generateAbc(kind, id, { shape: 'custom', pattern })).toBe(generateAbc(kind, id, { shape }));
+    }
+  });
+});

@@ -896,3 +896,11 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 /* Exercise keys (and scale or chord types) wrap between keys instead of being cut off. */
 .keychip.multi .kc-text span { white-space: normal; }
 .keychip.multi b { white-space: nowrap; }
+
+/* Exercise pattern: the note numbers, and a pad to change them */
+.pattern-card { margin-top: 10px; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.pattern-line { min-height: 28px; font: 600 18px/1.5 var(--serif); letter-spacing: .04em; color: var(--ink); word-spacing: .15em; }
+.pattern-pad { grid-template-columns: repeat(9, 1fr); gap: 5px; margin-top: 8px; }
+.pattern-pad button { min-height: 40px; padding: 0; font-variant-numeric: tabular-nums; }
+.pattern-pad [data-pn="clear"] { grid-column: span 2; font-size: 13px; }
+.pattern-card .fine { margin: 8px 0 0; }

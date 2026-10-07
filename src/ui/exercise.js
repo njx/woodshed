@@ -8,7 +8,7 @@ import { syncFocus, refreshTypes } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
-import { VARY, SHAPES, typesOf, typeInfo, variantName, generateAbc, parsePattern } from '../theory.js';
+import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -30,6 +30,10 @@ export function exerciseKeysText(keys = [], t = null, types = null) {
   if (!keys.length) return types.map((id) => typeInfo(kind, id)?.label || id).join(' · ');
   return keys.map((k, i) => variantName(rootName(k), kind, types[i])).join(' · ');
 }
+
+const patternHint = (kind) => (kind === 'chord'
+  ? 'Numbers are chord tones: 1 3 5 7, and 8 10 12 14 an octave up. Tap numbers to change the pattern.'
+  : 'Numbers are notes of the scale: 1 is the root, and on a 7-note scale 8 is the octave. Tap numbers to change the pattern; the presets fit themselves to scales with more or fewer notes.');
 
 // The notation to show: generated for a scale or chord type, or the exercise's own.
 function notationFor(t, type) {
@@ -67,7 +71,8 @@ export function openExercise(id, opts = {}) {
         <input type="checkbox" id="x-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
 
-      <div class="field-label row-label"><span>Notation</span>${t.abc && !t.vary ? `<button class="link-btn" id="x-edit-abc">Edit</button>` : ''}</div>
+      <div class="field-label row-label"><span>Notation</span>${t.vary ? '<button class="link-btn" id="x-to-pattern">Edit pattern</button>'
+        : t.abc ? '<button class="link-btn" id="x-edit-abc">Edit</button>' : ''}</div>
       ${t.vary || t.abc ? `
         <div class="notation-card">
           <div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
@@ -99,15 +104,15 @@ export function openExercise(id, opts = {}) {
         <p class="fine">Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.</p>
         <div class="chips wrap" id="x-types">${Object.entries(typesOf(t.vary.kind)).map(([id, x]) => `
           <button class="chip ${t.vary.types.includes(id) ? 'on' : ''}" data-vtype="${id}" aria-pressed="${t.vary.types.includes(id)}">${esc(x.label)}</button>`).join('')}</div>
-        <label class="field-label">Shape</label>
+        <label class="field-label">Pattern</label>
         <div class="chips wrap" id="x-shape">${Object.entries(SHAPES).filter(([, x]) => x.kinds.includes(t.vary.kind)).map(([id, x]) => `
           <button class="chip ${t.vary.shape === id ? 'on' : ''}" data-shape="${id}">${esc(x.label)}</button>`).join('')}</div>
-        ${t.vary.shape === 'custom' ? `
-          <label class="field">
-            <span class="field-label">Notes, as numbers</span>
-            <input id="x-pattern" type="text" inputmode="numeric" autocomplete="off" value="${esc(t.vary.pattern)}" placeholder="${t.vary.kind === 'chord' ? '1 3 5 7 8 7 5 3' : '1 2 3 5'}">
-          </label>
-          <p class="fine" id="x-pattern-msg">${t.vary.kind === 'chord' ? 'Chord tones 1 3 5 7, and 8 10 12 14 an octave up.' : 'Notes of the scale: 1 is the root; on a 7-note scale, 8 is the octave.'}</p>` : ''}` : ''}
+        <div class="pattern-card">
+          <div class="pattern-line" id="x-pattern" aria-live="polite">${esc(patternText(t.vary.kind, t.vary.shape, t.vary.pattern)) || '&nbsp;'}</div>
+          <div class="keypad pattern-pad" id="x-pad">${PATTERN_PAD[t.vary.kind].map((n) => `<button data-pn="${n}">${n}</button>`).join('')}
+            <button data-pn="back" aria-label="Delete the last number">⌫</button><button data-pn="clear">Clear</button></div>
+          <p class="fine" id="x-pattern-msg">${patternHint(t.vary.kind)}</p>
+        </div>` : ''}
 
       <label class="field-label">Choose keys by</label>
       <div class="chips wrap" id="x-mode">${Object.entries(KEY_MODES).map(([k, m]) => `<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode="${k}">${m.label}</button>`).join('')}</div>
@@ -279,17 +284,29 @@ export function openExercise(id, opts = {}) {
       varyChanged();
     }));
     $$('[data-shape]', sheet).forEach((b) => (b.onclick = () => { t.vary.shape = b.dataset.shape; commit(); refresh(); }));
-    const pattern = $('#x-pattern', sheet);
-    if (pattern) pattern.oninput = async () => {
-      const { error } = parsePattern(pattern.value, t.vary.kind);
-      $('#x-pattern-msg', sheet).textContent = error || 'Looks good.';
-      $('#x-pattern-msg', sheet).classList.toggle('error', !!error);
-      if (error) return;
-      t.vary.pattern = pattern.value.trim();
+    // Varying exercises are written out from their pattern, further down.
+    const toPattern = $('#x-to-pattern', sheet);
+    if (toPattern) toPattern.onclick = () => $('#x-shape', sheet)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // The number pad edits the pattern; changing a preset makes it your own.
+    $$('[data-pn]', sheet).forEach((b) => (b.onclick = async () => {
+      const nums = patternText(t.vary.kind, t.vary.shape, t.vary.pattern).split(' ').filter(Boolean);
+      const v = b.dataset.pn;
+      if (v === 'back') nums.pop();
+      else if (v === 'clear') nums.length = 0;
+      else if (nums.length < 64) nums.push(v);
+      t.vary.shape = 'custom';
+      t.vary.pattern = nums.join(' ');
+      $$('[data-shape]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.shape === 'custom'));
+      $('#x-pattern', sheet).innerHTML = esc(t.vary.pattern) || '&nbsp;';
+      const { error } = parsePattern(t.vary.pattern, t.vary.kind);
+      const msg = $('#x-pattern-msg', sheet);
+      msg.textContent = error ? (nums.length ? error : 'Tap some numbers.') : patternHint(t.vary.kind);
+      msg.classList.toggle('error', !!error);
       commit();
+      if (error) return;
       stopPlaying();
       tune = await drawNotation();
-    };
+    }));
     $$('[data-mode]', sheet).forEach((b) => (b.onclick = () => { t.keyMode = b.dataset.mode; commit(); refresh(); }));
     $$('[data-fixed]', sheet).forEach((b) => (b.onclick = () => {
       const r = Number(b.dataset.fixed);
