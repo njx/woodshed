@@ -97,6 +97,9 @@ which don't cover it. The Anthropic console has the official numbers.
 
 ## How tunes are picked
 
+- **A practice day runs until 4am,** so a late session that crosses midnight counts as one day: the
+  set, ratings, tempos and diary notes all stay with the evening you started.
+
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
   further out: "OK" stretches the interval by about 1.6×, "Solid" by 2.5×, and "Rough" brings it
   back tomorrow. Starting intervals depend on familiarity (Familiar 2 days, Proficient 4,

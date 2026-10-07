@@ -33,3 +33,15 @@ describe('dates', () => {
     expect(daysBetween('2026-10-01', '2026-10-06')).toBe(5);
   });
 });
+
+describe('practice day', () => {
+  it('runs until 4am', async () => {
+    const { today } = await import('../src/dates.js');
+    expect(today(new Date(2026, 9, 7, 23, 50))).toBe('2026-10-07');
+    expect(today(new Date(2026, 9, 8, 0, 30))).toBe('2026-10-07');
+    expect(today(new Date(2026, 9, 8, 3, 59))).toBe('2026-10-07');
+    expect(today(new Date(2026, 9, 8, 4, 0))).toBe('2026-10-08');
+    expect(today(new Date(2026, 9, 1, 1, 0))).toBe('2026-09-30'); // across a month
+    expect(today(new Date(2027, 0, 1, 2, 0))).toBe('2026-12-31'); // and a year
+  });
+});
