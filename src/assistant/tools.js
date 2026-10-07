@@ -3,7 +3,7 @@ import { LEVELS, PRIORITIES, TRANSPOSITIONS, CATEGORIES, KEY_MODES } from '../co
 import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
-import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel } from '../practice.js';
+import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel, deleteItem } from '../practice.js';
 import { ensurePlan, makePlanItem, syncFocus } from '../plan.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
 import { setTempo, clampBpm } from '../tempo.js';
@@ -322,6 +322,19 @@ export const TOOLS = [
       if (removed.length) changes.push(`Removed from today: ${removed.join(', ')}`);
       save();
       return { removed, already_played_so_kept: kept };
+    },
+  },
+  {
+    name: 'delete_item',
+    description: 'Delete a tune or exercise from the library, with its practice history (diary notes about it are kept). Only when the user asks, e.g. to remove an exercise you created by mistake. If it has practice history, check with the user first unless they already said to delete it anyway.',
+    input_schema: obj({ item_id: { type: 'string' } }),
+    write: true,
+    run: ({ item_id }) => {
+      const t = findItem(item_id);
+      const { sessions } = deleteItem(t.id);
+      changes.push(`Deleted ${t.type === 'exercise' ? 'exercise' : 'tune'}: ${t.name}${sessions ? ` (and ${sessions} practice session${sessions > 1 ? 's' : ''})` : ''}`);
+      save();
+      return { deleted: t.name, practice_sessions_removed: sessions };
     },
   },
   {

@@ -60,3 +60,17 @@ test('playing an exercise counts toward the keys chart', async ({ page, ui }) =>
   await expect(page.locator('.keybar')).toHaveCount(12);
   await expect.poll(() => page.$$eval('.kb-fill', (x) => x.filter((e) => parseFloat(e.style.height) > 5).length)).toBeGreaterThan(0);
 });
+
+test('delete an exercise from its details, and undo', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  const count = await page.locator('#tune-list .row').count();
+  await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.click('#x-delete');
+  await expect(page.locator('#tune-list .row')).toHaveCount(count - 1);
+  await expect(page.locator('#tune-list .row', { hasText: 'Major scale' })).toHaveCount(0);
+  await page.click('#toast button'); // Undo
+  await expect(page.locator('#tune-list .row')).toHaveCount(count);
+});

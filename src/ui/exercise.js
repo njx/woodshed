@@ -3,7 +3,7 @@ import { LEVELS, PRIORITIES, RATINGS, CATEGORIES, KEY_MODES } from '../constants
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
-import { itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion } from '../practice.js';
+import { itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
 import { syncFocus } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
@@ -256,11 +256,7 @@ export function openExercise(id, opts = {}) {
     $('#x-delete', sheet).onclick = () => {
       if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
       closeSheet();
-      withUndo(`Deleted ${t.name}`, () => {
-        state.items = state.items.filter((x) => x.id !== t.id);
-        state.log = state.log.filter((e) => e.itemId !== t.id);
-        if (state.plan) state.plan.items = state.plan.items.filter((i) => i.itemId !== t.id);
-      });
+      withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
     };
   }
   bind();

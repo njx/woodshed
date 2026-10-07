@@ -82,6 +82,22 @@ export function rate(itemId, rating) {
   e.rating = rating;
   schedule(t, rating, e.prev);
 }
+// Deletes a tune or exercise with its practice history and takes it out of today's set.
+// Diary notes about it are kept, no longer linked to it. Returns how many sessions went.
+export function deleteItem(id) {
+  const s = store.state;
+  const sessions = s.log.filter((e) => e.itemId === id).length;
+  s.items = s.items.filter((x) => x.id !== id);
+  s.log = s.log.filter((e) => e.itemId !== id);
+  if (s.plan) {
+    s.plan.items = s.plan.items.filter((i) => i.itemId !== id);
+    s.plan.skipped = (s.plan.skipped || []).filter((x) => x !== id);
+    s.plan.focusSkipped = (s.plan.focusSkipped || []).filter((x) => x !== id);
+  }
+  for (const e of s.diary) if (e.itemId === id) e.itemId = null;
+  return { sessions };
+}
+
 export function unmarkPlayed(itemId) {
   const e = todaysEntry(itemId);
   if (!e) return;

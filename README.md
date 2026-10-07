@@ -87,7 +87,7 @@ make changes for you, for example:
 
 It works through a set of tools over the app's data (`src/assistant/tools.js`): search the library,
 read today's set, an item's history, practice stats and the diary; add to or remove from today;
-update or create tunes and exercises; add diary notes. Every change it makes is listed under its
+update, create or delete tunes and exercises; add diary notes. Every change it makes is listed under its
 reply with an **Undo** button. When you ask for something the tools can't do, it says so and
 records the request; those show under Settings → Assistant, as a list of what to add next.
 

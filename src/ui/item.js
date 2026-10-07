@@ -4,7 +4,7 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import {
-  itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion,
+  itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
 } from '../practice.js';
 import { syncFocus } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
@@ -234,11 +234,7 @@ export function openItem(id, opts) {
       $('#delete', sheet).onclick = () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
         closeSheet();
-        withUndo(`Deleted ${t.name}`, () => {
-          state.items = state.items.filter((x) => x.id !== t.id);
-          state.log = state.log.filter((e) => e.itemId !== t.id);
-          if (state.plan) state.plan.items = state.plan.items.filter((i) => i.itemId !== t.id);
-        });
+        withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
       };
     }
   };

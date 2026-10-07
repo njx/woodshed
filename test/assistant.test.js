@@ -122,3 +122,27 @@ describe('changing things', () => {
     expect(store.state.assistantWishes[0].request).toBe('Email my teacher');
   });
 });
+
+describe('deleting', () => {
+  it('deletes an item with its history, keeps notes about it, and lists the change', () => {
+    setState([tune({ id: 'a', name: 'Solar' }), { id: 'x', type: 'exercise', name: 'Oops exercise' }], {
+      log: [entry('x', '2026-10-05'), entry('a', '2026-10-05')],
+    });
+    store.state.diary.push({ id: 'n1', date: '2026-10-05', text: 'about it', itemId: 'x', media: [] });
+    buildPlan(true);
+    takeChanges();
+    const r = runTool('delete_item', { item_id: 'x' });
+    expect(r).toEqual({ deleted: 'Oops exercise', practice_sessions_removed: 1 });
+    expect(store.state.items.map((t) => t.id)).toEqual(['a']);
+    expect(store.state.log.map((e) => e.itemId)).toEqual(['a']);
+    expect(store.state.plan.items.some((i) => i.itemId === 'x')).toBe(false);
+    expect(store.state.diary[0]).toMatchObject({ text: 'about it', itemId: null });
+    expect(takeChanges()).toEqual(['Deleted exercise: Oops exercise (and 1 practice session)']);
+  });
+
+  it('reports an unknown item instead of failing', () => {
+    setState([tune({ id: 'a' })]);
+    expect(runTool('delete_item', { item_id: 'nope' }).error).toMatch(/No item/);
+    expect(store.state.items).toHaveLength(1);
+  });
+});
