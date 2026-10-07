@@ -3,6 +3,8 @@
 const VERSION = '__VERSION__';
 const ASSETS = __ASSETS__;
 const CACHE = `woodshed-${VERSION}`;
+// Playback samples: fetched the first time an instrument is used, kept across releases.
+const SAMPLES = 'woodshed-samples-1';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -11,7 +13,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== SAMPLES).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -34,6 +36,18 @@ self.addEventListener('fetch', (e) => {
         } catch {
           return (await cache.match('./')) || Response.error();
         }
+      }),
+    );
+    return;
+  }
+  if (new URL(req.url).pathname.includes('/samples/')) {
+    e.respondWith(
+      caches.open(SAMPLES).then(async (cache) => {
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        const res = await fetch(req);
+        if (res.ok) cache.put(req, res.clone());
+        return res;
       }),
     );
     return;

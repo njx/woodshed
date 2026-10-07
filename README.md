@@ -45,8 +45,11 @@ weeks), and rough ones less. The Progress tab charts it around the circle of fif
 ### Notation
 
 An exercise can have notation, written once in C and shown in whichever key you pick, written for
-your instrument (B♭, E♭…), with playback at a tempo you set. Playback is synthesized in the
-browser, so it works offline.
+your instrument (B♭, E♭…), with playback at a tempo you set. Playback can be piano, sax, trumpet,
+flute, clarinet or guitar (recordings from [tonejs-instruments](https://github.com/nbrosowsky/tonejs-instruments),
+MIT; trimmed by `scripts/make-samples.sh`, about 300 KB per instrument, downloaded the first time
+it's used and then kept for offline use), or a synth that needs no download. It can be straight,
+lightly swung, or swung (2:1); 6/8 is never swung.
 
 The notation editor has a tap keypad: pick a note length (whole to sixteenth, dotted, triplet),
 an accidental (applies to the next note) and an octave (stays until you change it), then tap note

@@ -18,7 +18,8 @@ function serviceWorker() {
     name: 'woodshed-service-worker',
     apply: 'build',
     generateBundle(_, bundle) {
-      const publicFiles = filesIn('public');
+      // Instrument samples are cached when first used (see sw.js), not at install.
+      const publicFiles = filesIn('public').filter((f) => !f.startsWith('samples'));
       const assets = ['./', ...Object.keys(bundle), ...publicFiles];
       const hash = createHash('sha256');
       for (const out of Object.values(bundle)) hash.update(out.code ?? out.source ?? '');

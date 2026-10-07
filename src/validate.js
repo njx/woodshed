@@ -1,5 +1,6 @@
 import { uid } from './util.js';
 import { VARY, SHAPES } from './theory.js';
+import { SOUNDS, SWING } from './sounds.js';
 import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
 
 // Makes saved or imported state safe to use: every field the app reads gets the type it expects.
@@ -112,6 +113,8 @@ function settings(s) {
   s.priority = str(s.priority, 20);
   s.newKeys = oneOf(s.newKeys, ['mastered', 'proficient', 'never'], DEFAULT_SETTINGS.newKeys);
   s.a4 = int(s.a4, 430, 450) ?? 440;
+  s.sound = oneOf(s.sound, Object.keys(SOUNDS), DEFAULT_SETTINGS.sound);
+  s.swing = oneOf(s.swing, Object.keys(SWING), DEFAULT_SETTINGS.swing);
   s.recordKind = oneOf(s.recordKind, ['audio', 'video'], 'audio');
   if (s.metroBpm != null) s.metroBpm = int(Math.round(s.metroBpm), 10, 400) ?? 100;
   if (s.metroBeats != null) s.metroBeats = int(s.metroBeats, 1, 12) ?? 4;

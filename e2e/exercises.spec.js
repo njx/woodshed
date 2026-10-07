@@ -92,7 +92,7 @@ test('notation is one bar per line, black on white even in dark mode @narrow', a
   await page.screenshot({ path: test.info().outputPath('dark.png') });
 });
 
-test('a new lick can get its notation straight away', async ({ page, ui }) => {
+test('a new lick can get its notation straight away @narrow', async ({ page, ui }) => {
   await ui.start();
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
@@ -101,6 +101,8 @@ test('a new lick can get its notation straight away', async ({ page, ui }) => {
   await page.click('[data-cat="lick"]');
   await page.click('#x-add-abc'); // no name yet
   await expect(page.locator('#ne-pad')).toBeVisible();
+  await page.locator('.ne-opts').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('editor.png') });
   await page.click('#ne-pad [data-note="G"]');
   await page.click('#ne-save');
   // Back on the (now saved) exercise, which can be renamed.
@@ -110,4 +112,43 @@ test('a new lick can get its notation straight away', async ({ page, ui }) => {
   await ui.backdrop();
   await expect(page.locator('#tune-list .row')).toHaveCount(count + 1);
   await expect(page.locator('#tune-list .row', { hasText: 'Cannonball lick' })).toHaveCount(1);
+});
+
+test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
+  const fetched = [];
+  page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Scales: major and minors' }).click();
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await expect(page.locator('[data-pb="sound"]')).toHaveValue('piano');
+
+  await page.locator('.play-row').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('play-row.png') });
+  await page.selectOption('[data-pb="sound"]', 'sax');
+  await page.selectOption('[data-pb="swing"]', 'swing');
+  await page.click('#x-play');
+  await expect(page.locator('#x-play span')).toHaveText('Stop');
+  expect(fetched.length).toBeGreaterThan(5);
+  expect(fetched.every((f) => f.startsWith('sax/'))).toBe(true);
+  await page.click('#x-play');
+  await expect.poll(async () => (await ui.saved()).state.settings).toMatchObject({ sound: 'sax', swing: 'swing' });
+  await ui.expectNoSideScroll();
+});
+
+test.describe('offline before a sound was ever used', () => {
+  // Without the service worker in the way, the test can make sample downloads fail.
+  test.use({ serviceWorkers: 'block' });
+  test('the synth plays instead', async ({ page, ui }) => {
+    await page.route('**/samples/**', (r) => r.abort());
+    await ui.start();
+    await ui.tab('tunes');
+    await page.click('[data-lib="exercises"]');
+    await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
+    await page.selectOption('[data-pb="sound"]', 'trumpet');
+    await page.click('#x-play');
+    await expect(page.locator('#toast')).toContainText('playing the synth');
+    await expect(page.locator('#x-play span')).toHaveText('Stop');
+  });
 });

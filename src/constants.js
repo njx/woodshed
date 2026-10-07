@@ -83,4 +83,6 @@ export const DEFAULT_SETTINGS = {
   view: 'c', // transposition keys are currently shown in
   listen: 'apple', // service recording links open in
   a4: 440, // tuner reference pitch
+  sound: 'piano', // notation playback (see sounds.js)
+  swing: 'straight', // notation playback feel
 };

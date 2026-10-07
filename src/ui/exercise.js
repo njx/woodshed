@@ -10,11 +10,12 @@ import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText } from '../theory.js';
 import { canRecord } from '../media.js';
-import { renderNotation, playNotation, stopPlayback } from './notation.js';
+import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
+import { SOUNDS } from '../sounds.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml,
 } from './shell.js';
@@ -84,7 +85,7 @@ export function openExercise(id, opts = {}) {
           <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
           <div class="play-row">
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
-            <span class="fine">at ${t.tempo || 100} bpm</span>
+            ${playbackOptionsHtml()}
           </div>
           ${t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
@@ -228,12 +229,15 @@ export function openExercise(id, opts = {}) {
       if (stopFn) { stopFn(); stopFn = null; play.classList.remove('on'); $('span', play).textContent = 'Play'; return; }
       if (!tune) return;
       play.classList.add('on');
-      $('span', play).textContent = 'Stop';
+      $('span', play).textContent = '…'; // the first time, the sound loads
       try {
         stopFn = await playNotation(tune, {
           transpose: writtenShift(previewRoot, view()) + soundingShift(view()),
+          ...playbackFor(t.meter),
           onEnded: () => { stopFn = null; play.classList.remove('on'); $('span', play).textContent = 'Play'; },
+          onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
         });
+        if (stopFn) $('span', play).textContent = 'Stop';
       } catch {
         stopFn = null;
         play.classList.remove('on');
@@ -241,6 +245,8 @@ export function openExercise(id, opts = {}) {
         toast('Couldn’t play audio on this device');
       }
     };
+
+    bindPlaybackOptions(sheet, stopPlaying);
 
     const editAbc = $('#x-edit-abc', sheet) || $('#x-add-abc', sheet);
     if (editAbc) editAbc.onclick = () => {
@@ -439,6 +445,7 @@ export function openNotationEditor(t, back) {
     <div class="ne-opts">
       <label>Time <select id="ne-meter">${METERS.map((m) => `<option ${m === meter ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
       <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
+      ${playbackOptionsHtml()}
     </div>
     <p class="fine">Write it in C — it’s transposed into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up.</p>
     <button class="primary-btn" id="ne-save">Save notation</button>
@@ -519,13 +526,20 @@ export function openNotationEditor(t, back) {
     area.focus();
   };
   $('#ne-meter', sheet).onchange = (e) => { meter = e.target.value; draw(); };
+  bindPlaybackOptions(sheet, () => { if (stopFn) { stopFn(); stopFn = null; $('span', $('#ne-play', sheet)).textContent = 'Play'; } });
   const play = $('#ne-play', sheet);
   play.onclick = async () => {
     if (stopFn) { stopFn(); stopFn = null; $('span', play).textContent = 'Play'; return; }
     if (!tune) return;
-    $('span', play).textContent = 'Stop';
+    $('span', play).textContent = '…';
     try {
-      stopFn = await playNotation(tune, { transpose: soundingShift(view()), onEnded: () => { stopFn = null; $('span', play).textContent = 'Play'; } });
+      stopFn = await playNotation(tune, {
+        transpose: soundingShift(view()),
+        ...playbackFor(meter),
+        onEnded: () => { stopFn = null; $('span', play).textContent = 'Play'; },
+        onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
+      });
+      if (stopFn) $('span', play).textContent = 'Stop';
     } catch {
       stopFn = null;
       $('span', play).textContent = 'Play';
