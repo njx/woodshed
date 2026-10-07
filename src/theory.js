@@ -55,7 +55,7 @@ export const SHAPES = {
   fours: { label: 'Groups of 4', kinds: ['scale'] },
   p1235: { label: '1-2-3-5', kinds: ['scale'] },
   inversions: { label: 'Inversions', kinds: ['chord'] },
-  custom: { label: 'My own', kinds: ['scale', 'chord'] },
+  custom: { label: 'Custom', kinds: ['scale', 'chord'] },
 };
 
 // Numbers to tap when writing your own pattern.

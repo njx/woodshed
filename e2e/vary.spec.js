@@ -50,7 +50,7 @@ test('chord types; a written exercise can be switched to vary @narrow', async ({
   await ui.start();
   await openExercise(page, ui, 'Seventh-chord arpeggios');
   await expect(page.locator('.type-strip button')).toHaveText(['maj7', 'm7', '7', 'ø7', '°7']);
-  await expect(page.locator('[data-shape]')).toHaveText(['Up and down', 'Two octaves', 'Inversions', 'My own']);
+  await expect(page.locator('[data-shape]')).toHaveText(['Up and down', 'Two octaves', 'Inversions', 'Custom']);
   await expect(page.locator('#x-pattern')).toHaveText('1 3 5 7 8 7 5 3 1');
   await expect(page.locator('[data-pn]')).toHaveText(['1', '3', '5', '7', '8', '10', '12', '14', '15', '⌫', 'Clear']);
   await page.locator('.type-strip button', { hasText: '°7' }).click();

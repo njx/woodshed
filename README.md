@@ -35,7 +35,7 @@ For each exercise you choose:
   written out for each type, correctly spelled (harmonic minor in C has A♭ and B♮), from a pattern
   of note numbers (scale notes, or chord tones 1 3 5 7). Presets: up and down one or two octaves,
   in 3rds, groups of 4, 1-2-3-5 from each note, inversions (chords). Each shows its numbers, and
-  tapping the number pad changes them into your own pattern. The starter set has three of these: scales, 1-2-3-5 patterns,
+  tapping the number pad changes them into a custom pattern. The starter set has three of these: scales, 1-2-3-5 patterns,
   and seventh-chord arpeggios.
 
 **Key familiarity** comes from everything you log, tunes and exercises alike: each session counts
