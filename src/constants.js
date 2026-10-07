@@ -82,4 +82,5 @@ export const DEFAULT_SETTINGS = {
   instruments: ['c'], // transpositions you play, in toggle order
   view: 'c', // transposition keys are currently shown in
   listen: 'apple', // service recording links open in
+  a4: 440, // tuner reference pitch
 };

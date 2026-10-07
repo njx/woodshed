@@ -17,6 +17,7 @@ import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText } from './exercise.js';
 import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
+import { openTuner } from './tuner.js';
 import { tempoSuggestion } from '../tempo.js';
 import { openAssistant } from './assistant.js';
 import { CATEGORIES } from '../constants.js';
@@ -53,6 +54,7 @@ export function renderToday(root) {
       <button id="today-note">${ICON.note}<span>Note</span></button>
       ${canRecord() ? `<button id="today-rec">${ICON.rec}<span>Record</span></button>` : ''}
       <button id="today-metro">${ICON.metro}<span>Metronome</span></button>
+      <button id="today-tuner">${ICON.tuner}<span>Tuner</span></button>
     </div>
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
@@ -72,6 +74,7 @@ export function renderToday(root) {
   };
   $('#today-note').onclick = () => openNote(null);
   $('#today-metro').onclick = () => openMetronome();
+  $('#today-tuner').onclick = () => openTuner();
   $('#today-ask').onclick = () => openAssistant();
   const rec = $('#today-rec', root);
   if (rec) rec.onclick = () => openRecorder();

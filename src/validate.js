@@ -97,6 +97,7 @@ function settings(s) {
   s.listen = oneOf(s.listen, Object.keys(LISTEN_SERVICES), DEFAULT_SETTINGS.listen);
   s.priority = str(s.priority, 20);
   s.newKeys = oneOf(s.newKeys, ['mastered', 'proficient', 'never'], DEFAULT_SETTINGS.newKeys);
+  s.a4 = int(s.a4, 430, 450) ?? 440;
   s.recordKind = oneOf(s.recordKind, ['audio', 'video'], 'audio');
   if (s.metroBpm != null) s.metroBpm = int(Math.round(s.metroBpm), 10, 400) ?? 100;
   if (s.metroBeats != null) s.metroBeats = int(s.metroBeats, 1, 12) ?? 4;

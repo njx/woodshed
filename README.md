@@ -65,6 +65,15 @@ history. After you rate a session:
 Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
 you actually played. Nudging the metronome while you practice updates today's session too.
 
+## Tuner
+
+Tap **Tuner** on Today. The dial shows the note you're playing and how many cents sharp or flat
+it is (green within 5 cents); underneath, a trace of the last 10 seconds shows how your pitch moves
+— useful for long tones, where it shows the pitch sagging as a breath runs out. Notes are named as
+written for the transposition you're viewing (B♭, E♭, F), with concert pitch underneath. The
+reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.js`),
+which finds the fundamental even when overtones are louder, as they often are on sax.
+
 ## Assistant
 
 Tap **Ask** on the Today screen to chat with Claude about your practice. It can look things up and

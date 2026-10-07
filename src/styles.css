@@ -857,3 +857,33 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .chat-cost { text-transform: none; letter-spacing: 0; font-weight: 500; }
 .msg-cost { margin: 4px 0 0; font-size: 11px; color: var(--ink-3); }
 .load-error { padding: 48px 8px; text-align: center; }
+
+/* Tuner */
+.tuner-dial { position: relative; width: min(100%, 300px); margin: 4px auto 0; aspect-ratio: 1 / .78; overflow: hidden; }
+.tuner-dial svg { width: 100%; height: auto; display: block; overflow: visible; }
+.t-ring { fill: none; stroke: var(--surface-2); stroke-width: 14; transition: stroke .2s; }
+.tuner-dial.near .t-ring { stroke: var(--accent-soft); }
+.tuner-dial.good .t-ring { stroke: var(--good-soft); }
+.t-tick { stroke: var(--ink-3); stroke-width: 1.5; stroke-linecap: round; }
+.t-tick.zero { stroke: var(--good); stroke-width: 3; }
+.t-lbl { stroke: none; fill: var(--ink-3); font-size: 16px; font-weight: 600; }
+.t-needle line { stroke: var(--ink-3); stroke-width: 2; stroke-linecap: round; }
+.t-needle circle { fill: var(--ink-3); transition: fill .15s; }
+.tuner-dial.live .t-needle circle, .tuner-dial.live .t-needle line { fill: var(--accent); stroke: var(--accent); }
+.tuner-dial.good .t-needle circle, .tuner-dial.good .t-needle line { fill: var(--good); stroke: var(--good); }
+.t-readout { position: absolute; left: 0; right: 0; top: 34%; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.t-readout b { font-family: var(--serif); font-size: 52px; line-height: 1; color: var(--ink); display: flex; flex-direction: column; align-items: center; }
+.t-readout b sub { font-size: 20px; vertical-align: baseline; position: relative; top: -2px; }
+.t-readout b small { font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink-3); margin-top: 4px; }
+.tuner-dial:not(.live) .t-readout b { opacity: .35; }
+.t-readout span { font-size: 14px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tuner-dial.good .t-readout span { color: var(--good); }
+.tuner-trace {
+  display: block; width: 100%; height: 150px; margin-top: 8px; border-radius: 14px; background: var(--surface-2);
+  --t-band: var(--good-soft); --t-grid: var(--line); --t-label: var(--ink-3); --t-good: var(--good); --t-line: var(--accent);
+}
+.tuner-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.tuner-foot .fine { margin: 0; font-variant-numeric: tabular-nums; }
+.t-a4 { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.t-a4 .pill-btn { min-width: 36px; padding: 0; justify-content: center; font-size: 18px; }
+.today-tools #today-tuner svg { color: var(--good); }
