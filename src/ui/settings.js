@@ -1,10 +1,11 @@
 import { store, save, flush, seedState, migrate } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
-import { dateStr } from '../dates.js';
+import { dateStr, niceDate } from '../dates.js';
 import { esc } from '../util.js';
 import { buildPlan } from '../plan.js';
 import { mediaStats, fmtSize } from '../media.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
+import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
 import { $, $$, ICON, render, toast, goTo } from './shell.js';
 
@@ -67,7 +68,11 @@ export function renderSettings(root) {
         <div><b>Anthropic API key</b><span id="key-status">Checking…</span></div>
         <button class="pill-btn" id="key-btn">Set</button>
       </div>
-      <p class="fine">The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups.</p>
+      <div class="setting" id="spend" hidden>
+        <div><b>Spent</b><span id="spend-text"></span></div>
+        <button class="pill-btn" id="spend-reset">Reset</button>
+      </div>
+      <p class="fine">The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures.</p>
       ${(store.state.assistantWishes || []).length ? `
         <div class="field-label">Things it couldn’t do yet</div>
         <ul class="wishes">${store.state.assistantWishes.slice(-10).reverse().map((w) => `<li><span>${esc(w.request)}</span><small>${esc(w.date)}</small></li>`).join('')}</ul>` : ''}
@@ -132,6 +137,18 @@ export function renderSettings(root) {
       await setApiKey('');
       render();
       toast('Key removed');
+    };
+  });
+  getUsage().then((u) => {
+    const box = $('#spend', root);
+    if (!box || !Object.keys(u.days).length) return;
+    const t = summarize(u);
+    box.hidden = false;
+    $('#spend-text', root).textContent = `Today ${fmtCost(t.today)} · this month ${fmtCost(t.month)} · ${fmtCost(t.total)} since ${niceDate(t.since, { month: 'short', day: 'numeric' })}`;
+    $('#spend-reset', root).onclick = async () => {
+      if (!confirm('Reset the assistant spending totals?')) return;
+      await resetUsage();
+      render();
     };
   });
   $('#export').onclick = exportData;

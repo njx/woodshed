@@ -89,6 +89,12 @@ and whatever the tools look up. It uses Claude Opus 5.5 at medium effort, with p
 an automatic fallback model if a request is declined; a typical conversation costs a few cents.
 Needs a connection; the rest of the app works offline.
 
+**Cost:** each reply shows what it cost, the chat header shows the conversation's total, and
+Settings → Assistant shows today, this month and all time. Figures are worked out from the token
+counts each API response reports, at Anthropic's list prices (`src/assistant/cost.js`), including
+cache reads/writes and any fallback model. API use is billed separately from Claude Pro/Max plans,
+which don't cover it. The Anthropic console has the official numbers.
+
 ## How tunes are picked
 
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
@@ -178,7 +184,7 @@ Layout:
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/keystats.js`: key familiarity and choosing exercise keys
 - `src/tempo.js`, `src/metronome.js`: working tempos and suggestions; the metronome engine
-- `src/assistant/`: the assistant's tools (`tools.js`) and conversation loop (`agent.js`)
+- `src/assistant/`: the assistant's tools (`tools.js`), conversation loop (`agent.js`) and cost tracking (`cost.js`)
 - `src/abc.js`: building notation (ABC), note lengths, transposition
 - `src/diary.js`: practice notes and flagged to-dos
 - `src/media.js`: recorded clips (formats, storage, cleanup)

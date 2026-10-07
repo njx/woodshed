@@ -2,6 +2,7 @@ import { store, save } from '../store.js';
 import { esc, clone } from '../util.js';
 import { itemById } from '../practice.js';
 import { send, newConversation, getApiKey, setApiKey, describeError } from '../assistant/agent.js';
+import { fmtCost } from '../assistant/cost.js';
 import { $, ICON, render, toast, openSheet } from './shell.js';
 
 // Chat with the practice assistant. The conversation lasts while the app is open.
@@ -59,6 +60,7 @@ function entryHtml(e, i) {
       ${e.error ? `<p class="chat-error">${esc(e.error)}</p>` : ''}
       ${e.stop === 'refusal' ? '<p class="chat-error">The assistant couldn’t help with that one.</p>' : ''}
       ${e.stop === 'too_many_steps' ? '<p class="fine">That took a lot of steps, so I stopped. Ask me to carry on if needed.</p>' : ''}
+      ${e.cost ? `<p class="msg-cost">${fmtCost(e.cost)}</p>` : ''}
     </div>`;
 }
 
@@ -70,7 +72,7 @@ export async function openAssistant() {
   const sheet = openSheet(`
     <div class="chat">
       <div class="chat-head">
-        <p class="eyebrow">Assistant</p>
+        <p class="eyebrow">Assistant <span class="chat-cost" id="chat-cost"></span></p>
         <button class="link-btn" id="chat-new">New chat</button>
       </div>
       <div class="chat-log" id="chat-log"></div>
@@ -87,6 +89,7 @@ export async function openAssistant() {
   const body = $('.sheet-body', sheet);
 
   const draw = () => {
+    $('#chat-cost', sheet).textContent = conv.cost ? `· ${fmtCost(conv.cost)} this chat` : '';
     log.innerHTML = transcript.length
       ? transcript.map(entryHtml).join('')
       : `<div class="chat-empty">
@@ -146,6 +149,7 @@ export async function openAssistant() {
       });
       reply.stop = result.stop;
       reply.changes = result.changes;
+      reply.cost = result.cost;
       if (result.changes.length) {
         reply.undo = snapshot;
         render(); // refresh the screen behind the chat
@@ -210,7 +214,7 @@ export function openKeySetup(then) {
   const sheet = openSheet(`
     <p class="eyebrow">Assistant</p>
     <h2 class="sheet-title">Connect your Anthropic API key</h2>
-    <p>The assistant is Claude, running with your own API key. You pay Anthropic directly for what you use — usually a few cents per conversation.</p>
+    <p>The assistant is Claude, running with your own API key. You pay Anthropic directly for what you use — usually a few cents per conversation. This is separate from any Claude Pro or Max subscription, which doesn’t cover API use. The app shows what each reply costs.</p>
     <ol class="steps">
       <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, sign in, and add some credit under Billing.</li>
       <li>Create an API key and copy it.</li>

@@ -1,5 +1,6 @@
 import { kvGet, kvSet } from '../db.js';
 import { apiTools, runTool, isWriteTool, appSnapshot, takeChanges } from './tools.js';
+import { messageCost, tokensOf, recordUsage } from './cost.js';
 
 // The practice assistant: Claude with tools over the app's data. Runs entirely in the browser
 // with the user's own API key (kept on this device only, never in backups).
@@ -50,12 +51,13 @@ async function getClient() {
 }
 
 export function newConversation() {
-  return { messages: [] };
+  return { messages: [], cost: 0 };
 }
 
 // Sends one user message and runs the tool loop until Claude is done.
 // Callbacks: onText(delta), onTool({ name, input, result }), onStep() between model calls.
-// Returns { changes: [summaries of what was changed], stop: 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps' }.
+// Returns { changes: [summaries of what was changed], cost (dollars, this message),
+//   stop: 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps' }.
 export async function send(conv, text, { onText, onTool, onStep, signal } = {}) {
   const { Anthropic, client } = await getClient();
   takeChanges(); // start this turn's change list fresh
@@ -68,6 +70,8 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
     ],
   });
 
+  let cost = 0;
+  const done = (stop) => ({ changes: takeChanges(), cost, stop });
   let jsonRetries = 0;
   for (let step = 0; step < MAX_STEPS; step++) {
     if (step) onStep?.();
@@ -92,19 +96,24 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
       message = await stream.finalMessage();
       jsonRetries = 0;
     } catch (err) {
-      if (err instanceof Anthropic.APIUserAbortError || signal?.aborted) return { changes: takeChanges(), stop: 'stopped' };
+      if (err instanceof Anthropic.APIUserAbortError || signal?.aborted) return done('stopped');
       // With streamed tool inputs, an unparseable input rejects here; retry that turn a couple of times.
       if (err instanceof Anthropic.APIError || jsonRetries++ >= 2) throw err;
       continue;
     }
 
+    const stepCost = messageCost(message, MODEL);
+    cost += stepCost;
+    conv.cost = (conv.cost || 0) + stepCost;
+    await recordUsage(stepCost, tokensOf(message)).catch(() => {});
+
     conv.messages.push({ role: 'assistant', content: message.content });
-    if (message.stop_reason === 'refusal') return { changes: takeChanges(), stop: 'refusal' };
-    if (message.stop_reason === 'max_tokens') return { changes: takeChanges(), stop: 'max_tokens' };
+    if (message.stop_reason === 'refusal') return done('refusal');
+    if (message.stop_reason === 'max_tokens') return done('max_tokens');
     if (message.stop_reason === 'pause_turn') continue;
 
     const uses = message.content.filter((b) => b.type === 'tool_use');
-    if (!uses.length) return { changes: takeChanges(), stop: 'done' };
+    if (!uses.length) return done('done');
 
     const results = uses.map((u) => {
       const result = runTool(u.name, u.input);
@@ -118,7 +127,7 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
     });
     conv.messages.push({ role: 'user', content: results });
   }
-  return { changes: takeChanges(), stop: 'too_many_steps' };
+  return done('too_many_steps');
 }
 
 // Friendly text for API errors.
