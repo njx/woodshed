@@ -37,9 +37,18 @@ describe('notation', () => {
 
 describe('one bar per line', async () => {
   const { barPerLine } = await import('../src/abc.js');
-  it('breaks after each bar line, keeping repeat signs together', () => {
-    expect(barPerLine('C D E F | G A B c | C8 |')).toBe('C D E F |\nG A B c |\nC8 |');
-    expect(barPerLine('|: C D :| E F |] ')).toBe('|: C D :|\nE F |] ');
-    expect(barPerLine('A B || c d')).toBe('A B ||\nc d');
+  it('breaks after each full bar, keeping repeat signs together', () => {
+    expect(barPerLine('CDEF GABc | BAGF ED C2 |')).toBe('CDEF GABc |\nBAGF ED C2 |');
+    expect(barPerLine('|: CDEF :| GABc |]')).toBe('|: CDEF :|\nGABc |]');
+    expect(barPerLine('CDEF || GABc')).toBe('CDEF ||\nGABc');
+  });
+  it('keeps a pickup and a last note on the 1 with their neighbours', () => {
+    // A lick: pickup, two full bars, a last note.
+    expect(barPerLine('z6 GA | _BAGF E2 D2 | CDEF G2 z2 | c8 |')).toBe('z6 GA | _BAGF E2 D2 |\nCDEF G2 z2 | c8 |');
+    // Chord symbols and decorations don't count as notes.
+    expect(barPerLine('"G7"z6 G2 | "C"CDEF GABc |')).toBe('"G7"z6 G2 | "C"CDEF GABc |');
+  });
+  it('puts at most 4 sparse bars on a line', () => {
+    expect(barPerLine('C8 | D8 | E8 | F8 | G8 | A8 |')).toBe('C8 | D8 | E8 | F8 |\nG8 | A8 |');
   });
 });

@@ -253,9 +253,9 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .list-head .transpose { height: 30px; box-shadow: none; background: var(--surface-2); }
 .sort select {
   appearance: none; -webkit-appearance: none;
-  height: 30px; padding: 0 26px 0 10px; border: 0; border-radius: 15px;
+  height: 32px; padding: 0 26px 0 10px; border: 0; border-radius: 16px;
   background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c8174' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 7px center / 14px;
-  font-size: 13px; font-weight: 600; color: var(--ink-2);
+  font-size: 16px; font-weight: 600; color: var(--ink-2); /* 16px+ so iOS doesn't zoom on focus */
 }
 .list { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .row {
@@ -706,7 +706,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .ne-text { position: relative; }
 .ne-text textarea {
   width: 100%; padding: 10px 48px 10px 12px; border: 1.5px solid var(--line); border-radius: 12px;
-  background: var(--surface); font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); resize: vertical; outline: 0;
+  background: var(--surface); font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); resize: vertical; outline: 0;
 }
 .ne-text textarea:focus { border-color: var(--accent); }
 .ne-text .icon-btn { position: absolute; right: 6px; top: 6px; width: 36px; height: 36px; font-size: 18px; }
@@ -727,7 +727,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .keypad button:active { transform: scale(.95); }
 .oct { text-align: center; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .ne-opts { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 14px; color: var(--ink-2); }
-.ne-opts select:not(.pb-select) { height: 36px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 15px; margin-left: 6px; }
+.ne-opts select:not(.pb-select) { height: 36px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 16px; margin-left: 6px; }
 code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
 
 /* Keys chart on Progress */
@@ -909,10 +909,16 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 
 /* Sound and feel, next to Play */
 .play-row { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; }
+.play-row .pill-btn { padding: 0 12px; }
 .pb-select {
-  height: 36px; min-width: 0; width: 100%; padding: 0 24px 0 12px; text-overflow: ellipsis; border-radius: 18px; border: 0;
-  background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238c8174' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 10px center / 10px;
-  font: 600 13.5px var(--sans); color: var(--ink); -webkit-appearance: none; appearance: none;
+  height: 36px; min-width: 0; width: 100%; padding: 0 20px 0 10px; text-overflow: ellipsis; border-radius: 18px; border: 0;
+  background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238c8174' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 8px center / 10px;
+  font: 600 16px var(--sans); color: var(--ink); -webkit-appearance: none; appearance: none;
 }
 .ne-opts { flex-wrap: wrap; gap: 6px; }
-.ne-opts .pb-select { width: auto; flex: 1 1 120px; border: 0; margin: 0; background-color: var(--surface-2); font-size: 13.5px; padding: 0 24px 0 12px; }
+.ne-opts .pb-select { width: auto; flex: 1 1 120px; border: 0; margin: 0; background-color: var(--surface-2); padding: 0 24px 0 12px; }
+@media (max-width: 369px) {
+  /* Narrow phones: Play shows just its icon, so both menus fit. */
+  .play-row .pill-btn { width: 44px; padding: 0; justify-content: center; }
+  .play-row .pill-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+}

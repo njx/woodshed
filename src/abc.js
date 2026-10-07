@@ -41,10 +41,32 @@ export function restToken(duration = 'eighth', dotted = false) {
   return `z${lengthSuffix(unitsFor(duration, dotted))}`;
 }
 
-// Starts a new line after every bar line, so notation shows one bar per line: easier to read on a
-// phone. (Repeat signs stay together: "|:" isn't split, ":|", "||" and "|]" end a line.)
+// Lays notation out a bar per line (easier to read on a phone), except that bars with only a note
+// or two, not counting rests (a pickup, or a last note on the 1), stay on the line next to them,
+// and a line holds at most 4 bars. Existing line breaks are kept. Repeat signs stay together: "|:" starts a bar;
+// ":|", "||" and "|]" end one.
+const BAR_END = /(\|\]|\|\||:\||\|)(?![:\]|])/g;
+const notesIn = (bar) => (bar.replace(/"[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\]/g, '').match(/[A-Ga-g]/g) || []).length;
+
 export function barPerLine(body) {
-  return body.split('\n').map((line) => line.replace(/(\|\]|\|\||:\||\|)(?![:\]|])\s*(?=\S)/g, '$1\n')).join('\n');
+  return body.split('\n').map((line) => {
+    const bars = [];
+    let last = 0;
+    for (const m of line.matchAll(BAR_END)) {
+      bars.push(line.slice(last, m.index + m[0].length).trim());
+      last = m.index + m[0].length;
+    }
+    if (line.slice(last).trim()) bars.push(line.slice(last).trim());
+    const lines = [];
+    let cur = null; // { bars, full }
+    for (const bar of bars) {
+      const full = notesIn(bar) > 2;
+      if (!cur || (full && cur.full) || cur.bars.length >= 4) lines.push((cur = { bars: [], full: false }));
+      cur.bars.push(bar);
+      cur.full ||= full;
+    }
+    return lines.map((l) => l.bars.join(' ')).join('\n');
+  }).join('\n');
 }
 
 export function buildAbc(body, { meter = '4/4', tempo = 100 } = {}) {
