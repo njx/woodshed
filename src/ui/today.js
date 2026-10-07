@@ -143,6 +143,7 @@ function keyChip(it, t) {
   const chip = (cls, main, sub) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   if (t.type === 'exercise') {
     if (!it.keys?.length && !it.types?.length) return '';
+    if (it.prog) return chip('multi', `<b>${esc(it.prog.name)}</b> in <b>${esc(rootName(it.keys[0]))}</b>`, 'tap for notation');
     const what = esc(exerciseKeysText(it.keys, t, it.types)).replaceAll(' · ', '</b> · <b>');
     // The whole list matters here, so it wraps (between keys) rather than being cut off.
     return chip('multi', `${it.keys?.length ? 'In ' : ''}<b>${what}</b>`, t.abc || t.vary ? 'tap for notation' : '');

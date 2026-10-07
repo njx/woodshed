@@ -1,5 +1,5 @@
 import { uid } from './util.js';
-import { VARY, SHAPES } from './theory.js';
+import { VARY, SHAPES, CHORDS } from './theory.js';
 import { SOUNDS, SWING } from './sounds.js';
 import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
 
@@ -39,6 +39,7 @@ function item(t, ids) {
     t.meter = /^\d{1,2}\/\d{1,2}$/.test(t.meter) ? t.meter : '4/4';
     t.category = oneOf(t.category, Object.keys(CATEGORIES), 'other');
     t.vary = vary(t.vary);
+    t.fromTune = !!t.fromTune;
   } else {
     t.keys = keyList(t.keys, 23);
     t.style = str(t.style || 'Standard', 60);
@@ -47,6 +48,13 @@ function item(t, ids) {
     t.mine = !!t.mine;
   }
   return t;
+}
+
+// A progression for a warm-up: { name, chords: [{ d, family }] }.
+function prog(p) {
+  const chords = (Array.isArray(p?.chords) ? p.chords : []).slice(0, 16)
+    .filter((c) => int(c?.d, 0, 11) != null && CHORDS[c.family]).map((c) => ({ d: c.d, family: c.family }));
+  return chords.length ? { name: str(p.name, 60), chords } : null;
 }
 
 // A tune's own chord chart (see chords.js), or null.
@@ -84,6 +92,7 @@ function logEntry(e, ids) {
   e.key = int(e.key, 0, 23);
   if (e.keys != null) e.keys = keyList(e.keys, 11);
   if (e.types != null) e.types = typeList(e.types);
+  if (e.progName != null) e.progName = str(e.progName, 60);
   e.rating = oneOf(e.rating, RATINGS.map((r) => r.v), null);
   e.bpm = e.bpm == null ? null : int(Math.round(e.bpm), 10, 400);
   e.alt = !!e.alt;
@@ -116,6 +125,7 @@ function plan(p, ids) {
     key: int(it.key, 0, 23),
     keys: it.keys == null ? it.keys : keyList(it.keys, 11),
     ...(it.types != null ? { types: typeList(it.types) } : {}),
+    ...(it.prog != null ? { prog: prog(it.prog) } : {}),
     shift: int(it.shift, -11, 11),
     alt: !!it.alt,
   }));

@@ -5,7 +5,7 @@ describe('scales and chords', () => {
   it('every type is spelled in order, from C up', () => {
     const order = 'CDEFGAB';
     for (const t of [...Object.values(SCALES), ...Object.values(CHORDS)]) {
-      const idx = t.notes.map(([l]) => order.indexOf(l));
+      const idx = t.notes.map(([l, , up]) => order.indexOf(l) + 7 * up);
       expect(idx[0]).toBe(0);
       // 8-note scales reuse a letter (E♭ and E♮ in diminished), so never descending is enough.
       for (let i = 1; i < idx.length; i++) expect(idx[i]).toBeGreaterThanOrEqual(idx[i - 1]);
@@ -99,3 +99,10 @@ describe('patterns as numbers', () => {
     }
   });
 });
+
+describe('chords with a 9th', () => {
+  it('spell the 9th an octave up, and go up to it and back', () => {
+    expect(generateAbc('chord', 'dom7b9')).toBe('CEG_B _dBGE | C8 |');
+    expect(generateAbc('chord', 'dom7s9')).toBe('CEG_B ^dBGE | C8 |');
+  });
+}); 

@@ -9,24 +9,26 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
-// Schema (version 5):
+// Schema (version 6):
 //   items:    practice items, all with { id, type, name, priority 1–4, level null|0–3, notes,
 //             focus, ivl, due, levelSetAt }, plus by type:
 //             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart?,
 //                         chartEdited? } (chart: chord chart, see chords.js and charts.js)
 //             exercise: { category, keyMode, keysPerSession, keys [roots 0–11, for 'fixed'],
 //                         abc (notation written in C), meter,
-//                         vary: null | { kind 'scale'|'chord', types [ids], shape, pattern } }
+//                         vary: null | { kind 'scale'|'chord', types [ids], shape, pattern },
+//                         fromTune? (its chords come from a tune: only a warm-up) }
 //             all items may have tempo (working BPM), goalTempo, tempoSetAt (see tempo.js)
 //   log:      { id, date, itemId, at, key, keys?, types?, alt, shift, rating, bpm?, prev: { ivl, due } }
 //             (exercises log every key practiced in keys; bpm is the tempo it was played at)
-//   plan:     today's set { date, items: [{ itemId, bucket, key, keys?, types?, alt, shift, warmup? }],
+//   plan:     today's set { date, items: [{ itemId, bucket, key, keys?, types?, alt, shift, warmup?,
+//             prog? }] (prog: a progression for a fromTune exercise, see warmups.js),
 //             dayKeys?, warmupFor?, skipped,
 //             focusSkipped }
 //   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,
 //             media.js; recorded clips themselves live in IndexedDB's media store)
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -45,6 +47,7 @@ export function seedExercises(since = 0) {
     keys: [],
     abc: x.abc,
     vary: x.vary ? { ...x.vary, types: [...x.vary.types] } : null,
+    ...(x.fromTune ? { fromTune: true } : {}),
     meter: '4/4',
     notes: x.notes,
     priority: 3,
@@ -112,6 +115,12 @@ export function migrate(s) {
       if ((t.type || 'tune') === 'tune' && !t.chart?.sections?.length) t.chart = seedChart(t);
     }
     s.version = 5;
+  }
+  if (s.version < 6) {
+    // v6: an exercise that arpeggiates a tune's progressions, for warm-ups.
+    const names = new Set((s.items || []).map((t) => t.name));
+    s.items = [...(s.items || []), ...seedExercises(5).filter((x) => !names.has(x.name))];
+    s.version = 6;
   }
   return normalize(s);
 }

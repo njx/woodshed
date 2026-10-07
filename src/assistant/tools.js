@@ -6,7 +6,7 @@ import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel, deleteItem } from '../practice.js';
 import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups } from '../plan.js';
 import { chartFor } from '../charts.js';
-import { chartToText, chartShift, usesSharps } from '../chords.js';
+import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
 import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern } from '../theory.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
 import { setTempo, clampBpm } from '../tempo.js';
@@ -128,6 +128,16 @@ function chartText(t) {
   return `In ${writtenName(key)}, ${chart.meter}:\n${chartToText(chart, { shift: chartShift(chart, key, view()), sharps: usesSharps(written) })}`;
 }
 
+// A tune's main progressions, named by Roman numeral, in its first usual key (written).
+function progressionList(t) {
+  const chart = chartFor(t);
+  if (!chart) return null;
+  const key = t.keys?.[0] ?? chart.key ?? 0;
+  const shift = chartShift(chart, key, view());
+  const sharps = usesSharps((((key % 12) + TRANSPOSITIONS[view()].offset) % 12) + (key >= 12 ? 12 : 0));
+  return progressions(chart).slice(0, 6).map((p) => `${p.name} in ${noteName(p.target + shift, sharps).replace('♭', 'b').replace('♯', '#')}${p.minor ? 'm' : ''} (×${p.count})`);
+}
+
 function planSummary() {
   ensurePlan();
   const stats = itemStats();
@@ -146,6 +156,7 @@ function planSummary() {
       ...(it.types?.length && t.vary ? { types: it.types.map((id) => typeLabel(t.vary.kind, id)) } : {}),
       tempo: t.tempo || null,
       ...(it.warmup ? { warm_up_for: itemById(it.warmup)?.name } : {}),
+      ...(it.prog ? { progression: it.prog.name } : {}),
       played: !!e,
       rating: e?.rating || null,
       level: levelLabel(t.level),
@@ -280,6 +291,7 @@ export const TOOLS = [
         ...(t.type === 'exercise' ? { notation_abc: t.abc || null, meter: t.meter } : {
           recordings: recordingsFor(t).map((r) => [r.artist, r.album, r.year].filter(Boolean).join(', ')),
           chords: chartText(t),
+          progressions: progressionList(t),
         }),
         history,
         diary: entriesFor(t.id).slice(0, 8).map((e) => ({ date: e.date, text: e.text, flag: e.flag, done: e.done })),
@@ -389,7 +401,7 @@ export const TOOLS = [
   },
   {
     name: 'add_warmups',
-    description: "Add warm-up exercises for a tune to today's set, from its chord chart and the key it's played in today: arpeggios on its main chords, ii–V–I patterns into its major keys, and scales that go with its chords. Replaces those exercises if they're already in today's set and not played yet.",
+    description: "Add warm-up exercises for a tune to today's set, from its chord chart and the key it's played in today: its main progression arpeggiated through the changes (e.g. iii–VI–ii–V, a minor ii–V–i, keeping colours like ø and ♭9), arpeggios on its main chords, scales that go with its chords, and ii–V–I patterns into its major keys. Replaces those exercises if they're already in today's set and not played yet.",
     input_schema: obj({ tune_id: { type: 'string' } }),
     write: true,
     run: ({ tune_id }) => {

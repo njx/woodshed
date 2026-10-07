@@ -55,7 +55,7 @@ test('write a new exercise with the keypad', async ({ page, ui }) => {
 
 test('playing an exercise counts toward the keys chart', async ({ page, ui }) => {
   await ui.start();
-  await page.locator('.card.b-exercise .check').first().click();
+  await page.locator('.card.b-exercise', { has: page.locator('.keychip') }).first().locator('.check').click();
   await ui.tab('progress');
   await expect(page.locator('.keybar')).toHaveCount(12);
   await expect.poll(() => page.$$eval('.kb-fill', (x) => x.filter((e) => parseFloat(e.style.height) > 5).length)).toBeGreaterThan(0);

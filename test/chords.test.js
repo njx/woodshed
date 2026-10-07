@@ -83,6 +83,13 @@ describe('what’s in a chart', () => {
     expect(scaleFor({ q: '7alt' })).toBe('altered');
     expect(scaleFor({ q: '7b9' })).toBe('dimHW');
     expect(scaleFor({ q: 'm7' })).toBe('dorian');
+    // Colours stay: half-diminished, ♭9, ♯9 / altered.
+    expect(chordFamily('7b9')).toBe('dom7b9');
+    expect(chordFamily('7b9b13')).toBe('dom7b9');
+    expect(chordFamily('7#9')).toBe('dom7s9');
+    expect(chordFamily('7alt')).toBe('dom7s9');
+    expect(chordFamily('7b13')).toBe('dom7');
+    expect(scaleFor({ q: '7b9b13' })).toBe('altered');
   });
   it('finds the main chords and the ii–Vs', () => {
     const c = chart('Autumn Leaves');
@@ -99,4 +106,27 @@ it('doesn’t mistake maj for minor', async () => {
   expect(chordFamily('maj7')).toBe('maj7');
   expect(chordFamily('maj9')).toBe('maj7');
   expect(chordFamily('m9')).toBe('m7');
+});
+
+describe('progressions', async () => {
+  const { progressions, roman } = await import('../src/chords.js');
+  it('names chords against a key centre', () => {
+    expect(roman(2, 'm7')).toBe('ii');
+    expect(roman(7, 'dom7b9')).toBe('V7');
+    expect(roman(2, 'm7b5')).toBe('iiø');
+    expect(roman(11, 'dim7')).toBe('vii°');
+    expect(roman(1, 'dom7')).toBe('♭II7');
+  });
+  it('finds chains round the cycle, turnarounds and tritone subs', () => {
+    const { chart: c } = chartFromText('A: Em7 | A7 | Dm7 | G7 | Cmaj7 | Am7 | Dm7 | G7 | Cmaj7 | Dm7 Db7 | Cmaj7');
+    const names = progressions(c).map((p) => `${p.name}@${p.target}`);
+    expect(names).toContain('iii–VI7–ii–V7–I@0');
+    expect(names).toContain('I–vi–ii–V7@0');
+    expect(names).toContain('ii–♭II7–I@0');
+    expect(names).toContain('ii–V7–I@0');
+  });
+  it('a held chord counts once', () => {
+    const { chart: c } = chartFromText('A: Dm7 | % | G7 | G7 | Cmaj7');
+    expect(progressions(c)[0]).toMatchObject({ name: 'ii–V7–I', target: 0, count: 1 });
+  });
 });

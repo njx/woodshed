@@ -63,7 +63,8 @@ export function chooseKey(t, stats) {
 
 export function pickItem(bucket, exclude, stats) {
   for (const b of [bucket, ...BUCKETS[bucket].fallback]) {
-    const pool = store.state.items.filter((t) => !t.focus && bucketOf(t) === b && !exclude.has(t.id));
+    // (Exercises that take their chords from a tune only come up as warm-ups.)
+    const pool = store.state.items.filter((t) => !t.focus && !t.fromTune && bucketOf(t) === b && !exclude.has(t.id));
     const t = weightedPick(pool, (t) => weightFor(t, stats, b));
     if (t) return t;
   }

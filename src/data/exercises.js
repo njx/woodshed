@@ -5,6 +5,16 @@
 // is generated. `since`: the data version that added the exercise, for existing users.
 export const SEED_EXERCISES = [
   {
+    name: 'Through the changes',
+    category: 'arpeggio',
+    keyMode: 'none',
+    keysPerSession: 1,
+    abc: '',
+    fromTune: true,
+    notes: 'A warm-up for a tune: arpeggiate its main progression (iii–VI–ii–V, a minor ii–V–i…) one chord per bar, in the key you’re playing it in, then land on the I. It gets its chords from the tune, so it only comes up as a warm-up.',
+    since: 6,
+  },
+  {
     name: 'Scales: major and minors',
     category: 'scale',
     keyMode: 'weak',

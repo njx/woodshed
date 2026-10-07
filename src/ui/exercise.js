@@ -8,7 +8,7 @@ import { syncFocus, refreshTypes } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
-import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText } from '../theory.js';
+import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -24,8 +24,15 @@ const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
 export const rootName = (r) => keyName(r % 12, view());
 
-// What to play: "C · F · B♭", or with scale or chord types "C dor · F harm min", "Cm7 · F7".
-export function exerciseKeysText(keys = [], t = null, types = null) {
+// A progression's chords in a key: "Am7 · D7 · Gm7 · C7".
+export function progressionChords(prog, key) {
+  return prog.chords.map((c) => variantName(rootName((key + c.d) % 12), 'chord', c.family)).join(' · ');
+}
+
+// What to play: "C · F · B♭", or with scale or chord types "C dor · F harm min", "Cm7 · F7",
+// or a progression "iii–VI7–ii–V7 in F".
+export function exerciseKeysText(keys = [], t = null, types = null, prog = null) {
+  if (prog?.name) return `${prog.name}${keys.length ? ` in ${rootName(keys[0])}` : ''}`;
   const kind = t?.vary?.kind;
   if (!kind || !types?.length) return keys.map(rootName).join(' · ');
   if (!keys.length) return types.map((id) => typeInfo(kind, id)?.label || id).join(' · ');
@@ -36,8 +43,10 @@ const patternHint = (kind) => (kind === 'chord'
   ? 'Numbers are chord tones: 1 3 5 7, and 8 10 12 14 an octave up. Tap numbers to change the pattern.'
   : 'Numbers are notes of the scale: 1 is the root, and on a 7-note scale 8 is the octave. Tap numbers to change the pattern; the presets fit themselves to scales with more or fewer notes.');
 
-// The notation to show: generated for a scale or chord type, or the exercise's own.
-function notationFor(t, type) {
+// The notation to show: generated for a progression (a warm-up), a scale or chord type, or the
+// exercise's own.
+function notationFor(t, type, prog = null) {
+  if (t.fromTune) return prog ? progressionAbc(prog.chords, { meter: t.meter || '4/4' }) : '';
   if (t.vary) return generateAbc(t.vary.kind, type, { shape: t.vary.shape, pattern: t.vary.pattern, meter: t.meter || '4/4' });
   return t.abc;
 }
@@ -52,6 +61,7 @@ export function openExercise(id, opts = {}) {
   if (!t) return;
   const planItem = state.plan?.date === dateStr() ? state.plan.items.find((i) => i.itemId === t.id) : null;
   const todayKeys = opts.keys || planItem?.keys || [];
+  const prog = planItem?.prog || opts.prog || null; // a tune's progression (warm-ups)
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
   const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
   const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
@@ -76,7 +86,8 @@ export function openExercise(id, opts = {}) {
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? '<button class="link-btn" id="x-to-pattern">Edit pattern</button>'
         : t.abc ? '<button class="link-btn" id="x-edit-abc">Edit</button>' : ''}</div>
-      ${t.vary || t.abc ? `
+      ${t.fromTune && !prog ? '<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: open a tune’s details and tap <b>Warm up for this tune</b>, or choose <b>From tunes</b> in Settings.</p>' : ''}
+      ${t.vary || t.abc || prog ? `
         <div class="notation-card">
           <div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
             const r = writtenToConcert(w, view());
@@ -89,7 +100,8 @@ export function openExercise(id, opts = {}) {
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
             ${playbackOptionsHtml()}
           </div>
-          ${t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
+          ${prog ? `<p class="fine">Today: ${esc(prog.name)} in ${esc(rootName(previewRoot))} — ${esc(progressionChords(prog, previewRoot))}</p>`
+            : t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
 
@@ -97,6 +109,7 @@ export function openExercise(id, opts = {}) {
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
 
+${t.fromTune ? '' : `
       <label class="field-label">Each session, vary the</label>
       <div class="seg" id="x-vary">
         <button class="${!t.vary ? 'on' : ''}" data-vary="">Key only</button>
@@ -130,6 +143,7 @@ export function openExercise(id, opts = {}) {
           <div class="stepper" id="x-kps"><button data-d="-1" aria-label="Fewer">−</button><output>${t.keysPerSession}</output><button data-d="1" aria-label="More">+</button></div>
         </div>` : ''}
 
+`}
       <label class="field-label">How well do you know it?</label>
       ${isNew ? '' : suggestionHtml(t, levelSuggestion(t))}
       <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
@@ -148,7 +162,7 @@ export function openExercise(id, opts = {}) {
           </div>
           ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
             <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
-            <span>${esc(exerciseKeysText(entryKeys(e), t, e.types))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
+            <span>${esc(e.progName ? `${e.progName} in ${rootName(entryKeys(e)[0] ?? 0)}` : exerciseKeysText(entryKeys(e), t, e.types))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
@@ -194,7 +208,7 @@ export function openExercise(id, opts = {}) {
 
   async function drawNotation() {
     const el = $('#x-notation', sheet);
-    const abc = notationFor(t, previewType);
+    const abc = notationFor(t, previewType, prog);
     if (!el || !abc) return null;
     return renderNotation(el, abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: t.tempo || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });

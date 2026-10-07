@@ -3,7 +3,8 @@
 // exercise notation, it's then shifted into each key (see abc.js).
 
 // Notes spelled in C: [letter, accidental] with accidental −2…2 (♭♭ … ♯♯).
-const n = (s) => s.split(' ').map((x) => [x.at(-1), { __: -2, _: -1, '': 0, '^': 1, '^^': 2 }[x.slice(0, -1)]]);
+// A lowercase letter is an octave up (a 9th above the root).
+const n = (s) => s.split(' ').map((x) => [x.at(-1).toUpperCase(), { __: -2, _: -1, '': 0, '^': 1, '^^': 2 }[x.slice(0, -1)], x.at(-1) === x.at(-1).toLowerCase() ? 1 : 0]);
 
 export const SCALES = {
   major: { label: 'Major', short: 'maj', notes: n('C D E F G A B') },
@@ -39,6 +40,9 @@ export const CHORDS = {
   maj7s5: { label: 'Major 7 ♯5', short: 'maj7♯5', notes: n('C E ^G B') },
   dom7s5: { label: 'Dominant 7 ♯5', short: '7♯5', notes: n('C E ^G _B') },
   dom7sus: { label: 'Dominant 7 sus4', short: '7sus4', notes: n('C F G _B') },
+  // With the 9th: the colours of dominants in minor keys and altered dominants.
+  dom7b9: { label: 'Dominant 7♭9', short: '7♭9', notes: n('C E G _B _d') },
+  dom7s9: { label: 'Dominant 7♯9', short: '7♯9', notes: n('C E G _B ^d') },
 };
 
 export const VARY = {
@@ -74,14 +78,15 @@ export function variantName(rootName, kind, id) {
   return kind === 'chord' ? `${rootName}${t.short}` : `${rootName} ${t.short}`;
 }
 
-// Note numbers (1-based) for a shape on a scale or chord with `len` notes.
-export function shapeNumbers(shape, len, kind, custom = '') {
-  const oct = len + 1; // the octave
+// Note numbers (1-based) for a shape on a scale or chord with `len` notes. `ninth`: the chord's
+// last note is a 9th, so "up and down" tops out there rather than on the octave.
+export function shapeNumbers(shape, len, kind, custom = '', { ninth = false } = {}) {
+  const oct = ninth ? len : len + 1; // the top of one octave's worth
   const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
   const up = (top) => range(1, top);
   const down = (top) => range(1, top - 1).reverse();
   switch (shape) {
-    case 'updown2': return [...up(2 * len + 1), ...down(2 * len + 1)];
+    case 'updown2': return [...up(len + oct), ...down(len + oct)];
     case 'thirds': return [...range(1, len).flatMap((i) => [i, i + 2]), oct];
     case 'fours': return [...range(1, len).flatMap((i) => [i, i + 1, i + 2, i + 3]), oct];
     case 'p1235': return [...range(1, len).flatMap((i) => [i, i + 1, i + 2, i + 4]), oct];
@@ -122,21 +127,13 @@ export function patternText(kind, shape, pattern = '') {
   return numbers.map((v) => [1, 3, 5, 7][(v - 1) % 4] + 7 * Math.floor((v - 1) / 4)).join(' ');
 }
 
-// ABC notation (in C, L:1/8, eighth notes) for a shape on a scale or chord type.
-export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = '4/4' } = {}) {
-  const t = typeInfo(kind, id);
-  if (!t) return '';
-  const len = t.notes.length;
-  const numbers = shapeNumbers(shape, len, kind, pattern);
-  if (!numbers.length) return '';
+// Writes notes ({ letter, acc, octave }) as ABC eighth notes, the last one held to the end of
+// its bar (or for `lastUnits`). Accidentals are marked only where they change within a bar, and
+// eighths are beamed in groups: fours in 4/4 (two beats), pairs in 3/4, threes in 6/8.
+function writeAbc(notes, meter = '4/4') {
   const [num, den] = meter.split('/').map(Number);
   const perBar = Math.max(1, Math.round((num * 8) / den));
-
-  const notes = numbers.map((v) => {
-    const [letter, acc] = t.notes[(v - 1) % len];
-    return { letter, acc, octave: 4 + Math.floor((v - 1) / len) };
-  });
-
+  const group = den === 8 ? 3 : num % 2 === 0 ? 4 : 2;
   const ACC = { '-2': '__', '-1': '_', 0: '=', 1: '^', 2: '^^' };
   const name = ({ letter, octave }) => {
     let s = octave >= 5 ? letter.toLowerCase() : letter;
@@ -144,8 +141,6 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
     if (octave < 4) s += ','.repeat(4 - octave);
     return s;
   };
-  // Eighths are beamed in groups: fours in 4/4 (two beats), pairs in 3/4, threes in 6/8.
-  const group = den === 8 ? 3 : num % 2 === 0 ? 4 : 2;
   const bars = [];
   let bar = '';
   let used = 0;
@@ -156,7 +151,6 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
     const current = accidentals[id] ?? 0;
     const mark = note.acc !== current ? ACC[note.acc] : '';
     accidentals[id] = note.acc;
-    // The last note holds to the end of its bar.
     const units = last ? perBar - used : 1;
     // A space ends a beam (ABC beams notes written together).
     if (bar && (used % group === 0 || units > 1)) bar += ' ';
@@ -171,6 +165,63 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
   });
   if (bar) bars.push(bar);
   return `${bars.join(' | ')} |`;
+}
+
+// ABC notation (in C, L:1/8, eighth notes) for a shape on a scale or chord type.
+export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = '4/4' } = {}) {
+  const t = typeInfo(kind, id);
+  if (!t) return '';
+  const len = t.notes.length;
+  const ninth = t.notes.at(-1)[2] === 1;
+  const numbers = shapeNumbers(shape, len, kind, pattern, { ninth });
+  if (!numbers.length) return '';
+  return writeAbc(numbers.map((v) => {
+    const [letter, acc, up] = t.notes[(v - 1) % len];
+    return { letter, acc, octave: 4 + up + Math.floor((v - 1) / len) };
+  }), meter);
+}
+
+// ---------- Progressions ----------
+
+const LETTERS = 'CDEFGAB';
+const NATURAL = [0, 2, 4, 5, 7, 9, 11];
+// How each degree of a key (semitones above its root) is spelled in C.
+const DEGREE_ROOT = [['C', 0], ['D', -1], ['D', 0], ['E', -1], ['E', 0], ['F', 0], ['F', 1], ['G', 0], ['A', -1], ['A', 0], ['B', -1], ['B', 0]];
+
+// A chord type's note (spelled on C) moved onto the root a degree above C, spelled by letter:
+// the 3rd of a chord on D is an F-something, whatever its accidental.
+export function spellOn([letter, acc, up], degree) {
+  const [rootLetter] = DEGREE_ROOT[degree];
+  const idx = LETTERS.indexOf(letter) + LETTERS.indexOf(rootLetter);
+  const octaves = Math.floor(idx / 7) + up;
+  const want = degree + NATURAL[LETTERS.indexOf(letter)] + acc + 12 * up;
+  return { letter: LETTERS[idx % 7], acc: want - (NATURAL[idx % 7] + 12 * octaves), octave: 4 + octaves };
+}
+
+// Notation (in C) for a progression into C: a bar per chord, arpeggiated up from its root and
+// back, then the I. chords: [{ d (semitones above the I), family (a chord type) }]. Roots from G
+// up start below middle C, so the line stays in one range.
+export function progressionAbc(chords, { meter = '4/4' } = {}) {
+  const [num, den] = meter.split('/').map(Number);
+  const perBar = Math.max(1, Math.round((num * 8) / den));
+  const notes = [];
+  for (const { d, family } of chords) {
+    const t = CHORDS[family];
+    if (!t) continue;
+    const len = t.notes.length;
+    const top = t.notes.at(-1)[2] === 1 ? len : len + 1;
+    const up = Array.from({ length: top }, (_, i) => i + 1);
+    const seq = [...up, ...up.slice(1, -1).reverse()];
+    const low = d >= 7 ? -1 : 0;
+    for (let i = 0; i < perBar; i++) {
+      const v = seq[i % seq.length];
+      const n = spellOn(t.notes[(v - 1) % len], d);
+      notes.push({ ...n, octave: n.octave + low + Math.floor((v - 1) / len) });
+    }
+  }
+  if (!notes.length) return '';
+  notes.push({ letter: 'C', acc: 0, octave: 4 });
+  return writeAbc(notes, meter);
 }
 
 // Which types to practice this session, one per key: the ones played least on this exercise

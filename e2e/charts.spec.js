@@ -21,6 +21,7 @@ test('a tune shows its chords, written for the instrument, in any key @narrow', 
   await page.selectOption('#chart-key', '16');
   await expect(chart.locator('.bar').first()).toHaveText('Bm7');
   await expect(page.locator('.chart-foot .fine')).toContainText('iReal Pro');
+  await expect(page.locator('.progs')).toContainText('iiø–V7–i');
   await ui.expectNoSideScroll();
   await page.screenshot({ path: test.info().outputPath('chart.png') });
   // Charts come with the app: no downloads.
@@ -72,11 +73,19 @@ test('warm up for a tune from its chart', async ({ page, ui }) => {
   await ui.backdrop();
   await ui.tab('today');
   const warm = page.locator('.card', { hasText: 'for Autumn Leaves' });
-  await expect(warm).toHaveCount(3);
+  await expect(warm).toHaveCount(4);
   await expect(warm.first().locator('.bucket')).toHaveText('Warm-up');
-  await expect(warm.first().locator('.keychip')).toContainText(/m6|m7|ø7|7/);
-  // The exercise shows today's chords, even ones not turned on for it.
+  // First, its main progression through the changes: the minor ii–V–i into G.
+  await expect(warm.first().locator('h2')).toHaveText('Through the changes');
+  await expect(warm.first().locator('.keychip')).toContainText('iiø–V7–i in G');
   await warm.first().locator('h2').click();
+  await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText('Aø7 · D7 · Gm6');
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await expect(page.locator('.sheet #x-vary')).toHaveCount(0); // its chords come from the tune
+  await ui.backdrop();
+  // Then arpeggios: the exercise shows today's chords, even ones not turned on for it.
+  await expect(warm.nth(1).locator('.keychip')).toContainText(/m6|m7|ø7|7/);
+  await warm.nth(1).locator('h2').click();
   await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText(/m6/);
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
 });
@@ -112,4 +121,13 @@ test('exercises on a day: key of the day, or warm-ups for today’s tunes @narro
   await expect(page.locator('.day-note')).toContainText('warm up for Autumn Leaves');
   await expect(page.locator('.card .bucket', { hasText: 'Warm-up' }).first()).toBeVisible();
   await ui.expectNoSideScroll();
+});
+
+test('“Through the changes” opened on its own explains where its chords come from', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Through the changes' }).click();
+  await expect(page.locator('.sheet')).toContainText('takes its chords from a tune');
+  await expect(page.locator('#x-notation')).toHaveCount(0);
 });

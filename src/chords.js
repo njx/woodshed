@@ -149,13 +149,18 @@ export function chordFamily(q) {
   if (/^(6|69)?$/.test(q)) return 'maj6';
   if (/sus/.test(q)) return 'dom7sus';
   if (/^(aug|\+)$|^7#5$|^9#5$/.test(q)) return 'dom7s5';
+  // Colours: ♭9 (dominants in minor keys), ♯9 and altered.
+  if (/#9|alt/.test(q)) return 'dom7s9';
+  if (/b9/.test(q)) return 'dom7b9';
   return 'dom7';
 }
+
+export const isDominant = (family) => ['dom7', 'dom7b9', 'dom7s9'].includes(family);
 
 // A scale that goes with a chord (one of theory.js's scale types).
 export function scaleFor(c) {
   const f = chordFamily(c.q);
-  if (f === 'dom7') {
+  if (f.startsWith('dom7') && !['dom7sus', 'dom7s5'].includes(f)) {
     if (/alt|#9|#5|b13/.test(c.q)) return 'altered';
     if (/b9/.test(c.q)) return 'dimHW';
     if (/#11|b5/.test(c.q)) return 'lydianDom';
@@ -205,7 +210,7 @@ export function twoFives(chart) {
   for (let i = 0; i + 1 < seq.length; i++) {
     const a = seq[i], b = seq[i + 1];
     const fa = chordFamily(a.q), fb = chordFamily(b.q);
-    if (!['m7', 'm7b5'].includes(fa) || fb !== 'dom7' || (b.root - a.root + 12) % 12 !== 5) continue;
+    if (!['m7', 'm7b5'].includes(fa) || !isDominant(fb) || (b.root - a.root + 12) % 12 !== 5) continue;
     const target = (b.root + 5) % 12;
     const next = seq[i + 2];
     const minor = fa === 'm7b5' || (next && next.root === target && ['m6', 'm7', 'mMaj7'].includes(chordFamily(next.q)));
@@ -215,4 +220,84 @@ export function twoFives(chart) {
     found.set(id, f);
   }
   return [...found.values()].sort((a, b) => b.count - a.count);
+}
+
+// ---------- Progressions ----------
+
+const ROMAN = ['I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV', 'V', '♭VI', 'VI', '♭VII', 'VII'];
+const MINORISH = ['m7', 'm6', 'm7b5', 'mMaj7', 'dim7'];
+
+// A chord's Roman numeral against a key centre: ii, V7, iiø, vii°, I, i.
+export function roman(degree, family) {
+  const base = ROMAN[((degree % 12) + 12) % 12];
+  const numeral = MINORISH.includes(family) ? base.toLowerCase() : base;
+  if (family === 'm7b5') return `${numeral}ø`;
+  if (family === 'dim7') return `${numeral}°`;
+  if (isDominant(family) || family === 'dom7sus' || family === 'dom7s5') return `${numeral}7`;
+  return numeral;
+}
+
+// The chords in order with repeats merged (a chord held over two bars counts once).
+function changes(chart) {
+  const out = [];
+  for (const c of chordTimeline(chart)) {
+    const f = chordFamily(c.q);
+    const last = out.at(-1);
+    if (last && last.root === c.root && last.family === f) last.beats += c.beats;
+    else out.push({ root: c.root, q: c.q, family: f, beats: c.beats });
+  }
+  return out;
+}
+
+// Progressions in a chart, most important first (by length × how often they come up):
+//   - chains moving round the cycle of 4ths: ii–V, VI–ii–V, iii–VI–ii–V… (with the I they
+//     resolve to, if they do);
+//   - the I–vi–ii–V turnaround;
+//   - ii–♭II7–I (a tritone substitute for the V).
+// Each: { name ('iii–vi–ii–V7'), target (the I's root, concert), minor, chords: [{ d (semitones
+// above the target), family, q }], count }.
+export function progressions(chart) {
+  const seq = changes(chart);
+  const found = new Map();
+  const add = (chords, target, minor) => {
+    const named = chords.map((c) => ({ d: (c.root - target + 12) % 12, family: c.family, q: c.q }));
+    const name = named.map((c) => roman(c.d, c.family)).join('–');
+    const id = `${name}@${target}`;
+    const f = found.get(id) || { name, target, minor, chords: named, count: 0 };
+    f.count++;
+    found.set(id, f);
+  };
+  const chainable = (f) => ['m7', 'm7b5'].includes(f) || isDominant(f);
+  // Cycle-of-4ths chains.
+  for (let i = 0; i < seq.length; i++) {
+    if (!chainable(seq[i].family) || (i > 0 && chainable(seq[i - 1].family) && (seq[i].root - seq[i - 1].root + 12) % 12 === 5)) continue;
+    let j = i;
+    while (j + 1 < seq.length && chainable(seq[j + 1].family) && (seq[j + 1].root - seq[j].root + 12) % 12 === 5) j++;
+    if (j === i) continue;
+    // A chain should end on a dominant (…ii–V) to be a progression into a key.
+    while (j > i && !isDominant(seq[j].family)) j--;
+    if (j === i) continue;
+    const target = (seq[j].root + 5) % 12;
+    const next = seq[j + 1];
+    const resolves = next && next.root === target && !chainable(next.family);
+    const chain = seq.slice(i, j + 1).concat(resolves ? [next] : []);
+    const minor = seq[j - 1]?.family === 'm7b5' || (resolves && MINORISH.includes(next.family));
+    // Long chains also count their ii–V(–I) on its own, so it's found across tunes.
+    add(chain, target, minor);
+    if (j - i >= 2) add(seq.slice(j - 1, j + 1).concat(resolves ? [next] : []), target, minor);
+  }
+  for (let i = 0; i + 3 < seq.length; i++) {
+    const [a, b, c, d] = seq.slice(i, i + 4);
+    const rel = (x) => (x.root - a.root + 12) % 12;
+    if (['maj7', 'maj6', 'm6', 'm7', 'mMaj7'].includes(a.family) && rel(b) === 9 && rel(c) === 2 && rel(d) === 7
+      && (MINORISH.includes(c.family)) && isDominant(d.family)) add([a, b, c, d], a.root, MINORISH.includes(a.family));
+  }
+  for (let i = 0; i + 2 < seq.length; i++) {
+    const [a, b, c] = seq.slice(i, i + 3);
+    if (MINORISH.includes(a.family) && isDominant(b.family) && (a.root - c.root + 12) % 12 === 2 && (b.root - c.root + 12) % 12 === 1) {
+      add([a, b, c], c.root, MINORISH.includes(c.family));
+    }
+  }
+  // How much of the tune it accounts for: length times how often, longer first on a tie.
+  return [...found.values()].sort((x, y) => y.chords.length * y.count - x.chords.length * x.count || y.chords.length - x.chords.length);
 }

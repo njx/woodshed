@@ -1,13 +1,14 @@
 import { store } from './store.js';
 import { chartFor } from './charts.js';
-import { mainChords, twoFives, scaleFor } from './chords.js';
+import { mainChords, twoFives, scaleFor, progressions } from './chords.js';
 import { CHORDS, SCALES } from './theory.js';
 import { isPlayedToday } from './practice.js';
 
 // Warm-ups for a tune: exercises set to its chords, in the key it's played in today.
+//   - its main progression (iii–VI–ii–V, a minor ii–V–i…), arpeggiated through the changes;
 //   - arpeggios (an exercise that varies the chord type) on its main chords;
-//   - ii–V–I patterns (a written ii–V–I exercise, whose keys are the I) into its major keys;
-//   - scales (an exercise that varies the scale type) that go with its main chords.
+//   - scales (an exercise that varies the scale type) that go with its main chords;
+//   - ii–V–I patterns (a written ii–V–I exercise, whose keys are the I) into its major keys.
 // Each is a plan item: { itemId, bucket: 'exercise', keys, types?, warmup: tune id }.
 
 const exercises = () => store.state.items.filter((x) => x.type === 'exercise');
@@ -35,15 +36,22 @@ export function warmupsFor(t, { key = null, exclude = new Set() } = {}) {
 
   const main = mainChords(chart, 6).filter((c) => CHORDS[c.family]);
 
+  // Its main progression, through the changes (keys: the key it leads to).
+  const prog = progressions(chart).find((p) => p.chords.length >= 2 && p.chords.every((c) => CHORDS[c.family]));
+  const changes = exercises().find((x) => x.fromTune && usable(x, taken));
+  if (prog && changes) {
+    taken.add(changes.id);
+    items.push({
+      itemId: changes.id, bucket: 'exercise', key: null, keys: [up(prog.target)], alt: false, shift: null, warmup: t.id,
+      prog: { name: prog.name, chords: prog.chords.map(({ d, family }) => ({ d, family })) },
+    });
+  }
+
   const arps = findExercise((x) => x.vary?.kind === 'chord', 'arpeggio', taken);
   if (arps && main.length) {
     const picks = main.slice(0, count(arps, 3));
     add(arps, picks.map((c) => up(c.root)), picks.map((c) => c.family));
   }
-
-  const majors = twoFives(chart).filter((x) => !x.minor);
-  const iiV = findExercise((x) => !x.vary && x.abc && /ii\W*V/i.test(x.name), 'pattern', taken);
-  if (iiV && majors.length) add(iiV, [...new Set(majors.map((x) => up(x.target)))].slice(0, count(iiV, 2)));
 
   const scales = findExercise((x) => x.vary?.kind === 'scale', 'scale', taken);
   if (scales && main.length) {
@@ -53,6 +61,10 @@ export function warmupsFor(t, { key = null, exclude = new Set() } = {}) {
     const picks = byRoot.slice(0, count(scales, 3)).map((c) => ({ root: up(c.root), scale: scaleFor(c) })).filter((x) => SCALES[x.scale]);
     if (picks.length) add(scales, picks.map((x) => x.root), picks.map((x) => x.scale));
   }
+  const majors = twoFives(chart).filter((x) => !x.minor);
+  const iiV = findExercise((x) => !x.vary && x.abc && /ii\W*V/i.test(x.name), 'pattern', taken);
+  if (iiV && majors.length) add(iiV, [...new Set(majors.map((x) => up(x.target)))].slice(0, count(iiV, 2)));
+
   return items;
 }
 

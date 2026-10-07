@@ -6,6 +6,7 @@ import { buildPlan, addWarmups } from '../src/plan.js';
 import { markPlayed } from '../src/practice.js';
 import { chooseTypes } from '../src/theory.js';
 import { freezeToday } from './helpers.js';
+import { progressions } from '../src/chords.js';
 
 const byName = (n) => store.state.items.find((t) => t.name === n);
 
@@ -32,7 +33,7 @@ describe('charts for tunes', () => {
     solar.chart = { key: 0, meter: '4/4', sections: [{ label: 'A', repeats: 0, bars: [{ chords: [{ root: 0, q: 'maj7' }], alts: [] }], endings: [] }] };
     for (const t of old.items) if (t.name !== 'Solar') delete t.chart;
     const s = migrate(old);
-    expect(s.version).toBe(5);
+    expect(s.version).toBe(6);
     expect(s.items.find((t) => t.name === 'Autumn Leaves').chart.sections.length).toBeGreaterThan(0);
     expect(s.items.find((t) => t.name === 'Solar').chart.sections[0].bars).toHaveLength(1);
   });
@@ -44,12 +45,16 @@ describe('charts for tunes', () => {
 });
 
 describe('warm-ups for a tune', () => {
-  it('arpeggios on its main chords, ii–Vs into its major keys, and scales for its chords', () => {
+  it('its main progression, arpeggios on its main chords, scales for its chords, and ii–Vs into its major keys', () => {
     const t = byName('Autumn Leaves'); // G minor
     const w = warmupsFor(t, { key: 19 });
     const names = w.map((x) => store.state.items.find((i) => i.id === x.itemId).name);
-    expect(names).toEqual(['Seventh-chord arpeggios', 'ii–V–I, 1-2-3-5', 'Scales: major and minors']);
-    const [arps, iiV, scales] = w;
+    expect(names).toEqual(['Through the changes', 'Seventh-chord arpeggios', 'Scales: major and minors', 'ii–V–I, 1-2-3-5']);
+    const [changes, arps, scales, iiV] = w;
+    // The minor ii–V–i into G, keeping the colours (iiø, and the dominant's ♭13 → 7).
+    expect(changes.prog.name).toBe('iiø–V7–i');
+    expect(changes.keys).toEqual([7]);
+    expect(changes.prog.chords.map((c) => c.family)).toEqual(['m7b5', 'dom7', 'm6']);
     expect(arps.keys[0]).toBe(7); // G
     expect(arps.types[0]).toBe('m6'); // Gm6
     expect(iiV.keys).toContain(10); // Cm7 F7 → B♭
@@ -95,9 +100,9 @@ describe('exercises across a day', () => {
   it('adds warm-ups for a tune on request, replacing exercises not played yet', () => {
     buildPlan(true);
     const n = addWarmups(byName('Autumn Leaves'));
-    expect(n).toBe(3);
+    expect(n).toBe(4);
     const warm = store.state.plan.items.filter((i) => i.warmup);
-    expect(warm).toHaveLength(3);
+    expect(warm).toHaveLength(4);
     expect(new Set(store.state.plan.items.map((i) => i.itemId)).size).toBe(store.state.plan.items.length);
   });
   it('doesn’t replace an exercise already played today', () => {
@@ -115,5 +120,24 @@ describe('types by overall weakness', () => {
     let dorian = 0;
     for (let i = 0; i < 400; i++) if (chooseTypes(vary, 1, [], Math.random, { major: 30, dorian: 2 })[0] === 'dorian') dorian++;
     expect(dorian).toBeGreaterThan(280);
+  });
+});
+
+describe('progression warm-ups', () => {
+  it('keep a tune’s colours, like a ♭9 on the V', () => {
+    const t = byName('Alone Together'); // D minor: Em7b5 A7b9 Dm6
+    const [changes] = warmupsFor(t, { key: 14 });
+    expect(changes.prog.name).toBe('iiø–V7–i');
+    expect(changes.prog.chords.map((c) => c.family)).toEqual(['m7b5', 'dom7b9', 'm6']);
+  });
+  it('find longer progressions', () => {
+    const t = byName('There Will Never Be Another You');
+    expect(progressions(chartFor(t)).some((p) => p.name === 'iii–VI7–ii–V7–I')).toBe(true);
+  });
+  it('“Through the changes” only comes up as a warm-up', () => {
+    store.state.settings.exercises = 8;
+    buildPlan(true);
+    const changes = byName('Through the changes');
+    expect(store.state.plan.items.some((i) => i.itemId === changes.id)).toBe(false);
   });
 });

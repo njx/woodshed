@@ -50,8 +50,9 @@ Settings → *Exercises on a day*:
 - **Key of the day**: one or two keys (weak keys come up more) for every exercise that picks keys
   by weak keys or at random, so a day has a centre. Shown under *Today's set*.
 - **From tunes**: the exercises are **warm-ups** for one of today's tunes (a focus tune first, then
-  one you're learning), in its chords and in the key you're playing it in today: arpeggios on its
-  main chords (e.g. Gm6, Am7♭5, D7 for Autumn Leaves), a ii–V–I pattern into its major keys, and
+  one you're learning), in its chords and in the key you're playing it in today: **Through the
+  changes** (its main progression — say iii–VI7–ii–V7–I or iiø–V7♭9–i — arpeggiated a bar per
+  chord, in the key it leads to), arpeggios on its main chords (e.g. Gm6, Am7♭5, D7 for Autumn Leaves), a ii–V–I pattern into its major keys, and
   scales that go with its chords (dorian on a m7, altered on a 7♭13…).
 
 Any tune's details also have **Warm up for this tune**, which adds its warm-ups to today.
@@ -105,6 +106,11 @@ built into the app; they seed each tune once (first run, or the upgrade that add
 that a chart is the tune's own: **Edit** it as text (`A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %`, endings as
 `A 1.:`), add one for a tune that has none, or put an edited one back to the original. Charts are in
 backups.
+
+Under the chart are its main **progressions**, named by Roman numeral and the key they lead to:
+chains of chords moving by fourths (iii–VI7–ii–V7–I, a minor iiø–V7–i, back-door or extended
+dominants), the I–vi–ii–V turnaround, and tritone subs (ii–♭II7–I). Chord colours are kept — half
+diminished (ø7), 7♭9, 7♯9/alt, 7♯5 — and decide the arpeggio and scale a warm-up uses.
 
 To update the charts: `git submodule update --remote vendor/JazzStandards` (existing tunes keep
 theirs; new installs get the new ones).

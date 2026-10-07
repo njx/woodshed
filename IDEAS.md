@@ -31,7 +31,9 @@ sessions), L (a big piece, or needs a native app).
 ## Tunes and exercises together
 
 - **More from the charts** (M). Play a chart's chords (a simple comping backing at the working tempo);
-  ii–V exercises for minor keys too; warm-ups on a tune's bridge or hardest bars.
+  ii–V written-pattern exercises for minor keys too; warm-ups on a tune's bridge or hardest bars;
+  more progression shapes (Coltrane changes, rhythm-changes bridge, minor-key turnarounds);
+  guide-tone lines through a progression.
 
 ## Listening and slowing down
 

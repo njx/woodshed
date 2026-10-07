@@ -4,7 +4,7 @@ import { dateStr } from '../dates.js';
 import { esc } from '../util.js';
 import { isMinor } from '../keys.js';
 import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
-import { chordName, chartShift, usesSharps, chartToText, chartFromText } from '../chords.js';
+import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
 import { addWarmups } from '../plan.js';
 import { $, ICON, render, toast, openSheet, kn } from './shell.js';
 
@@ -37,6 +37,13 @@ function chartHtml(chart, opts) {
     </div>`).join('');
 }
 
+// The chart's main progressions, named by Roman numeral, in the key shown.
+function progsHtml(chart, { shift, sharps }) {
+  const ps = progressions(chart).filter((p) => p.chords.length >= 3).slice(0, 4);
+  if (!ps.length) return '';
+  return `<p class="progs"><span>Progressions</span> ${ps.map((p) => `<b>${esc(p.name)}</b> in ${esc(noteName(p.target + shift, sharps))}${p.minor ? 'm' : ''}${p.count > 1 ? ` ×${p.count}` : ''}`).join(' · ')}</p>`;
+}
+
 // Fills `box` with the chart for tune `t`. back: reopens the tune's details after the editor.
 export function mountChart(box, t, { back } = {}) {
   let key = null; // the concert key shown; null = today's / usual
@@ -58,6 +65,7 @@ export function mountChart(box, t, { back } = {}) {
           <select class="chart-key" id="chart-key" aria-label="Key">${keys.map((k) => `<option value="${k}" ${k === shown ? 'selected' : ''}>in ${esc(kn(k))}</option>`).join('')}</select>
           <button class="link-btn" id="chart-edit">Edit</button></span></div>
         <div class="chart">${chartHtml(chart, opts)}</div>
+        ${progsHtml(chart, opts)}
         <div class="chart-foot">
           <button class="pill-btn" id="chart-warmup">${ICON.plus}Warm up for this tune</button>
           <span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>

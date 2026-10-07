@@ -947,3 +947,6 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 textarea.mono { font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .day-note { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }
 .day-note b { color: var(--exercise); }
+.progs { margin: 8px 2px 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.progs span { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin-right: 4px; }
+.progs b { color: var(--ink); white-space: nowrap; }

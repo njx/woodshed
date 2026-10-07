@@ -71,6 +71,7 @@ export function markPlayed(itemId, planItem) {
     key: planItem?.key ?? null, alt: !!planItem?.alt, shift: planItem?.shift ?? null,
     ...(planItem?.keys?.length ? { keys: [...planItem.keys] } : {}),
     ...(planItem?.types?.length ? { types: [...planItem.types] } : {}),
+    ...(planItem?.prog ? { progName: planItem.prog.name } : {}),
     rating: 'ok', prev: { ivl: t.ivl, due: t.due },
     ...(t.tempo ? { bpm: t.tempo } : {}),
   };
