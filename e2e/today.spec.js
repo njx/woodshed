@@ -23,29 +23,30 @@ test('first run picks instruments and builds a set @narrow', async ({ page, ui }
   await ui.expectNoSideScroll();
 });
 
-test('swipe right marks played, a long swipe left swaps @narrow', async ({ page, ui }) => {
+test('swipe right marks played; swipe left to swap @narrow', async ({ page, ui }) => {
   await ui.start();
   await ui.swipe(page.locator('.card').first(), 160);
   await expect(page.locator('.card.done')).toHaveCount(1);
   await expect(page.locator('.ring')).toHaveAttribute('aria-label', /^1 of \d+ played/);
 
   const before = (await ui.cardTitles())[1];
-  await ui.swipe(page.locator('.card').nth(1), -280);
+  await ui.swipe(page.locator('.card').nth(1), -120);
+  await page.locator('.card-wrap').nth(1).locator('.sa-swap').click();
   await expect.poll(async () => (await ui.cardTitles())[1]).not.toBe(before);
   // Undo puts it back.
   await page.click('#toast button');
   await expect.poll(async () => (await ui.cardTitles())[1]).toBe(before);
 });
 
-test('a short swipe left shows Skip today and Swap; on a warm-up, Swap and Remove @narrow', async ({ page, ui }) => {
+test('a short swipe left shows Swap and Remove on every card; a long one removes @narrow', async ({ page, ui }) => {
   await ui.start();
-  // An exercise: skip it for today.
+  // An exercise: take it out for today.
   const first = page.locator('.card').first();
   const name = await first.locator('h2').textContent();
   await ui.swipe(first, -120);
   const wrap = page.locator('.card-wrap').first();
   await expect(wrap).toHaveClass(/\bopen\b/);
-  await expect(wrap.locator('.swipe-actions button')).toHaveText(['Skip today', 'Swap']);
+  await expect(wrap.locator('.swipe-actions button')).toHaveText(['Swap', 'Remove']);
   await page.screenshot({ path: test.info().outputPath('actions.png') });
   // Tapping the card closes it again.
   const box = await wrap.boundingBox();
@@ -53,7 +54,7 @@ test('a short swipe left shows Skip today and Swap; on a warm-up, Swap and Remov
   await expect(wrap).not.toHaveClass(/\bopen\b/);
   await expect(page.locator('.sheet')).toHaveCount(0);
   await ui.swipe(first, -120);
-  await wrap.locator('.sa-skip').click();
+  await wrap.locator('.sa-remove').click();
   await expect(page.locator('.card h2', { hasText: name })).toHaveCount(0);
 
   // A warm-up: swap it for the other kind (arpeggios ↔ scales), or remove it.

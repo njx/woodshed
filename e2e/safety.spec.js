@@ -40,7 +40,8 @@ test('if saved data can’t be read, it offers to retry instead of starting over
 test('the 5-second Undo doesn’t apply once something else has changed', async ({ page, ui }) => {
   await ui.start();
   const before = (await ui.cardTitles())[1];
-  await ui.swipe(page.locator('.card').nth(1), -280); // a long swipe swaps, with Undo offered
+  await ui.swipe(page.locator('.card').nth(1), -120);
+  await page.locator('.card-wrap').nth(1).locator('.sa-swap').click(); // swap, with Undo offered
   const swapped = (await ui.cardTitles())[1];
   expect(swapped).not.toBe(before);
   await page.locator('.card .check').first().click(); // then practice something

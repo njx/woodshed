@@ -114,7 +114,7 @@ function bindCard(card) {
   // Take it out of today's set: a focus item for today, a warm-up, or a pick (not suggested again today).
   const skip = () => {
     if (isPlanItemPlayed(item)) return;
-    const msg = item.warmup ? `Took out the ${name()} warm-up` : `Skipped ${name()} for today`;
+    const msg = item.warmup ? `Took out the ${name()} warm-up` : `Took ${name()} out of today’s set`;
     withUndo(msg, () => {
       if (item.bucket === 'focus') state.plan.focusSkipped.push(item.itemId);
       else if (!item.warmup) state.plan.skipped.push(item.itemId);
@@ -258,7 +258,7 @@ function cardHtml(it, i, stats) {
       <span class="bg-right">${ICON.check}${played ? 'Unmark' : 'Played'}</span>
     </div>
     ${played ? '' : `<div class="swipe-actions">${leftActions(it).map((a, n) => `
-      <button class="sa-${a}" data-act="${n}" tabindex="-1">${a === 'swap' ? ICON.swap : ICON.skip}<span>${a === 'swap' ? 'Swap' : it.warmup ? 'Remove' : 'Skip today'}</span></button>`).join('')}</div>`}
+      <button class="sa-${a}" data-act="${n}" tabindex="-1">${a === 'swap' ? ICON.swap : ICON.skip}<span>${a === 'swap' ? 'Swap' : 'Remove'}</span></button>`).join('')}</div>`}
     <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" data-item-id="${t.id}" tabindex="0">
       <div class="card-top">
         <span class="bucket"><i></i>${it.warmup ? 'Warm-up' : BUCKETS[it.bucket].label}</span>
@@ -286,12 +286,10 @@ function recChip(t) {
   return `<button class="rec-chip ${n ? '' : 'empty'}" aria-label="Record ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.rec}${n ? `<span>${n}</span>` : ''}</button>`;
 }
 
-// What a left swipe offers, the edge-most (a long swipe) last: warm-ups swap or go; focus items
-// can be skipped for today; others skipped or swapped.
+// What a left swipe offers, the same on every card: Swap, and Remove (for today) at the edge, which
+// a long swipe does. Focus items are chosen, so they can only be removed for today.
 function leftActions(it) {
-  if (it.warmup) return ['swap', 'remove'];
-  if (it.bucket === 'focus') return ['skip'];
-  return ['skip', 'swap'];
+  return it.bucket === 'focus' ? ['remove'] : ['swap', 'remove'];
 }
 
 function progressRing(done, total) {
