@@ -1,5 +1,6 @@
 import { clampBpm } from './tempo.js';
 import { holdAudio } from './audiosession.js';
+import { keepAwake } from './keepawake.js';
 
 // A metronome on the Web Audio clock. A timer wakes every 25 ms and schedules any clicks due in
 // the next 120 ms at exact audio times, so the beat stays steady even if the page is busy.
@@ -13,7 +14,7 @@ let timer = null;
 let nextTime = 0;
 let nextBeat = 0;
 let queue = []; // scheduled beats [{ time, beat }] for the visuals
-let wakeLock = null;
+let releaseAwake = null;
 let releaseAudio = null;
 
 export const metronome = {
@@ -39,7 +40,7 @@ export const metronome = {
     queue = [];
     timer = setInterval(schedule, LOOKAHEAD_MS);
     schedule();
-    navigator.wakeLock?.request('screen').then((l) => { wakeLock = l; }).catch(() => {});
+    releaseAwake = keepAwake();
     emit();
   },
   stop() {
@@ -51,8 +52,8 @@ export const metronome = {
     queue = [];
     releaseAudio?.();
     releaseAudio = null;
-    wakeLock?.release?.().catch(() => {});
-    wakeLock = null;
+    releaseAwake?.();
+    releaseAwake = null;
     emit();
   },
   toggle(opts) {

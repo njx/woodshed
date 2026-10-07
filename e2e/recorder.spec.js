@@ -150,3 +150,20 @@ test('record while the metronome plays (Safari only allows the mic in a play-and
   expect(await page.evaluate(() => navigator.audioSession.log)).toEqual(['playback', 'play-and-record', 'playback']);
   await expect(page.locator('.metro-pill:not([hidden])')).toBeVisible();
 });
+
+test('a recording can be deleted from the list it’s in, with undo', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-rec');
+  await record(page, 800);
+  await page.fill('#rec-text', 'Take one');
+  await page.click('#rec-keep');
+  await ui.tab('diary');
+  const note = page.locator('.note', { hasText: 'Take one' });
+  await expect(note).toHaveCount(1);
+  await note.locator('.note-rm').click();
+  await expect(note).toHaveCount(0);
+  await expect.poll(async () => (await ui.saved()).state.diary.length).toBe(0);
+  await page.click('#toast button'); // Undo
+  await expect(note).toHaveCount(1);
+  await expect.poll(async () => (await ui.saved()).state.diary.length).toBe(1);
+});

@@ -32,3 +32,30 @@ test('concert view shows octaves', async ({ page, ui }) => {
   await page.click('#today-tuner');
   await expect(page.locator('#t-note')).toHaveText(/^(B♭3|D4)$/, { timeout: 10_000 });
 });
+
+test('the mini tuner stays on screen while you go through the set, and stops with × @narrow', async ({ page, ui }) => {
+  await ui.start({ instruments: ['bb'] });
+  await page.click('#today-tuner');
+  await page.click('#t-mini');
+  const pill = page.locator('.tuner-pill');
+  await expect(pill).toBeVisible();
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  // It keeps listening: a written C (concert B♭) or E (concert D) from the fake mic.
+  await expect(pill.locator('.tp-note')).toHaveText(/^[CE]$/, { timeout: 10000 });
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: test.info().outputPath('mini.png') });
+  // The header and the tools stay put, above the tab bar; the pill sits above the tools.
+  await expect(page.locator('.today-top h1')).toBeInViewport();
+  const tools = await page.locator('.today-tools').boundingBox();
+  const p = await pill.boundingBox();
+  expect(p.y + p.height).toBeLessThanOrEqual(tools.y);
+  // Tap for the full tuner (still listening); close it to stop.
+  await pill.locator('.tp-open').click();
+  await expect(page.locator('#t-dial')).toBeVisible();
+  await expect(pill).toBeHidden();
+  await page.click('#t-mini');
+  await pill.locator('.tp-stop').click();
+  await expect(pill).toBeHidden();
+  await ui.expectNoSideScroll();
+});

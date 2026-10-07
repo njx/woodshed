@@ -9,10 +9,12 @@ import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
 import { cleanupMedia } from './media.js';
 import { mountMetronomePill } from './ui/metronome.js';
+import { mountTunerPill } from './ui/tuner.js';
 import { heartbeat, HEARTBEAT_MS } from './practicetime.js';
 import { maybeGreet } from './ui/greet.js';
 
 mountMetronomePill();
+mountTunerPill();
 registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
 setSaveErrorHandler(() => toast('Could not save — storage is full or blocked'));
 
@@ -36,6 +38,8 @@ document.addEventListener('visibilitychange', () => {
     maybeGreet();
   }
 });
+// Shrinks the sticky header once the page is scrolled.
+window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 24), { passive: true });
 window.addEventListener('pagehide', () => { if (store.state) heartbeat(); flush(); });
 setInterval(() => {
   if (store.state && document.visibilityState === 'visible' && heartbeat() === 'stopped') render();

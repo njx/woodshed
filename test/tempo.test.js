@@ -12,7 +12,8 @@ describe('tempo steps', () => {
     expect(stepUp(120)).toBe(126);
     expect(stepUp(40)).toBe(42);
     expect(stepUp(150, 152)).toBe(152); // not past the goal
-    expect(stepDown(120)).toBe(108);
+    expect(stepDown(120)).toBe(115); // by 5s
+    expect(stepDown(123)).toBe(120); // onto the 5s
     expect(stepDown(32)).toBe(30);
   });
 });
@@ -35,7 +36,7 @@ describe('tempo suggestions', () => {
   it('slows down after a rough session', () => {
     const t = tune({ tempo: 120 });
     setState([t], { log: [at(t, '2026-10-03', 'solid'), at(t, '2026-10-05', 'rough')] });
-    expect(tempoSuggestion(t)).toMatchObject({ to: 108, up: false });
+    expect(tempoSuggestion(t)).toMatchObject({ to: 115, up: false });
   });
 
   it('only counts sessions at the current tempo, since it was last changed', () => {
@@ -73,7 +74,7 @@ describe('tempo suggestions', () => {
     markPlayed(t.id);
     setTempo(t, 100); // nudged on the metronome while playing
     rate(t.id, 'rough');
-    expect(tempoSuggestion(t)).toMatchObject({ to: 90, up: false });
+    expect(tempoSuggestion(t)).toMatchObject({ to: 95, up: false });
   });
 });
 

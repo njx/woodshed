@@ -1,25 +1,25 @@
 import { store, save } from '../store.js';
 import { TRANSPOSITIONS } from '../constants.js';
-import { constraints } from '../media.js';
-import { detectPitch, noteOf, concertName, writtenName } from '../pitch.js';
-import { $, openSheet } from './shell.js';
-import { holdAudio } from '../audiosession.js';
+import { concertName, writtenName } from '../pitch.js';
+import { tuner, TRACE_SECONDS } from '../tuning.js';
+import { $, ICON, openSheet, closeSheet } from './shell.js';
 
 // Tuner: a dial for the note you're playing now, and a trace of the last few seconds underneath
 // (handy for long tones: you can see the pitch sag at the end of a breath).
 // Notes are named as written for the transposition being viewed.
 
 const IN_TUNE = 5; // cents either side that count as in tune
-const TRACE_SECONDS = 10;
 const HOLD_MS = 600; // keep showing the last note this long after the sound stops
 
 export function openTuner(opts = {}) {
   const settings = store.state.settings;
   const view = settings.view;
   let a4 = settings.a4 || 440;
+  let mini = false; // closing to the mini tuner keeps it listening
 
   const sheet = openSheet(`
-    <p class="eyebrow">Tuner${view !== 'c' ? ` · ${TRANSPOSITIONS[view].label} instrument` : ''}</p>
+    <div class="row-label tuner-head"><p class="eyebrow">Tuner${view !== 'c' ? ` · ${TRANSPOSITIONS[view].label} instrument` : ''}</p>
+      <button class="link-btn" id="t-mini">${ICON.tuner}Mini tuner</button></div>
     <div class="tuner-dial" id="t-dial">
       <svg viewBox="-100 -100 200 200" aria-hidden="true">
         <circle class="t-ring" r="88"/>
@@ -44,10 +44,8 @@ export function openTuner(opts = {}) {
   `, () => {
     closed = true;
     cancelAnimationFrame(raf);
-    stream?.getTracks().forEach((tr) => tr.stop());
-    ctx?.close().catch(() => {});
-    wakeLock?.release?.().catch(() => {});
-    restoreSession();
+    unsub();
+    if (!mini) tuner.stop();
     opts.back?.();
   });
 
@@ -61,14 +59,8 @@ export function openTuner(opts = {}) {
 
   let closed = false;
   let raf = null;
-  let stream = null;
-  let ctx = null;
-  let analyser = null;
-  let buf = null;
-  let wakeLock = null;
   let shown = 0; // needle angle, eased
-  let last = null; // { midi, cents, hz, at }
-  const trace = []; // { t, cents, midi } (cents null = no note)
+  let lastText = 0;
 
   sheet.querySelectorAll('[data-a4]').forEach((b) => (b.onclick = () => {
     a4 = Math.max(430, Math.min(450, a4 + Number(b.dataset.a4)));
@@ -76,59 +68,37 @@ export function openTuner(opts = {}) {
     save();
     $('#t-a4', sheet).textContent = a4;
   }));
+  // Keep listening in a small tuner on top of everything, and go back to the set.
+  $('#t-mini', sheet).onclick = () => {
+    if (!tuner.state.running) return;
+    mini = true;
+    tuner.setMini(true);
+    closeSheet();
+  };
 
-  // While the tuner listens, the session has to allow the mic alongside playback.
-  let releaseAudio = null;
-  const restoreSession = () => { releaseAudio?.(); releaseAudio = null; };
-
-  async function start() {
-    try {
-      // Created during the tap that opened the tuner, so it's allowed to run.
-      ctx = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
-      releaseAudio = holdAudio('record');
-      stream = await navigator.mediaDevices.getUserMedia({ audio: constraints('audio').audio });
-    } catch (err) {
-      console.warn('Tuner could not use the mic', err);
-      restoreSession();
+  const unsub = tuner.subscribe((st) => {
+    if (st.error) {
       $('#t-msg', sheet).textContent = 'The tuner needs the microphone. Allow it in your browser’s settings and try again.';
       centsEl.textContent = 'No microphone';
-      return;
     }
-    if (closed) return stream.getTracks().forEach((tr) => tr.stop());
-    await ctx.resume().catch(() => {});
-    analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    buf = new Float32Array(analyser.fftSize);
-    ctx.createMediaStreamSource(stream).connect(analyser);
-    navigator.wakeLock?.request('screen').then((l) => { wakeLock = l; }).catch(() => {});
-    loop();
-  }
+  });
+  tuner.setMini(false); // the full tuner instead, while it's open
+  tuner.start();
+  loop();
 
-  let lastDetect = 0;
   function loop(now = performance.now()) {
     if (closed) return;
     raf = requestAnimationFrame(loop);
-    if (now - lastDetect >= 30) {
-      lastDetect = now;
-      analyser.getFloatTimeDomainData(buf);
-      const p = detectPitch(buf, ctx.sampleRate);
-      if (p && p.clarity > 0.8) {
-        const n = noteOf(p.hz, a4);
-        // Smooth out jitter: average with the previous reading of the same note.
-        const cents = last && last.midi === n.midi && now - last.at < 200 ? last.cents * 0.6 + n.cents * 0.4 : n.cents;
-        last = { midi: n.midi, cents, hz: p.hz, at: now };
-        trace.push({ t: now, cents, midi: n.midi });
-      } else {
-        trace.push({ t: now, cents: null, midi: null });
-      }
-      while (trace.length && now - trace[0].t > TRACE_SECONDS * 1000) trace.shift();
-      showReading(now);
+    if (now - lastText >= 30) {
+      lastText = now;
+      if (!tuner.state.error) showReading(now);
     }
     drawNeedle();
     drawTrace(now);
   }
 
   function showReading(now) {
+    const last = tuner.last;
     const live = last && now - last.at < HOLD_MS;
     dial.classList.toggle('live', !!live);
     if (!live) {
@@ -148,6 +118,7 @@ export function openTuner(opts = {}) {
   }
 
   function drawNeedle() {
+    const last = tuner.last;
     const live = last && performance.now() - last.at < HOLD_MS;
     const target = live ? Math.max(-50, Math.min(50, last.cents)) * 1.2 : 0; // ±50 cents = ±60°
     shown += (target - shown) * 0.25;
@@ -175,7 +146,7 @@ export function openTuner(opts = {}) {
     g.lineJoin = 'round';
     g.font = '600 12px system-ui, sans-serif';
     let prev = null;
-    for (const p of trace) {
+    for (const p of tuner.trace) {
       if (p.cents == null) { prev = null; continue; }
       if (!prev || prev.midi !== p.midi) {
         g.fillStyle = css.getPropertyValue('--t-label');
@@ -190,8 +161,46 @@ export function openTuner(opts = {}) {
       prev = p;
     }
   }
+}
 
-  start();
+// The mini tuner: while it's on, a small pill on every screen with the note and how far off it is.
+// Tap it for the full tuner; × stops listening.
+export function mountTunerPill() {
+  const pill = document.createElement('div');
+  pill.className = 'tuner-pill';
+  pill.hidden = true;
+  pill.innerHTML = `
+    <button class="tp-open" aria-label="Open the tuner"><b class="tp-note">–</b>
+      <span class="tp-meter" aria-hidden="true"><i class="tp-zero"></i><i class="tp-dot"></i></span></button>
+    <button class="tp-stop" aria-label="Stop the tuner">${ICON.skip}</button>`;
+  document.body.appendChild(pill);
+  const note = $('.tp-note', pill);
+  const dot = $('.tp-dot', pill);
+  let raf = null;
+  let shown = 0;
+  $('.tp-open', pill).onclick = () => openTuner();
+  $('.tp-stop', pill).onclick = () => tuner.stop();
+  const tick = () => {
+    const last = tuner.last;
+    const now = performance.now();
+    const live = last && now - last.at < HOLD_MS;
+    const view = store.state.settings.view;
+    note.textContent = live ? writtenName(last.midi, view) : '–';
+    const target = live ? Math.max(-50, Math.min(50, last.cents)) : 0;
+    shown += (target - shown) * 0.3;
+    dot.style.left = `${50 + shown}%`;
+    pill.classList.toggle('live', !!live);
+    pill.classList.toggle('good', !!live && Math.abs(last.cents) <= IN_TUNE);
+    pill.classList.toggle('near', !!live && Math.abs(last.cents) > IN_TUNE && Math.abs(last.cents) <= 15);
+    raf = requestAnimationFrame(tick);
+  };
+  tuner.subscribe((st) => {
+    const on = st.running && st.mini;
+    pill.hidden = !on;
+    document.body.classList.toggle('has-tuner-pill', on);
+    cancelAnimationFrame(raf);
+    if (on) raf = requestAnimationFrame(tick);
+  });
 }
 
 function ticks() {

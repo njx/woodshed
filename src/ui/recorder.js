@@ -5,6 +5,7 @@ import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js'
 import { canRecord, pickMime, constraints, saveClip, fmtDuration } from '../media.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
+import { keepAwake } from '../keepawake.js';
 
 // Record a practice clip, then keep it (as a diary note, or added to an existing one) or discard it.
 //   opts.entryId: add the clip to this diary entry
@@ -30,12 +31,13 @@ export function openRecorder(opts = {}) {
   let handled = false; // take kept or discarded
   let tick = null;
   let raf = null;
-  let wakeLock = null;
   const levels = [];
 
   // The mic needs a session that allows it alongside playback (the metronome in your earbuds).
   // Held until the recorder closes, so the metronome isn't interrupted between takes.
   const releaseAudio = holdAudio('record');
+  // The screen stays on while the recorder is open: a phone that locks mid-take ends the take.
+  const releaseAwake = keepAwake();
   // Created during the tap that opened the recorder, so iOS lets it run (for the level meter).
   const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
   const audioCtx = AudioCtx ? new AudioCtx() : null;
@@ -219,7 +221,6 @@ export function openRecorder(opts = {}) {
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     recorder.onstop = () => {
       clearInterval(tick);
-      releaseWakeLock();
       const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || `${kind}/webm` });
       take = { blob, url: URL.createObjectURL(blob), ms: Date.now() - startedAt };
       stopStream();
@@ -237,8 +238,6 @@ export function openRecorder(opts = {}) {
       const t = $('#rec-time', box);
       if (t) t.textContent = fmtDuration(elapsed);
     }, 250);
-    // Keep the screen on while recording, where supported.
-    navigator.wakeLock?.request('screen').then((l) => { wakeLock = l; }).catch(() => {});
   }
 
   // Scrolling level meter from the microphone.
@@ -328,17 +327,12 @@ export function openRecorder(opts = {}) {
     analyser = null;
   }
 
-  function releaseWakeLock() {
-    wakeLock?.release?.().catch(() => {});
-    wakeLock = null;
-  }
-
   function teardown() {
     clearInterval(tick);
-    releaseWakeLock();
     stopStream();
     audioCtx?.close?.().catch(() => {});
     releaseAudio();
+    releaseAwake();
     document.removeEventListener('visibilitychange', onHide);
   }
 

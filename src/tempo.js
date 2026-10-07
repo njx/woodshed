@@ -7,12 +7,12 @@ export const MIN_BPM = 30;
 export const MAX_BPM = 300;
 export const clampBpm = (b) => Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(b)));
 
-// Up about 5% (at least 2), down about 10% (at least 4).
+// Up about 5% (at least 2); down to the next multiple of 5 below (120 → 115, 123 → 120).
 export const stepUp = (b, goal) => {
   const next = clampBpm(b + Math.max(2, Math.round(b * 0.05)));
   return goal && b < goal ? Math.min(next, goal) : next;
 };
-export const stepDown = (b) => clampBpm(b - Math.max(4, Math.round(b * 0.1)));
+export const stepDown = (b) => clampBpm(Math.ceil(b / 5) * 5 - 5);
 
 // Solid twice in a row at the working tempo: speed up. Rough once: slow down.
 export const SOLID_TO_SPEED_UP = 2;

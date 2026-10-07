@@ -34,6 +34,7 @@ export function noteHtml(e, { showDate = false } = {}) {
         ${clipPills(e)}
         <small>${meta.map(esc).join(' · ')}</small>
       </div>
+      ${e.media?.length ? `<button class="note-rm" data-rm-take="${e.id}" aria-label="Delete this recording">${ICON.skip}</button>` : ''}
     </li>`;
 }
 
@@ -78,6 +79,24 @@ export function bindNotes(root, back, onChange = render) {
     if (e.done) toast('Marked done', { label: 'Undo', fn: () => { e.done = false; save(); onChange(); } });
   }));
   $$('[data-play]', root).forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); toggleListPlay(b); }));
+  // Deleting a recording (its note with it), with Undo. The clip file is cleaned up the next time
+  // the app starts, if it's still not wanted.
+  $$('[data-rm-take]', root).forEach((b) => (b.onclick = (ev) => {
+    ev.stopPropagation();
+    const diary = store.state.diary;
+    const i = diary.findIndex((x) => x.id === b.dataset.rmTake);
+    if (i < 0) return;
+    if (listPlayer?.btn.dataset.play?.startsWith(`${diary[i].id}:`)) toggleListPlay(listPlayer.btn);
+    const [gone] = diary.splice(i, 1);
+    save();
+    onChange();
+    toast('Recording deleted', { label: 'Undo', fn: () => {
+      if (store.state.diary !== diary) return toast('Can’t undo — other things have changed since');
+      diary.splice(Math.min(i, diary.length), 0, gone);
+      save();
+      onChange();
+    } });
+  }));
   $$('[data-note]', root).forEach((li) => (li.onclick = () => openNote(li.dataset.note, { back })));
   $$('[data-goto-diary]', root).forEach((b) => (b.onclick = () => goTo('diary')));
 }

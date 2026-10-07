@@ -37,7 +37,7 @@ export function renderToday(root) {
   const extras = state.log.filter((e) => e.date === today && !planIds.has(e.itemId)).map((e) => itemById(e.itemId)).filter(Boolean);
 
   root.innerHTML = `
-    <header class="top">
+    <header class="top today-top">
       <div>
         <p class="eyebrow eyebrow-row"><span>${esc(niceDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>${transposeToggle()}</p>
         <h1>Today’s set</h1>

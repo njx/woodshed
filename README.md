@@ -42,6 +42,9 @@ For each exercise you choose:
 toward its key, recent sessions count more (a session counts half as much after about three
 weeks), and rough ones less. The Progress tab charts it around the circle of fifths.
 
+Today's header and its tools (Ask, Note, Record, Metronome, Tuner) stay on screen as you scroll;
+the header shrinks to the title, keys and progress.
+
 ### Exercises on a day
 
 Settings → *Exercises on a day*:
@@ -113,7 +116,7 @@ history. After you rate a session:
 
 - **Solid twice in a row** at the working tempo → a suggestion to speed up about 5% (never past
   your goal; reaching the goal gets a 🎉).
-- **Rough** → a suggestion to slow down about 10%.
+- **Rough** → a suggestion to slow down 5 bpm (to the next multiple of 5: 120 → 115, 123 → 120).
 - **OK** → keep going at the same tempo.
 
 Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
@@ -146,6 +149,10 @@ it is (green within 5 cents); underneath, a trace of the last 10 seconds shows h
 written for the transposition you're viewing (B♭, E♭, F), with concert pitch underneath. The
 reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.js`),
 which finds the fundamental even when overtones are louder, as they often are on sax.
+
+**Mini tuner** (in the tuner's top corner) keeps it listening in a small pill on every screen —
+the note, and a dot that sits on the centre line when you're in tune — so you can go through
+today's set while you check your pitch. Tap the pill for the full tuner; × stops it.
 
 ## Assistant
 
@@ -229,6 +236,10 @@ diary note: audio plays right from the list, and the note shows players for each
 - Audio is recorded with the phone's voice processing turned off (echo cancellation, noise
   suppression, automatic gain), which otherwise mangles the sound of an instrument.
 - Closing the recorder mid-take keeps what you recorded; Discard is the only way to throw it away.
+- The screen stays on while the recorder is open (a phone that locks mid-take would end the take),
+  and while the metronome or tuner runs.
+- Delete a recording with the × on it wherever it's listed (Diary, a tune's or exercise's
+  details), with Undo.
 - The metronome keeps playing while you record (on iPhone the app switches its audio session to
   play-and-record while the recorder is open). With earbuds in, the click stays in your ears; the
   recorder offers a **Mic** choice when there's more than one, and starts with the phone's own mic
