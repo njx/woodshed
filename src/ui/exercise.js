@@ -244,7 +244,13 @@ export function openExercise(id, opts = {}) {
 
     const editAbc = $('#x-edit-abc', sheet) || $('#x-add-abc', sheet);
     if (editAbc) editAbc.onclick = () => {
-      if (isNew) return toast('Add the exercise first, then its notation');
+      // For a new exercise (a lick, say) the notation is the point: add it, then write it.
+      if (isNew) {
+        t.name = t.name.trim() || `Untitled ${(CATEGORIES[t.category] || 'exercise').toLowerCase()}`;
+        state.items.push(t);
+        save();
+        render();
+      }
       goTo(() => openNotationEditor(t, back));
     };
 

@@ -91,3 +91,23 @@ test('notation is one bar per line, black on white even in dark mode @narrow', a
   await notation.scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('dark.png') });
 });
+
+test('a new lick can get its notation straight away', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  const count = await page.locator('#tune-list .row').count();
+  await page.click('#add');
+  await page.click('[data-cat="lick"]');
+  await page.click('#x-add-abc'); // no name yet
+  await expect(page.locator('#ne-pad')).toBeVisible();
+  await page.click('#ne-pad [data-note="G"]');
+  await page.click('#ne-save');
+  // Back on the (now saved) exercise, which can be renamed.
+  await expect(page.locator('#x-name')).toHaveValue('Untitled lick');
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await page.fill('#x-name', 'Cannonball lick');
+  await ui.backdrop();
+  await expect(page.locator('#tune-list .row')).toHaveCount(count + 1);
+  await expect(page.locator('#tune-list .row', { hasText: 'Cannonball lick' })).toHaveCount(1);
+});
