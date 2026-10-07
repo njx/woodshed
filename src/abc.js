@@ -41,6 +41,12 @@ export function restToken(duration = 'eighth', dotted = false) {
   return `z${lengthSuffix(unitsFor(duration, dotted))}`;
 }
 
+// Starts a new line after every bar line, so notation shows one bar per line: easier to read on a
+// phone. (Repeat signs stay together: "|:" isn't split, ":|", "||" and "|]" end a line.)
+export function barPerLine(body) {
+  return body.split('\n').map((line) => line.replace(/(\|\]|\|\||:\||\|)(?![:\]|])\s*(?=\S)/g, '$1\n')).join('\n');
+}
+
 export function buildAbc(body, { meter = '4/4', tempo = 100 } = {}) {
   return ['X:1', `M:${meter}`, 'L:1/8', `Q:1/4=${tempo}`, 'K:C', body.trim() || 'z8|'].join('\n');
 }

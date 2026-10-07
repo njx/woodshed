@@ -74,3 +74,20 @@ test('delete an exercise from its details, and undo', async ({ page, ui }) => {
   await page.click('#toast button'); // Undo
   await expect(page.locator('#tune-list .row')).toHaveCount(count);
 });
+
+test('notation is one bar per line, black on white even in dark mode @narrow', async ({ page, ui }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await ui.start({ instruments: ['bb'] });
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Scales: major and minors' }).click();
+  const notation = page.locator('#x-notation');
+  await expect(notation.locator('svg').first()).toBeVisible();
+  // Up and down an octave is two bars: two staff lines.
+  await expect(notation.locator('.abcjs-staff.abcjs-l1').first()).toBeAttached();
+  await expect(notation.locator('.abcjs-l2')).toHaveCount(0);
+  const colors = await notation.evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]);
+  expect(colors).toEqual(['rgb(255, 255, 255)', 'rgb(17, 17, 17)']);
+  await notation.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('dark.png') });
+});

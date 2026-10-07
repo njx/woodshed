@@ -34,3 +34,12 @@ describe('notation', () => {
     expect(soundingShift('bb')).toBe(-2);
   });
 });
+
+describe('one bar per line', async () => {
+  const { barPerLine } = await import('../src/abc.js');
+  it('breaks after each bar line, keeping repeat signs together', () => {
+    expect(barPerLine('C D E F | G A B c | C8 |')).toBe('C D E F |\nG A B c |\nC8 |');
+    expect(barPerLine('|: C D :| E F |] ')).toBe('|: C D :|\nE F |] ');
+    expect(barPerLine('A B || c d')).toBe('A B ||\nc d');
+  });
+});

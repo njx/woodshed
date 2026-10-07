@@ -24,24 +24,24 @@ describe('scales and chords', () => {
 describe('generated notation', () => {
   it('writes a scale up and down with accidentals only where they change', () => {
     // Harmonic minor: A♭ and B♮. Accidentals are written again in each new bar.
-    expect(generateAbc('scale', 'harmonic')).toBe('C D _E F G _A B c | B _A G F _E D C2 |');
+    expect(generateAbc('scale', 'harmonic')).toBe('CD_EF G_ABc | B_AGF _ED C2 |');
   });
 
   it('marks a natural when the same note changes within a bar', () => {
     // Diminished half–whole: D♭ E♭ E♮ F♯ — the E needs a natural after E♭.
     const abc = generateAbc('scale', 'dimHW');
-    expect(abc).toBe('C _D _E =E ^F G A _B | c _B A G ^F E _E _D | C8 |');
+    expect(abc).toBe('C_D_E=E ^FGA_B | c_BAG ^FE_E_D | C8 |');
   });
 
-  it('fills the last bar with the final note', () => {
-    expect(generateAbc('scale', 'major')).toBe('C D E F G A B c | B A G F E D C2 |');
-    expect(generateAbc('chord', 'm7')).toBe('C _E G _B c B G E | C8 |');
-    expect(generateAbc('scale', 'major', { meter: '3/4' })).toBe('C D E F G A | B c B A G F | E D C4 |');
+  it('fills the last bar with the final note, and beams eighths by the beat', () => {
+    expect(generateAbc('scale', 'major')).toBe('CDEF GABc | BAGF ED C2 |');
+    expect(generateAbc('chord', 'm7')).toBe('C_EG_B cBGE | C8 |');
+    expect(generateAbc('scale', 'major', { meter: '3/4' })).toBe('CD EF GA | Bc BA GF | ED C4 |');
   });
 
   it('spells a diminished 7th with a double flat', () => {
     // Within a bar an accidental carries through, so the way back down needs none.
-    expect(generateAbc('chord', 'dim7')).toBe('C _E _G __B c B G E | C8 |');
+    expect(generateAbc('chord', 'dim7')).toBe('C_E_G__B cBGE | C8 |');
   });
 
   it('shapes adapt to the number of notes', () => {
@@ -49,7 +49,7 @@ describe('generated notation', () => {
     expect(shapeNumbers('thirds', 7, 'scale')).toEqual([1, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6, 8, 7, 9, 8]);
     expect(shapeNumbers('p1235', 7, 'scale').slice(0, 8)).toEqual([1, 2, 3, 5, 2, 3, 4, 6]);
     expect(shapeNumbers('inversions', 4, 'chord')).toEqual([1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 7, 9]);
-    expect(generateAbc('chord', 'maj7', { shape: 'inversions' })).toBe("C E G B E G B c | G B c e B c e g | c'8 |");
+    expect(generateAbc('chord', 'maj7', { shape: 'inversions' })).toBe("CEGB EGBc | GBce Bceg | c'8 |");
   });
 
   it('reads custom patterns', () => {
@@ -58,7 +58,7 @@ describe('generated notation', () => {
     expect(parsePattern('10 12', 'chord').numbers).toEqual([6, 7]);
     expect(parsePattern('1 2', 'chord').error).toMatch(/chord tones/);
     expect(parsePattern('1 x', 'scale').error).toMatch(/x/);
-    expect(generateAbc('scale', 'dorian', { shape: 'custom', pattern: '1 3 5 7 9 7 5 3 1' })).toBe('C _E G _B d B G E | C8 |');
+    expect(generateAbc('scale', 'dorian', { shape: 'custom', pattern: '1 3 5 7 9 7 5 3 1' })).toBe('C_EG_B dBGE | C8 |');
   });
 });
 

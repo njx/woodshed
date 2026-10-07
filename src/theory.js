@@ -144,8 +144,10 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
     if (octave < 4) s += ','.repeat(4 - octave);
     return s;
   };
+  // Eighths are beamed in groups: fours in 4/4 (two beats), pairs in 3/4, threes in 6/8.
+  const group = den === 8 ? 3 : num % 2 === 0 ? 4 : 2;
   const bars = [];
-  let bar = [];
+  let bar = '';
   let used = 0;
   let accidentals = {}; // accidentals in force this bar, per written note
   notes.forEach((note, i) => {
@@ -156,16 +158,18 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
     accidentals[id] = note.acc;
     // The last note holds to the end of its bar.
     const units = last ? perBar - used : 1;
-    bar.push(`${mark}${name(note)}${units > 1 ? units : ''}`);
+    // A space ends a beam (ABC beams notes written together).
+    if (bar && (used % group === 0 || units > 1)) bar += ' ';
+    bar += `${mark}${name(note)}${units > 1 ? units : ''}`;
     used += units;
     if (used >= perBar) {
-      bars.push(bar.join(' '));
-      bar = [];
+      bars.push(bar);
+      bar = '';
       used = 0;
       accidentals = {};
     }
   });
-  if (bar.length) bars.push(bar.join(' '));
+  if (bar) bars.push(bar);
   return `${bars.join(' | ')} |`;
 }
 

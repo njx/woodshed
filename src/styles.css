@@ -690,7 +690,9 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .key-strip button { min-height: 34px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); padding: 0; }
 .key-strip button.today { text-decoration: underline; text-decoration-color: var(--exercise); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .key-strip button.on { background: var(--exercise); color: #fff; }
-.notation { min-height: 70px; color: var(--ink); overflow: hidden; }
+.notation { min-height: 70px; overflow: hidden; }
+/* Notation is always black on white, like a printed part, in dark mode too. */
+.notation, .editor-preview { background: #fff; color: #111; border-radius: 12px; padding: 6px 8px; }
 .notation svg { width: 100%; height: auto; display: block; fill: currentColor; stroke: none; }
 .notation svg path, .notation svg text { fill: currentColor; }
 .notation svg .abcjs-staff, .notation svg .abcjs-bar, .notation svg .abcjs-stem, .notation svg .abcjs-beam-elem { stroke: currentColor; }
@@ -700,7 +702,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .tempo { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
 .tempo input { width: 64px; height: 36px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 16px; }
 
-.editor-preview { background: var(--surface); border-radius: 14px; padding: 8px; margin-bottom: 8px; min-height: 90px; }
+.editor-preview { border-radius: 14px; padding: 8px; margin-bottom: 8px; min-height: 90px; }
 .ne-text { position: relative; }
 .ne-text textarea {
   width: 100%; padding: 10px 48px 10px 12px; border: 1.5px solid var(--line); border-radius: 12px;
