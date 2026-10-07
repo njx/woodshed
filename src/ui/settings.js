@@ -4,6 +4,8 @@ import { dateStr } from '../dates.js';
 import { esc } from '../util.js';
 import { buildPlan } from '../plan.js';
 import { mediaStats, fmtSize } from '../media.js';
+import { getApiKey, setApiKey } from '../assistant/agent.js';
+import { openKeySetup, openAssistant } from './assistant.js';
 import { $, $$, ICON, render, toast, goTo } from './shell.js';
 
 export function renderSettings(root) {
@@ -60,6 +62,18 @@ export function renderSettings(root) {
     </section>
 
     <section class="panel">
+      <h3 class="section-label">Assistant</h3>
+      <div class="setting">
+        <div><b>Anthropic API key</b><span id="key-status">Checking…</span></div>
+        <button class="pill-btn" id="key-btn">Set</button>
+      </div>
+      <p class="fine">The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups.</p>
+      ${(store.state.assistantWishes || []).length ? `
+        <div class="field-label">Things it couldn’t do yet</div>
+        <ul class="wishes">${store.state.assistantWishes.slice(-10).reverse().map((w) => `<li><span>${esc(w.request)}</span><small>${esc(w.date)}</small></li>`).join('')}</ul>` : ''}
+    </section>
+
+    <section class="panel">
       <h3 class="section-label">Your data</h3>
       <p class="fine">Everything is stored on this device only. Export a backup now and then — and before switching phones.</p>
       ${(() => {
@@ -106,6 +120,20 @@ export function renderSettings(root) {
     goTo('today');
     toast('Today’s set rebuilt');
   };
+  getApiKey().then((k) => {
+    const status = $('#key-status', root);
+    const btn = $('#key-btn', root);
+    if (!status) return;
+    status.textContent = k ? `Set (…${k.slice(-4)})` : 'Not set';
+    btn.textContent = k ? 'Remove' : 'Set';
+    btn.onclick = async () => {
+      if (!k) return openKeySetup(() => openAssistant());
+      if (!confirm('Remove the API key from this device?')) return;
+      await setApiKey('');
+      render();
+      toast('Key removed');
+    };
+  });
   $('#export').onclick = exportData;
   $('#import').onchange = importData;
   $('#reset').onclick = () => {

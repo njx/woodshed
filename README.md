@@ -65,6 +65,30 @@ history. After you rate a session:
 Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
 you actually played. Nudging the metronome while you practice updates today's session too.
 
+## Assistant
+
+Tap **Ask** on the Today screen to chat with Claude about your practice. It can look things up and
+make changes for you, for example:
+
+- "Build me a set for tonight", "add a couple of ballads in flat keys", "drop the exercises today"
+- "What have I been neglecting?", "Which keys am I weakest in?"
+- "Make me an exercise: ii–V–I, 1-2-3-5, cycle of 4ths, at 90" (it can write the notation)
+- "Note for my teacher: ask about altissimo", "Mark Solar proficient and set it to 140"
+- general music questions
+
+It works through a set of tools over the app's data (`src/assistant/tools.js`): search the library,
+read today's set, an item's history, practice stats and the diary; add to or remove from today;
+update or create tunes and exercises; add diary notes. Every change it makes is listed under its
+reply with an **Undo** button. When you ask for something the tools can't do, it says so and
+records the request; those show under Settings → Assistant, as a list of what to add next.
+
+**Setup:** it uses your own Anthropic API key (Settings → Assistant, or the prompt the first time
+you tap Ask). The key is stored only on your device, in IndexedDB, and not in backups; the app calls
+the API directly from the browser. Each message sends your question plus a short snapshot of the app's state
+and whatever the tools look up. It uses Claude Opus 5.5 at medium effort, with prompt caching and
+an automatic fallback model if a request is declined; a typical conversation costs a few cents.
+Needs a connection; the rest of the app works offline.
+
 ## How tunes are picked
 
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
@@ -154,17 +178,19 @@ Layout:
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/keystats.js`: key familiarity and choosing exercise keys
 - `src/tempo.js`, `src/metronome.js`: working tempos and suggestions; the metronome engine
+- `src/assistant/`: the assistant's tools (`tools.js`) and conversation loop (`agent.js`)
 - `src/abc.js`: building notation (ABC), note lengths, transposition
 - `src/diary.js`: practice notes and flagged to-dos
 - `src/media.js`: recorded clips (formats, storage, cleanup)
 - `src/listen.js`, `src/data/`: recordings and search links; the seed tunes and exercises
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
   sheet (`item`), exercises and the notation editor (`exercise`, `notation`), the recorder
-  (`recorder`), the metronome (`metronome`), and shared pieces (`shell`)
+  (`recorder`), the metronome (`metronome`), the assistant chat (`assistant`), and shared pieces
+  (`shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
-- `test/`: unit tests for scheduling, planning, keys, exercises, notation, storage, the diary,
-  recordings and the recordings data
+- `test/`: unit tests for scheduling, planning, keys, exercises, notation, tempo, storage, the
+  diary, recordings, the recordings data and the assistant's tools
 
 ## Deploying
 
