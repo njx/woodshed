@@ -42,15 +42,17 @@ function readName(name) {
   return { name: n };
 }
 
-const nullable = (schema) => ({
-  ...schema,
-  type: [schema.type, 'null'],
-  ...(schema.enum ? { enum: [...schema.enum, null] } : {}),
-});
+// Optional fields: may be left out, or sent as null.
+const OPTIONAL = new WeakSet();
+const nullable = (schema) => {
+  const s = { ...schema, type: [schema.type, 'null'], ...(schema.enum ? { enum: [...schema.enum, null] } : {}) };
+  OPTIONAL.add(s);
+  return s;
+};
 const obj = (properties) => ({
   type: 'object',
   properties,
-  required: Object.keys(properties),
+  required: Object.keys(properties).filter((k) => !OPTIONAL.has(properties[k])),
   additionalProperties: false,
 });
 
@@ -503,7 +505,9 @@ export function runTool(name, input) {
 export const isWriteTool = (name) => !!byName.get(name)?.write;
 
 // Tool definitions for the API (without the run functions).
+// Not strict: the API's strict mode allows at most 16 optional (nullable) fields across all tools,
+// and these tools have more. Inputs are checked here instead (validate, before any tool runs).
 export const apiTools = () => TOOLS.map(({ name, description, input_schema }) => ({
-  name, description, input_schema, strict: true, eager_input_streaming: true,
+  name, description, input_schema, eager_input_streaming: true,
 }));
 

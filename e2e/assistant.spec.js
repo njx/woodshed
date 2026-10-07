@@ -27,6 +27,13 @@ async function mockApi(page) {
     const req = route.request();
     const body = JSON.parse(req.postData());
     api.requests.push({ headers: req.headers(), body });
+    // The real API's documented limits on strict tools (it answers 400 above them).
+    const strict = body.tools.filter((t) => t.strict);
+    const unions = strict.flatMap((t) => Object.values(t.input_schema.properties)).filter((p) => Array.isArray(p.type) || p.anyOf).length;
+    const optional = strict.flatMap((t) => Object.keys(t.input_schema.properties).filter((k) => !t.input_schema.required.includes(k))).length;
+    if (strict.length > 20 || unions > 16 || optional > 24) {
+      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Schema is too complex for compilation.' } }) });
+    }
     if (api.error) return route.fulfill({ status: api.error.status, contentType: 'application/json', body: JSON.stringify({ type: 'error', error: api.error.body }) });
     if (api.badKey) {
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }) });
@@ -68,10 +75,11 @@ test('the assistant changes today’s set, shows the cost, and can undo', async 
   await expect(page.locator('.msg-cost')).toHaveText(/¢/);
   await expect(page.locator('#chat-cost')).toContainText('this chat');
 
-  // What was sent: model, fallbacks, strict tools, the user's key, the app state first.
+  // What was sent: model, fallbacks, tools, the user's key, the app state first.
   const q = api.requests[0];
   expect(q.body).toMatchObject({ model: 'claude-opus-5-5', fallbacks: 'default', output_config: { effort: 'medium' }, stream: true });
-  expect(q.body.tools.every((t) => t.strict && t.eager_input_streaming)).toBe(true);
+  expect(q.body.tools).toHaveLength(12);
+  expect(q.body.tools.every((t) => t.eager_input_streaming)).toBe(true);
   expect(q.headers['x-api-key']).toBe('sk-ant-test-1234');
   expect(q.headers['anthropic-beta']).toContain('server-side-fallback');
   expect(q.body.messages[0].content[0].text.startsWith('<app_state>')).toBe(true);

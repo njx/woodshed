@@ -20,13 +20,15 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('tool definitions', () => {
-  it('are strict schemas the API accepts: every property required, no extras', () => {
+  it('are schemas the API accepts: optional fields are the nullable ones, no extras', () => {
     for (const t of apiTools()) {
-      expect(t.strict).toBe(true);
+      // Strict mode would cap the tools at 16 nullable fields in total (the API answers 400).
+      expect(t.strict).toBeUndefined();
       const check = (s) => {
         if (s.type === 'object' || (Array.isArray(s.type) && s.type.includes('object'))) {
           expect(s.additionalProperties).toBe(false);
-          expect([...s.required].sort()).toEqual(Object.keys(s.properties).sort());
+          const required = Object.keys(s.properties).filter((k) => ![].concat(s.properties[k].type).includes('null'));
+          expect([...s.required].sort()).toEqual(required.sort());
           Object.values(s.properties).forEach(check);
         }
         if (s.items) check(s.items);
@@ -42,8 +44,9 @@ describe('tool definitions', () => {
     expect(validate(schema, ok)).toBe(null);
     expect(validate(schema, { ...ok, priority: 'urgent' })).toMatch(/priority/);
     expect(validate(schema, { ...ok, tempo: '100' })).toMatch(/tempo/);
-    expect(validate(schema, { item_id: 'x' })).toMatch(/missing/);
-    expect(runTool('update_item', { item_id: 'x' }).error).toMatch(/Invalid input/);
+    expect(validate(schema, { item_id: 'x', priority: 'high' })).toBe(null); // optional fields left out
+    expect(validate(schema, { priority: 'high' })).toMatch(/item_id is missing/);
+    expect(runTool('update_item', { priority: 'high' }).error).toMatch(/Invalid input/);
   });
 });
 
