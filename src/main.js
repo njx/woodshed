@@ -10,6 +10,7 @@ import { renderDiary } from './ui/diary.js';
 import { cleanupMedia } from './media.js';
 import { mountMetronomePill } from './ui/metronome.js';
 import { heartbeat, HEARTBEAT_MS } from './practicetime.js';
+import { maybeGreet } from './ui/greet.js';
 
 mountMetronomePill();
 registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
@@ -29,9 +30,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     heartbeat(); // the practice timer's end, in case the app doesn't come back
     flush();
-  } else if (heartbeat() === 'stopped' || store.state.plan?.date !== dateStr()) {
+  } else {
     // The timer stopped while away, or the app stayed open past the end of the practice day.
-    render();
+    if (heartbeat() === 'stopped' || store.state.plan?.date !== dateStr()) render();
+    maybeGreet();
   }
 });
 window.addEventListener('pagehide', () => { if (store.state) heartbeat(); flush(); });
@@ -43,6 +45,7 @@ loadState().then(
   () => {
     heartbeat(); // carries on a running timer, or stops it if the app was closed a while
     render();
+    maybeGreet();
     cleanupMedia();
   },
   (err) => {

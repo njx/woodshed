@@ -173,6 +173,7 @@ export function sanitizeState(s) {
   s.plan = plan(s.plan, ids);
   s.settings = settings(s.settings);
   s.sessions = (Array.isArray(s.sessions) ? s.sessions : []).map(session).filter(Boolean);
+  s.greetedOn = isDate(s.greetedOn) ? s.greetedOn : null;
   s.timing = s.sessions.some((x) => x.id === s.timing) ? s.timing : null;
   s.assistantWishes = (Array.isArray(s.assistantWishes) ? s.assistantWishes : [])
     .filter((w) => w && typeof w === 'object')

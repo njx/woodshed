@@ -41,3 +41,37 @@ test('after the app was closed a while, the timer has stopped, and the time away
   await expect(bar).toContainText('Practicing');
   await expect(page.locator('#pt-clock')).toHaveText(/^50:/);
 });
+
+test('the first open of a day greets you with Start practice @narrow', async ({ page, ui }) => {
+  await ui.start(); // setting up counts as today's welcome
+  await expect.poll(async () => (await ui.saved()).state.greetedOn).not.toBe(null);
+  await page.reload();
+  await expect(page.locator('.greet')).toHaveCount(0);
+
+  await ui.editSaved((s) => { s.greetedOn = '2020-01-01'; }); // last opened on an earlier day
+  await page.reload();
+  const greet = page.locator('.greet');
+  await expect(greet).toBeVisible();
+  await expect(greet.locator('.greet-plan')).toContainText('Today’s set: 2 exercises and 5 tunes');
+  await page.waitForTimeout(300); // fading in
+  await page.screenshot({ path: test.info().outputPath('greet.png') });
+  await greet.locator('#greet-start').click();
+  await expect(greet).toHaveCount(0);
+  await expect(page.locator('.ptimer')).toContainText('Practicing');
+  await page.reload();
+  await expect(page.locator('.greet')).toHaveCount(0);
+});
+
+test('“Not now” leaves the welcome until tomorrow', async ({ page, ui }) => {
+  await ui.start();
+  await expect.poll(async () => (await ui.saved()).state.greetedOn).not.toBe(null);
+  await ui.editSaved((s) => { s.greetedOn = null; });
+  await page.reload();
+  await page.click('#greet-skip');
+  await expect(page.locator('.greet')).toHaveCount(0);
+  await expect(page.locator('.ptimer')).toContainText('Practice timer');
+  await expect.poll(async () => (await ui.saved()).state.greetedOn).not.toBe(null);
+  await page.reload();
+  await expect(page.locator('.card').first()).toBeVisible();
+  await expect(page.locator('.greet')).toHaveCount(0);
+});

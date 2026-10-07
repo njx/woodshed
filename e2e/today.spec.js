@@ -93,7 +93,10 @@ test('picks up data from the first version of the app', async ({ page }) => {
   });
   await page.goto('./');
   await expect(page.locator('.welcome')).toHaveCount(0);
-  await expect(page.locator('.card h2', { hasText: 'Solar' })).toBeVisible(); // a focus tune
+  // A returning player: today's welcome, with the focus tune.
+  await expect(page.locator('.greet-plan')).toContainText('Focus on Solar');
+  await page.click('#greet-skip');
+  await expect(page.locator('.card h2', { hasText: 'Solar' })).toBeVisible();
   await page.locator('.card h2', { hasText: 'Solar' }).click();
   await expect(page.locator('#f-notes')).toHaveValue('watch the bridge');
   await expect(page.locator('#f-focus')).toBeChecked();

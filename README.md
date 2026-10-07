@@ -78,8 +78,11 @@ is the octave up and `,` / `'` go further down / up. Tap ⌨ to type ABC directl
 
 ## Practice time
 
-A timer at the top of Today's set: **Start practice**, and **End practice** when you're done (with
-Undo). Marking the first thing played on a day starts it too, if you haven't started it yourself.
+The first time you open the app on a practice day, it says hello with what's in today's set (focus
+tunes, warm-ups, things to remember, your streak) and a big **Start practice**; **Not now** leaves
+it until tomorrow. After that, the timer is at the top of Today's set: **Start practice**, and
+**End practice** when you're done (with Undo). Marking the first thing played on a day starts it
+too, if you haven't started it yourself.
 
 While it runs, the app keeps moving the session's end up to now — every half minute it's open, and
 when it's hidden. Switching to another app for a while (to play along in Quartet, say) carries on the

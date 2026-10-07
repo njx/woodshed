@@ -28,7 +28,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,
 //             media.js; recorded clips themselves live in IndexedDB's media store)
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
-//             or null (see practicetime.js)
+//             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
 export const SCHEMA_VERSION = 6;
 const STATE_KEY = 'state';

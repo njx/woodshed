@@ -22,6 +22,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { openAssistant } from './assistant.js';
 import { CATEGORIES } from '../constants.js';
 import { canRecord } from '../media.js';
+import { greeted } from './greet.js';
 import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 
 export function renderToday(root) {
@@ -287,5 +288,5 @@ function bindWelcome(root) {
     save();
   }));
   const done = $('#ins-done', root);
-  if (done) done.onclick = () => { store.state.settings.instrumentsChosen = true; save(); render(); window.scrollTo(0, 0); };
+  if (done) done.onclick = () => { store.state.settings.instrumentsChosen = true; greeted(); render(); window.scrollTo(0, 0); };
 }

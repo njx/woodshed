@@ -961,3 +961,18 @@ textarea.mono { font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 @keyframes pt-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .pt-dot { animation: none; } }
 .sess-date small { display: block; font-size: 12px; color: var(--ink-3); }
+
+/* Welcome on the first open of a day */
+.greet { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); overflow-y: auto; animation: greet-in .25s ease-out; }
+.greet-body { width: 100%; max-width: 420px; }
+.greet h1 { margin: 4px 0 6px; }
+.greet-streak { margin: 0 0 4px; color: var(--good); font-weight: 600; }
+.greet-plan { list-style: none; margin: 18px 0 8px; padding: 0; color: var(--ink-2); font-size: 16px; line-height: 1.45; }
+.greet-plan li { padding: 8px 0; border-top: 1px solid var(--line); }
+.greet-plan li:first-child { border-top: 0; }
+.greet-plan b { color: var(--ink); }
+.greet .primary-btn { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 22px; }
+.greet .primary-btn svg { width: 20px; height: 20px; }
+.greet .link-btn { display: block; margin: 14px auto 0; padding: 10px 16px; font-size: 15px; }
+@keyframes greet-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .greet { animation: none; } }
