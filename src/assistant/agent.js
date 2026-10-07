@@ -151,7 +151,17 @@ export async function describeError(err) {
     if (err instanceof Anthropic.PermissionDeniedError) return 'This API key doesn’t have access to that model.';
     if (err instanceof Anthropic.RateLimitError) return 'Too many requests right now — try again in a minute.';
     if (err instanceof Anthropic.APIConnectionError) return 'Couldn’t reach the assistant. Are you online?';
-    if (err instanceof Anthropic.APIError) return `The assistant had a problem (${err.status ?? 'error'}). Try again.`;
+    if (err instanceof Anthropic.APIError) {
+      // The API's own explanation, e.g. "Your credit balance is too low…".
+      const detail = err.error?.error?.message || '';
+      console.warn('Assistant API error', err.status, err.error || err.message);
+      if (/credit balance/i.test(detail)) {
+        return 'Your Anthropic account is out of credit. Add some under Plans & Billing at console.anthropic.com, then try again.';
+      }
+      if (err.status === 400) return `Anthropic didn’t accept the request${detail ? `: “${detail}”` : '.'}`;
+      if (err.status === 529 || err.status >= 500) return 'Anthropic’s servers are busy or having trouble — try again in a moment.';
+      return `The assistant had a problem (${err.status ?? 'error'}${detail ? `: ${detail}` : ''}). Try again.`;
+    }
   }
   return 'Something went wrong. Try again.';
 }

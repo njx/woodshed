@@ -22,11 +22,12 @@ function message(blocks, stop) {
 const search = { query: null, type: 'tune', levels: ['familiar'], style: null, key: null, due_only: null, focus_only: null, not_played_in_days: null, sort: 'priority', limit: 5 };
 
 async function mockApi(page) {
-  const api = { requests: [], badKey: false };
+  const api = { requests: [], badKey: false, error: null };
   await page.route('https://api.anthropic.com/**', async (route) => {
     const req = route.request();
     const body = JSON.parse(req.postData());
     api.requests.push({ headers: req.headers(), body });
+    if (api.error) return route.fulfill({ status: api.error.status, contentType: 'application/json', body: JSON.stringify({ type: 'error', error: api.error.body }) });
     if (api.badKey) {
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }) });
     }
@@ -119,4 +120,21 @@ test('a rejected API key gets a clear message; spending shows in Settings', asyn
   await expect(page.locator('#key-status')).toHaveText('Set (…1234)');
   await expect(page.locator('#spend-text')).toContainText('Today');
   await ui.expectNoSideScroll();
+});
+
+test('request errors show Anthropic’s explanation', async ({ page, ui, pageErrors }) => {
+  pageErrors.allow(/400/);
+  const api = await mockApi(page);
+  await ui.start();
+  await connect(page);
+
+  api.error = { status: 400, body: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.' } };
+  await page.fill('#chat-text', 'hello');
+  await page.click('#chat-send');
+  await expect(page.locator('.chat-error').last()).toContainText('out of credit');
+
+  api.error = { status: 400, body: { type: 'invalid_request_error', message: 'tools.0.input_schema: something is wrong' } };
+  await page.fill('#chat-text', 'hello again');
+  await page.click('#chat-send');
+  await expect(page.locator('.chat-error').last()).toContainText('tools.0.input_schema: something is wrong');
 });
