@@ -185,13 +185,14 @@ of album track lists checked online.
 
 ## Development
 
-It's a small Vite project in plain JavaScript (no framework), with Vitest for tests.
+It's a small Vite project in plain JavaScript (no framework), with Vitest for unit tests and Playwright for end-to-end tests.
 
 ```sh
 npm install
 npm run dev      # local dev server
 npm test         # unit tests
 npm run coverage # unit tests with a coverage report
+npm run test:e2e # end-to-end tests in a phone-sized Chromium (builds first)
 npm run build    # production build in dist/
 ```
 
@@ -214,8 +215,14 @@ Layout:
   (`shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
-- `test/`: unit tests for scheduling, planning, keys, exercises, notation, tempo, storage, the
-  diary, recordings, the recordings data and the assistant's tools
+- `test/`: unit tests (Vitest) for scheduling, planning, keys, exercises, notation, tempo,
+  storage, data checks, the diary, recordings, pitch detection, costs, and the assistant's tools
+  and conversation loop
+- `e2e/`: end-to-end tests (Playwright) that drive the built app on simulated iPhones: Today,
+  the library, diary, recording (a fake mic and camera), exercises and notation, metronome and
+  tempo suggestions, the tuner (a generated sax-like tone as the mic), the assistant (against a
+  mock of the API), the 4am day rollover, offline use, and upgrading from the first version.
+  `Math.random` is seeded, so each run sees the same set. They run before every deploy.
 
 ## Deploying
 

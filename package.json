@@ -8,9 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "coverage": "vitest run --coverage --coverage.include=src/**"
+    "coverage": "vitest run --coverage --coverage.include=src/**",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@vitest/coverage-v8": "^5.0.3",
     "fake-indexeddb": "^6.2.5",
     "vite": "^8.3.3",

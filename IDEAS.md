@@ -59,6 +59,3 @@ sessions), L (a big piece, or needs a native app).
 - **Refactors** (M): merge the tune and exercise detail sheets; move the notation editor into its
   own file; share the name lookup, dictation, file-sharing and streak code; cache `itemStats()`;
   redraw only the latest chat message while the assistant streams; remove dead code and CSS.
-- **Browser tests in the repo** (M). The end-to-end checks (setup, Today, diary, recording,
-  exercises, metronome, tuner, assistant with a mocked API) run from scratch scripts today; move
-  them into the repo with Playwright and run them in the deploy workflow.

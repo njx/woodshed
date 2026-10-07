@@ -37,5 +37,5 @@ export default defineConfig({
   // abcjs (notation) is ~500 KB, loaded separately and only when notation is shown.
   build: { target: 'es2020', chunkSizeWarningLimit: 600 },
   plugins: [serviceWorker()],
-  test: { environment: 'node' },
+  test: { environment: 'node', include: ['test/**/*.test.js'] },
 });
