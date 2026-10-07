@@ -1,7 +1,7 @@
 # Woodshed
 
 A phone-friendly practice planner for working through a list of jazz tunes. It started as an
-interactive version of a "300 Tunes" spreadsheet.
+interactive version of a "300 Tunes" spreadsheet. Ideas not built yet are in [IDEAS.md](IDEAS.md).
 
 Each day it hands you a short set of tunes to play:
 
