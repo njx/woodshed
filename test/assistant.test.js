@@ -206,12 +206,11 @@ describe('exercises that vary the scale or chord', () => {
 
 describe('chords and warm-ups', () => {
   it('shows a tune’s chart and adds warm-ups for it', async () => {
-    const standards = (await import('./fixtures/standards.json')).default;
-    const { _resetCharts } = await import('../src/charts.js');
+    const { loadSeedCharts } = await import('../src/charts.js');
     const { seedState } = await import('../src/store.js');
+    await loadSeedCharts();
     store.state = seedState();
     store.state.settings.view = 'c';
-    _resetCharts(standards);
     const t = store.state.items.find((x) => x.name === 'Autumn Leaves');
     const item = runTool('get_item', { item_id: t.id });
     expect(item.chords).toMatch(/^In Gm, 4\/4:\nA: Cm7 \| F7 \| Bbmaj7/);
@@ -222,6 +221,5 @@ describe('chords and warm-ups', () => {
     const today = runTool('get_today', {});
     const list = today.items || today;
     expect(list.some((i) => i.warm_up_for === 'Autumn Leaves')).toBe(true);
-    _resetCharts();
   });
 });

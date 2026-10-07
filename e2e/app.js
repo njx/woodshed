@@ -1,8 +1,4 @@
-import fs from 'node:fs';
 import { test as base, expect } from '@playwright/test';
-
-// Chord charts normally come from GitHub; tests get a few tunes' worth from a local copy.
-const STANDARDS = fs.readFileSync(new URL('./fixtures/standards.json', import.meta.url));
 
 export { expect };
 
@@ -20,11 +16,6 @@ export const test = base.extend({
     });
     await use(errors);
     expect(errors.filter((e) => !allowed.some((re) => re.test(e))), 'errors on the page').toEqual([]);
-  }, { auto: true }],
-
-  localCharts: [async ({ page }, use) => {
-    await page.route('https://raw.githubusercontent.com/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: STANDARDS }));
-    await use();
   }, { auto: true }],
 
   seededRandom: [async ({ page }, use) => {

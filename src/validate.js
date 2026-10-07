@@ -43,6 +43,7 @@ function item(t, ids) {
     t.keys = keyList(t.keys, 23);
     t.style = str(t.style || 'Standard', 60);
     t.chart = chart(t.chart);
+    t.chartEdited = !!t.chartEdited && !!t.chart;
     t.mine = !!t.mine;
   }
   return t;

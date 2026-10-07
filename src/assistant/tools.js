@@ -5,7 +5,7 @@ import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel, deleteItem } from '../practice.js';
 import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups } from '../plan.js';
-import { chartFor, loadCharts } from '../charts.js';
+import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps } from '../chords.js';
 import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern } from '../theory.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
@@ -395,10 +395,7 @@ export const TOOLS = [
     run: ({ tune_id }) => {
       const t = findItem(tune_id);
       if (t.type !== 'tune') return { error: 'Warm-ups are for tunes.' };
-      if (!chartFor(t)) {
-        loadCharts();
-        return { error: `There's no chord chart for ${t.name} (or charts haven't downloaded yet), so warm-ups can't be picked.` };
-      }
+      if (!chartFor(t)) return { error: `There's no chord chart for ${t.name}, so warm-ups can't be picked. (Charts can be added in the tune's details.)` };
       const n = addWarmups(t);
       if (!n) return { error: 'No warm-up exercises to add (they may all have been played today).' };
       const added = store.state.plan.items.filter((i) => i.warmup === t.id).map((i) => itemById(i.itemId)?.name);

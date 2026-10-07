@@ -16,7 +16,6 @@ import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText, rootName } from './exercise.js';
-import { chartsStatus } from '../charts.js';
 import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { openTuner } from './tuner.js';
 import { tempoSuggestion } from '../tempo.js';
@@ -166,8 +165,7 @@ function dayNote() {
   }
   if (s.exerciseFocus === 'tunes') {
     if (plan.warmupFor && itemById(plan.warmupFor)) return `<p class="day-note">Exercises warm up for <b>${esc(itemById(plan.warmupFor).name)}</b></p>`;
-    if (plan.warmupsPending) return '<p class="day-note">Warm-ups will be picked once chord charts download.</p>';
-    if (chartsStatus() === 'ready') return '<p class="day-note">None of today’s tunes has a chord chart, so exercises are picked as usual.</p>';
+    return '<p class="day-note">None of today’s tunes has a chord chart, so exercises are picked as usual.</p>';
   }
   return '';
 }

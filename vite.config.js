@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
@@ -33,10 +33,37 @@ function serviceWorker() {
   };
 }
 
+// virtual:seed-charts — chord charts for the starting tune list, from the JazzStandards git
+// submodule (vendor/JazzStandards), matched by title and converted at build time. They seed
+// each tune's chart; after that the chart is the tune's own.
+function seedCharts() {
+  const id = 'virtual:seed-charts';
+  const file = 'vendor/JazzStandards/JazzStandards.json';
+  return {
+    name: 'woodshed-seed-charts',
+    resolveId: (source) => (source === id ? `\0${id}` : null),
+    async load(resolved) {
+      if (resolved !== `\0${id}`) return null;
+      if (!existsSync(file)) this.error(`Chord charts are missing (${file}). Run: git submodule update --init`);
+      this.addWatchFile(file);
+      const { SEED_TUNES } = await import('./src/data/tunes.js');
+      const { indexStandards, findStandard } = await import('./src/standards.js');
+      const { chartFromStandard } = await import('./src/chords.js');
+      const index = indexStandards(JSON.parse(readFileSync(file, 'utf8')));
+      const charts = {};
+      for (const t of SEED_TUNES) {
+        const x = findStandard(index, t.name);
+        if (x) charts[t.name] = chartFromStandard(x);
+      }
+      return `export default ${JSON.stringify(charts)};`;
+    },
+  };
+}
+
 export default defineConfig({
   base: './',
   // abcjs (notation) is ~500 KB, loaded separately and only when notation is shown.
   build: { target: 'es2020', chunkSizeWarningLimit: 600 },
-  plugins: [serviceWorker()],
+  plugins: [seedCharts(), serviceWorker()],
   test: { environment: 'node', include: ['test/**/*.test.js'] },
 });

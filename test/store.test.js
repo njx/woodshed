@@ -36,7 +36,7 @@ describe('migration', () => {
 
   it('adds starter exercises to version 2 data once', () => {
     const s = migrate(migrate(v1()));
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(SCHEMA_VERSION);
     expect(s.items.filter((t) => t.type === 'exercise').length).toBe(14);
   });
 

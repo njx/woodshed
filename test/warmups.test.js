@@ -1,36 +1,45 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import standards from './fixtures/standards.json';
-import { store, seedState } from '../src/store.js';
-import { _resetCharts, chartFor } from '../src/charts.js';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { store, seedState, migrate } from '../src/store.js';
+import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { warmupsFor, warmupTune } from '../src/warmups.js';
-import { buildPlan, ensurePlan, addWarmups } from '../src/plan.js';
+import { buildPlan, addWarmups } from '../src/plan.js';
 import { markPlayed } from '../src/practice.js';
 import { chooseTypes } from '../src/theory.js';
 import { freezeToday } from './helpers.js';
 
 const byName = (n) => store.state.items.find((t) => t.name === n);
 
+beforeAll(() => loadSeedCharts());
 beforeEach(() => {
   freezeToday();
   store.state = seedState();
-  _resetCharts(standards);
 });
 afterEach(() => vi.useRealTimers());
 
 describe('charts for tunes', () => {
-  it('match titles, including "X, The" and aliases', () => {
-    expect(chartFor(byName('Autumn Leaves'))).toBeTruthy();
+  it('come with almost all of the starting tunes, matched by title (including "X, The" and aliases)', () => {
+    const tunes = store.state.items.filter((t) => t.type === 'tune');
+    expect(tunes.filter((t) => chartFor(t)).length).toBeGreaterThanOrEqual(290);
     expect(chartFor(byName('The Girl From Ipanema'))).toBeTruthy();
+    expect(chartFor(byName('Black Orpheus'))).toBeTruthy();
     expect(chartFor(byName('Solar')).key).toBeTypeOf('number');
+    expect(chartFor(byName('Killer Joe'))).toBe(null); // not in JazzStandards
   });
-  it('prefer a tune’s own chart', () => {
+  it('are added once to data from before charts, without touching edited ones', () => {
+    const old = seedState();
+    old.version = 4;
+    const solar = old.items.find((t) => t.name === 'Solar');
+    solar.chart = { key: 0, meter: '4/4', sections: [{ label: 'A', repeats: 0, bars: [{ chords: [{ root: 0, q: 'maj7' }], alts: [] }], endings: [] }] };
+    for (const t of old.items) if (t.name !== 'Solar') delete t.chart;
+    const s = migrate(old);
+    expect(s.version).toBe(5);
+    expect(s.items.find((t) => t.name === 'Autumn Leaves').chart.sections.length).toBeGreaterThan(0);
+    expect(s.items.find((t) => t.name === 'Solar').chart.sections[0].bars).toHaveLength(1);
+  });
+  it('a tune’s chart is its own copy', () => {
     const t = byName('Solar');
-    t.chart = { key: 0, meter: '4/4', sections: [{ label: 'A', repeats: 0, bars: [{ chords: [{ root: 0, q: 'maj7' }], alts: [] }], endings: [] }] };
-    expect(chartFor(t)).toBe(t.chart);
-  });
-  it('are none until downloaded', () => {
-    _resetCharts();
-    expect(chartFor(byName('Autumn Leaves'))).toBe(null);
+    t.chart.sections[0].label = 'X';
+    expect(seedChart(t).sections[0].label).not.toBe('X');
   });
 });
 
@@ -72,18 +81,6 @@ describe('exercises across a day', () => {
     expect(ex).toHaveLength(2);
     expect(ex.every((i) => i.warmup === byName('Autumn Leaves').id)).toBe(true);
     expect(store.state.plan.warmupFor).toBe(byName('Autumn Leaves').id);
-  });
-  it('switches in warm-ups when charts arrive, unless an exercise was played', () => {
-    store.state.settings.exerciseFocus = 'tunes';
-    byName('Autumn Leaves').focus = true;
-    _resetCharts();
-    buildPlan(true);
-    expect(store.state.plan.warmupsPending).toBe(true);
-    expect(store.state.plan.items.some((i) => i.warmup)).toBe(false);
-    _resetCharts(standards);
-    ensurePlan();
-    expect(store.state.plan.items.some((i) => i.warmup)).toBe(true);
-    expect(store.state.plan.warmupsPending).toBeUndefined();
   });
   it('"key of the day" gives weak-key exercises the same keys', () => {
     store.state.settings.exerciseFocus = 'day';

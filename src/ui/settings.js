@@ -3,7 +3,7 @@ import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import { esc, clone } from '../util.js';
 import { buildPlan, refreshExercises } from '../plan.js';
-import { loadCharts } from '../charts.js';
+import { loadSeedCharts } from '../charts.js';
 import { mediaStats, fmtSize } from '../media.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
@@ -13,7 +13,7 @@ import { $, $$, ICON, render, toast, goTo } from './shell.js';
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
   day: 'One or two keys of the day — weak keys come up more — for every exercise that picks keys by weak keys or at random.',
-  tunes: 'The exercises are warm-ups for one of today’s tunes, in its chords and key: a focus tune first, then one you’re learning. (Uses the chord charts, downloaded once.)',
+  tunes: 'The exercises are warm-ups for one of today’s tunes, in its chords and key: a focus tune first, then one you’re learning. (Uses the tunes’ chord charts.)',
 };
 
 export function renderSettings(root) {
@@ -139,7 +139,6 @@ export function renderSettings(root) {
     s.exerciseFocus = b.dataset.v;
     $$('#ex-focus button', root).forEach((x) => x.classList.toggle('on', x === b));
     $('#ex-focus-hint', root).textContent = EX_FOCUS_HINTS[s.exerciseFocus];
-    if (s.exerciseFocus === 'tunes') loadCharts(); // warm-ups need chord charts
     refreshExercises();
     toast('Today’s exercises picked again');
   };
@@ -176,9 +175,10 @@ export function renderSettings(root) {
   });
   $('#export').onclick = exportData;
   $('#import').onchange = importData;
-  $('#reset').onclick = () => {
+  $('#reset').onclick = async () => {
     if (!confirm('Erase all practice history and edits, and start over from the original list?')) return;
     if (!confirm('Really? This can’t be undone (unless you have a backup).')) return;
+    await loadSeedCharts();
     store.state = seedState();
     save();
     render();
@@ -219,6 +219,7 @@ async function importData(e) {
     const backupIds = new Set((data.diary || []).map((e) => e?.id));
     const keep = store.state.diary.filter((e) => e.media?.length && !backupIds.has(e.id));
     data.diary = [...(data.diary || []), ...clone(keep)];
+    await loadSeedCharts(); // older backups' tunes get charts
     store.state = migrate(data);
     save();
     render();

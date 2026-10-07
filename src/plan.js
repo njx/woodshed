@@ -7,7 +7,6 @@ import { itemStats, overdue, itemById, isPlayedToday } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 import { chooseTypes } from './theory.js';
 import { warmupsFor, warmupTune } from './warmups.js';
-import { chartsStatus } from './charts.js';
 
 export function bucketOf(t) {
   if (t.type === 'exercise') return 'exercise';
@@ -96,7 +95,6 @@ export function typeCounts(log = store.state.log) {
 
 export function applyExerciseFocus(plan = store.state.plan) {
   const mode = store.state.settings.exerciseFocus || 'own';
-  delete plan.warmupsPending;
   if (mode === 'day') {
     if (!plan.dayKeys?.length) plan.dayKeys = chooseExerciseKeys({ keyMode: 'weak', keysPerSession: 2 }, { familiarity: keyFamiliarity() });
     for (const it of plan.items) {
@@ -106,7 +104,6 @@ export function applyExerciseFocus(plan = store.state.plan) {
       if (t.vary) it.types = chooseTypes(t.vary, it.keys.length, itemStats().get(t.id)?.types || [], Math.random, typeCounts());
     }
   } else if (mode === 'tunes') {
-    if (chartsStatus() !== 'ready') { plan.warmupsPending = true; return; }
     const target = warmupTune(plan.items);
     if (!target) return;
     // Warm-ups take the place of today's regular exercise picks (not focus ones, or played ones).
@@ -238,12 +235,6 @@ export function ensurePlan() {
     save();
   }
   syncFocus();
-  // Charts arrived after the set was made: switch in warm-ups, if no exercise has been played.
-  if (plan.warmupsPending && chartsStatus() === 'ready'
-    && !plan.items.some((it) => it.bucket === 'exercise' && isPlayedToday(it.itemId))) {
-    applyExerciseFocus(plan);
-    save();
-  }
 }
 
 // Picks today's scale or chord types for an exercise again, after its settings change (unless

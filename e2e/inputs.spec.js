@@ -21,7 +21,6 @@ test('text fields and menus are at least 16px everywhere @narrow', async ({ page
   await check('tune');
   await page.click('#rec-add-toggle').catch(() => {});
   await check('tune recordings');
-  await expect(page.locator('#chart-box')).not.toContainText('Loading');
   await check('tune chart');
   await ui.backdrop();
   await page.fill('#q', 'Autumn Leaves');

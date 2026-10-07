@@ -98,12 +98,16 @@ you actually played. Nudging the metronome while you practice updates today's se
 ## Chord charts
 
 Each tune's details show its chord chart, by section with endings, written for your instrument and in
-the key you're playing it in today (pick another key from the menu). Charts come from
-[mikeoliphant/JazzStandards](https://github.com/mikeoliphant/JazzStandards) (iReal Pro's jazz
-playlists) — about 290 of the 301 tunes match — downloaded the first time they're needed (about
-1 MB) and kept on the device, not in backups. **Edit** a chart as text (`A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %`,
-endings as `A 1.:`), or add one for a tune that has none; your version is saved with the tune (and
-in backups), and can be put back to the downloaded one.
+the key you're playing it in today (pick another key from the menu). The starting tunes' charts come
+from [mikeoliphant/JazzStandards](https://github.com/mikeoliphant/JazzStandards) (iReal Pro's jazz
+playlists) — 293 of the 301 tunes match — pinned as a git submodule (`vendor/JazzStandards`) and
+built into the app; they seed each tune once (first run, or the upgrade that added charts). After
+that a chart is the tune's own: **Edit** it as text (`A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %`, endings as
+`A 1.:`), add one for a tune that has none, or put an edited one back to the original. Charts are in
+backups.
+
+To update the charts: `git submodule update --remote vendor/JazzStandards` (existing tunes keep
+theirs; new installs get the new ones).
 
 ## Tuner
 
@@ -228,6 +232,7 @@ of album track lists checked online.
 It's a small Vite project in plain JavaScript (no framework), with Vitest for unit tests and Playwright for end-to-end tests.
 
 ```sh
+git submodule update --init   # chord charts (vendor/JazzStandards)
 npm install
 npm run dev      # local dev server
 npm test         # unit tests
@@ -242,8 +247,9 @@ Layout:
 - `src/plan.js`: picking the daily set and the key for each item
 - `src/theory.js`: scale and chord types, generated notation for them, and choosing types
 - `src/chords.js`: chord charts — reading, naming and transposing chords, editing as text, and
-  what's in a chart (main chords, ii–Vs, scales for chords); `src/charts.js` downloads them and
-  matches tunes; `src/warmups.js` picks warm-ups from them
+  what's in a chart (main chords, progressions, scales for chords); `src/standards.js` matches tune
+  titles to JazzStandards at build time (`virtual:seed-charts` in `vite.config.js`), `src/charts.js`
+  seeds tunes with them; `src/warmups.js` picks warm-ups from them
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/keystats.js`: key familiarity and choosing exercise keys

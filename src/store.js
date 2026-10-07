@@ -4,15 +4,16 @@ import { DEFAULT_SETTINGS } from './constants.js';
 import { parseKey } from './keys.js';
 import { uid } from './util.js';
 import { sanitizeState } from './validate.js';
+import { seedChart, loadSeedCharts } from './charts.js';
 import { kvGet, kvSet, kvFallback } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
-// Schema (version 4):
+// Schema (version 5):
 //   items:    practice items, all with { id, type, name, priority 1–4, level null|0–3, notes,
 //             focus, ivl, due, levelSetAt }, plus by type:
-//             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart? }
-//                       (chart: the tune's own chord chart, see chords.js; otherwise downloaded)
+//             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart?,
+//                         chartEdited? } (chart: chord chart, see chords.js and charts.js)
 //             exercise: { category, keyMode, keysPerSession, keys [roots 0–11, for 'fixed'],
 //                         abc (notation written in C), meter,
 //                         vary: null | { kind 'scale'|'chord', types [ids], shape, pattern } }
@@ -20,12 +21,12 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   log:      { id, date, itemId, at, key, keys?, types?, alt, shift, rating, bpm?, prev: { ivl, due } }
 //             (exercises log every key practiced in keys; bpm is the tempo it was played at)
 //   plan:     today's set { date, items: [{ itemId, bucket, key, keys?, types?, alt, shift, warmup? }],
-//             dayKeys?, warmupFor?, warmupsPending?, skipped,
+//             dayKeys?, warmupFor?, skipped,
 //             focusSkipped }
 //   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,
 //             media.js; recorded clips themselves live in IndexedDB's media store)
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -67,6 +68,7 @@ export function seedState() {
       keys: (t.keys || []).map(parseKey).filter((k) => k != null),
       notes: t.notes || '',
       mine: !!t.mine,
+      chart: seedChart({ name: t.name }),
       ivl: null,
       due: null,
     })), ...seedExercises()],
@@ -104,6 +106,13 @@ export function migrate(s) {
     s.items = [...(s.items || []), ...seedExercises(3).filter((x) => !names.has(x.name))];
     s.version = 4;
   }
+  if (s.version < 5) {
+    // v5: tunes get chord charts (for the starting tunes; see charts.js).
+    for (const t of s.items || []) {
+      if ((t.type || 'tune') === 'tune' && !t.chart?.sections?.length) t.chart = seedChart(t);
+    }
+    s.version = 5;
+  }
   return normalize(s);
 }
 
@@ -125,6 +134,8 @@ export async function loadState() {
       console.warn('Could not read old data', e);
     }
   }
+  // Starting charts are only loaded when tunes need them (first run, or data from before charts).
+  if (!s || (s.version || 1) < SCHEMA_VERSION) await loadSeedCharts();
   store.state = s ? migrate(s) : seedState();
   await flush();
   return store.state;
