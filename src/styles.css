@@ -750,12 +750,12 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .today-tools #today-rec svg { color: var(--danger); }
 .today-tools #today-metro svg { color: var(--accent); }
 
-.card-sub .tempo-chip { margin-left: auto; }
-.tempo-chip {
+.card-sub .rec-chip, .card-sub .tempo-chip { margin-left: auto; }
+.tempo-chip, .rec-chip {
   flex: none; height: 28px; min-width: 32px; padding: 0 10px; border-radius: 14px;
   background: var(--surface-2); font-size: 13px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
-.tempo-chip.empty { color: var(--ink-3); font-weight: 600; }
+.tempo-chip.empty, .rec-chip.empty { color: var(--ink-3); font-weight: 600; }
 .suggest.tempo.up { background: color-mix(in srgb, var(--exercise) 16%, var(--surface)); }
 .suggest.tempo.up .pill-btn { background: var(--exercise); color: #fff; }
 
@@ -804,8 +804,8 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .mp-dot.on.accent { background: var(--danger); }
 .mp-stop { padding: 0 14px 0 8px; }
 .mp-stop svg { width: 16px; height: 16px; }
-.tempo-chip { display: inline-flex; align-items: center; gap: 2px; }
-.tempo-chip svg { width: 15px; height: 15px; }
+.tempo-chip, .rec-chip { display: inline-flex; align-items: center; gap: 2px; }
+.tempo-chip svg, .rec-chip svg { width: 15px; height: 15px; }
 .tempo-chip.empty svg { width: 16px; height: 16px; }
 .suggest .pill-btn svg { width: 15px; height: 15px; }
 

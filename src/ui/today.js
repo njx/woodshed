@@ -261,7 +261,7 @@ function cardHtml(it, i, stats) {
 function recChip(t) {
   if (!canRecord()) return '';
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && e.media?.length).length;
-  return `<button class="tempo-chip rec-chip ${n ? '' : 'empty'}" aria-label="Record ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.rec}${n ? `<span>${n}</span>` : ''}</button>`;
+  return `<button class="rec-chip ${n ? '' : 'empty'}" aria-label="Record ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.rec}${n ? `<span>${n}</span>` : ''}</button>`;
 }
 
 function progressRing(done, total) {
