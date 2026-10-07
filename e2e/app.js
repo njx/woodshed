@@ -50,6 +50,7 @@ function helpers(page) {
       await page.waitForTimeout(350); // closing animation, and any sheet it returns to
     },
     async swipe(locator, dx) {
+      await locator.scrollIntoViewIfNeeded();
       const box = await locator.boundingBox();
       const x = box.x + box.width / 2, y = box.y + 40;
       await page.mouse.move(x, y);

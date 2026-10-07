@@ -16,6 +16,7 @@ import { tempoRowHtml, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
 import { mountChart } from './chart.js';
 import { canRecord } from '../media.js';
+import { autoStart } from '../practicetime.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
 } from './shell.js';
@@ -222,6 +223,7 @@ export function openItem(id, opts) {
         else {
           const planItem = state.plan?.date === dateStr() && state.plan.items.find((i) => i.itemId === t.id);
           markPlayed(t.id, planItem || { key: t.keys[0] ?? null });
+          autoStart();
           haptic();
         }
         save();

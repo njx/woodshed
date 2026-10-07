@@ -22,6 +22,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { openAssistant } from './assistant.js';
 import { CATEGORIES } from '../constants.js';
 import { canRecord } from '../media.js';
+import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 
 export function renderToday(root) {
   const state = store.state;
@@ -45,6 +46,7 @@ export function renderToday(root) {
         <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)">${ICON.shuffle}</button>
       </div>
     </header>
+    ${timerHtml()}
     ${state.settings.instrumentsChosen ? '' : welcomeHtml()}
     ${rememberPanel()}
     ${items.length ? '' : '<p class="empty">No tunes yet. Add some on the Tunes tab.</p>'}
@@ -65,6 +67,7 @@ export function renderToday(root) {
 
   bindTransposeToggle(root);
   bindWelcome(root);
+  bindTimer(root);
   $('#reshuffle').onclick = () => withUndo('New set picked', () => buildPlan(true));
   $('#more').onclick = () => {
     const t = pickItem(randomOf(['fresh', 'learn', 'hone']), excludedIds(), stats);
@@ -92,6 +95,7 @@ function bindCard(card) {
     if (isPlayedToday(item.itemId)) unmarkPlayed(item.itemId);
     else {
       markPlayed(item.itemId, item);
+      autoStart();
       haptic();
       if (state.plan.items.every((it) => !itemById(it.itemId) || isPlayedToday(it.itemId))) toast('All done for today — nice work 🎷');
     }
@@ -158,6 +162,43 @@ function keyChip(it, t) {
 }
 
 // What ties today's exercises together (Settings → Exercises), if anything.
+// The practice timer: start, end (with undo), and after the app was closed a while, the choice
+// to count the time away too.
+function timerHtml() {
+  const total = practicedMs();
+  const bar = (cls, text, buttons) => `<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
+  if (running()) {
+    return bar('on', `<span class="pt-dot" aria-hidden="true"></span>Practicing · <b id="pt-clock">${fmtClock(total)}</b> today`,
+      `<button class="pill-btn" id="pt-end">${ICON.stop}End practice</button>`);
+  }
+  const away = awayStop();
+  if (away) {
+    const at = new Date(away.end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return bar('', `<b>${fmtDuration(total)}</b> today. The timer stopped at ${esc(at)}, when the app was closed.`,
+      `<button class="pill-btn" id="pt-away">${ICON.plus}Count since then</button><button class="pill-btn" id="pt-start">${ICON.play}Start again</button>`);
+  }
+  if (total) return bar('', `Practiced <b>${fmtDuration(total)}</b> today`, `<button class="pill-btn" id="pt-start">${ICON.play}Resume</button>`);
+  return bar('', 'Practice timer', `<button class="pill-btn" id="pt-start">${ICON.play}Start practice</button>`);
+}
+
+let clock = null;
+function bindTimer(root) {
+  const start = $('#pt-start', root);
+  if (start) start.onclick = () => { startPractice(); render(); };
+  const away = $('#pt-away', root);
+  if (away) away.onclick = () => { countTimeAway(); render(); };
+  const end = $('#pt-end', root);
+  if (end) end.onclick = () => withUndo(`Practice ended · ${fmtDuration(practicedMs())} today`, () => endPractice());
+  clearInterval(clock);
+  if (running()) {
+    clock = setInterval(() => {
+      const el = document.getElementById('pt-clock');
+      if (!el || !running()) return clearInterval(clock);
+      el.textContent = fmtClock(practicedMs());
+    }, 1000);
+  }
+}
+
 function dayNote() {
   const s = store.state.settings;
   const plan = store.state.plan;
@@ -246,5 +287,5 @@ function bindWelcome(root) {
     save();
   }));
   const done = $('#ins-done', root);
-  if (done) done.onclick = () => { store.state.settings.instrumentsChosen = true; save(); render(); };
+  if (done) done.onclick = () => { store.state.settings.instrumentsChosen = true; save(); render(); window.scrollTo(0, 0); };
 }

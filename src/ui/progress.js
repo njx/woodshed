@@ -6,6 +6,7 @@ import { $, $$, ui, saveUi, render, pips, levelLabel } from './shell.js';
 import { keyFamiliarity, keySessions } from '../keystats.js';
 import { writtenToConcert } from '../keys.js';
 import { rootName } from './exercise.js';
+import { practicedByDay, fmtDuration } from '../practicetime.js';
 
 export function renderProgress(root) {
   const state = store.state;
@@ -21,6 +22,10 @@ export function renderProgress(root) {
   for (let i = 0; i < 30; i++) if (perDay.has(addDays(today, -i))) days30++;
   const week = new Set();
   for (const e of state.log) if (daysBetween(e.date, today) < 7 && itemById(e.itemId)?.type === 'tune') week.add(e.itemId);
+  const time = practicedByDay();
+  const timeSince = (days) => [...time].reduce((n, [d, ms]) => n + (daysBetween(d, today) < days ? ms : 0), 0);
+  // Big numbers for tiles: "45 min", "2.5 h".
+  const tileTime = (ms) => (ms < 3600000 ? `${Math.round(ms / 60000)} min` : `${(ms / 3600000).toFixed(1).replace(/\.0$/, '')} h`);
   const tunes = state.items.filter((t) => t.type === 'tune');
   const dueCount = tunes.filter((t) => isDue(t, stats)).length;
 
@@ -32,7 +37,7 @@ export function renderProgress(root) {
     for (let dow = 0; dow < 7; dow++) {
       const day = addDays(start, w * 7 + dow);
       const n = perDay.get(day) || 0;
-      const lvl = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 5 ? 3 : 4;
+      const lvl = n === 0 ? (time.get(day) ? 1 : 0) : n === 1 ? 1 : n <= 3 ? 2 : n <= 5 ? 3 : 4;
       const future = day > today;
       cells += `<button class="cell h${lvl} ${future ? 'future' : ''} ${day === today ? 'today' : ''}" style="grid-column:${w + 1};grid-row:${dow + 1}" data-d="${day}" ${future ? 'disabled' : ''} aria-label="${niceDate(day)}: ${n} tunes"></button>`;
     }
@@ -48,7 +53,8 @@ export function renderProgress(root) {
   const keyOrder = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].map((w) => writtenToConcert(w, state.settings.view));
   const hasKeys = fam.some((x) => x > 0);
   const maxCount = Math.max(...levelCounts.map((c) => c.n), 1);
-  const byDate = [...perDay.keys()].sort().reverse().slice(0, 10);
+  const byDate = [...new Set([...perDay.keys(), ...time.keys()])].sort().reverse().slice(0, 10);
+  const timeOn = (day) => (time.get(day) ? fmtDuration(time.get(day)) : '');
   const namesOn = (day) => state.log.filter((e) => e.date === day).map((e) => itemById(e.itemId)?.name).filter(Boolean);
 
   root.innerHTML = `
@@ -57,6 +63,9 @@ export function renderProgress(root) {
       <div class="tile"><b>${streak}</b><span>day streak</span></div>
       <div class="tile"><b>${days30}</b><span>days practiced<br>in last 30</span></div>
       <div class="tile"><b>${week.size}</b><span>tunes this week</span></div>
+      ${time.size ? `
+      <div class="tile"><b>${tileTime(timeSince(7))}</b><span>practiced<br>in last 7 days</span></div>
+      <div class="tile"><b>${tileTime(timeSince(30))}</b><span>practiced<br>in last 30 days</span></div>` : ''}
       <button class="tile link" id="due-tile"><b>${dueCount}</b><span>tunes due<br>for review →</span></button>
     </div>
 
@@ -94,7 +103,7 @@ export function renderProgress(root) {
     <section class="panel">
       <h3 class="section-label">Recent sessions</h3>
       ${byDate.length ? `<ul class="sessions">${byDate.map((day) => `
-        <li><span class="sess-date">${esc(niceDate(day, { weekday: 'short', month: 'short', day: 'numeric' }))}</span><span>${namesOn(day).map(esc).join(', ')}</span></li>`).join('')}</ul>`
+        <li><span class="sess-date">${esc(niceDate(day, { weekday: 'short', month: 'short', day: 'numeric' }))}${timeOn(day) ? `<small>${timeOn(day)}</small>` : ''}</span><span>${namesOn(day).map(esc).join(', ') || '<i>Nothing marked played</i>'}</span></li>`).join('')}</ul>`
         : '<p class="empty">Nothing logged yet — play something from Today’s set.</p>'}
     </section>
   `;
@@ -110,6 +119,7 @@ export function renderProgress(root) {
     if (!c || c.disabled) return;
     $$('.heat .cell', root).forEach((x) => x.classList.toggle('sel', x === c));
     const names = namesOn(c.dataset.d);
-    $('#heat-readout').textContent = `${niceDate(c.dataset.d, { weekday: 'short', month: 'short', day: 'numeric' })}: ${names.length ? names.join(', ') : 'no practice logged'}`;
+    const t = timeOn(c.dataset.d);
+    $('#heat-readout').textContent = `${niceDate(c.dataset.d, { weekday: 'short', month: 'short', day: 'numeric' })}${t ? ` · ${t}` : ''}: ${names.length ? names.join(', ') : t ? 'nothing marked played' : 'no practice logged'}`;
   };
 }

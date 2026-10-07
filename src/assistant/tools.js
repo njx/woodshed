@@ -1,3 +1,4 @@
+import { running, practicedMs, practicedByDay } from '../practicetime.js';
 import { store, save } from '../store.js';
 import { LEVELS, PRIORITIES, TRANSPOSITIONS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, daysBetween, addDays } from '../dates.js';
@@ -221,7 +222,7 @@ export const TOOLS = [
     name: 'get_today',
     description: "Today's practice set: each item with its group (focus, exercise, hone = proficient/mastered, learn = familiar, fresh = new), suggested key(s), working tempo, and whether it's been played and how it was rated.",
     input_schema: obj({}),
-    run: () => ({ items: planSummary() }),
+    run: () => ({ items: planSummary(), minutes_practiced_today: Math.round(practicedMs() / 60000), timer_running: !!running() }),
   },
   {
     name: 'search_library',
@@ -300,7 +301,7 @@ export const TOOLS = [
   },
   {
     name: 'get_practice_stats',
-    description: 'Overall practice picture: streak, recent days, sessions per key in the last 30 days (keys as written for the current instrument) and how familiar each key is, repertoire by level, and what was played in the last week.',
+    description: 'Overall practice picture: streak, recent days, practice time (minutes per day, from the practice timer), sessions per key in the last 30 days (keys as written for the current instrument) and how familiar each key is, repertoire by level, and what was played in the last week.',
     input_schema: obj({}),
     run: () => {
       const log = store.state.log;
@@ -322,6 +323,7 @@ export const TOOLS = [
         keys: [...Array(12).keys()].map((r) => ({ key: rootName(r), sessions_30d: sess[r], familiarity: Math.round(fam[r] * 10) / 10 })),
         tunes_by_level: Object.fromEntries([3, 2, 1, 0, null].map((l) => [levelLabel(l), tunes.filter((t) => (t.level ?? null) === l).length])),
         last_7_days: lastWeek,
+        minutes_practiced_by_day: Object.fromEntries([...practicedByDay()].filter(([d]) => daysBetween(d, today) < 30).sort().map(([d, ms]) => [d, Math.round(ms / 60000)])),
       };
     },
   },

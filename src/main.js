@@ -9,6 +9,7 @@ import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
 import { cleanupMedia } from './media.js';
 import { mountMetronomePill } from './ui/metronome.js';
+import { heartbeat, HEARTBEAT_MS } from './practicetime.js';
 
 mountMetronomePill();
 registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
@@ -25,14 +26,22 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet
 
 document.addEventListener('visibilitychange', () => {
   if (!store.state) return; // still loading
-  if (document.visibilityState === 'hidden') flush();
-  // Roll over to a new day's set if the app stays open past the end of the practice day.
-  else if (store.state.plan?.date !== dateStr()) render();
+  if (document.visibilityState === 'hidden') {
+    heartbeat(); // the practice timer's end, in case the app doesn't come back
+    flush();
+  } else if (heartbeat() === 'stopped' || store.state.plan?.date !== dateStr()) {
+    // The timer stopped while away, or the app stayed open past the end of the practice day.
+    render();
+  }
 });
-window.addEventListener('pagehide', () => flush());
+window.addEventListener('pagehide', () => { if (store.state) heartbeat(); flush(); });
+setInterval(() => {
+  if (store.state && document.visibilityState === 'visible' && heartbeat() === 'stopped') render();
+}, HEARTBEAT_MS);
 
 loadState().then(
   () => {
+    heartbeat(); // carries on a running timer, or stops it if the app was closed a while
     render();
     cleanupMedia();
   },

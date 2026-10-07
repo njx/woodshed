@@ -116,6 +116,16 @@ function diaryEntry(e, ids) {
   return e;
 }
 
+// A stretch of practice time (see practicetime.js).
+function session(x) {
+  if (!x || typeof x !== 'object' || !isDate(x.date)) return null;
+  const start = num(x.start, 0, 8.64e15);
+  if (start == null) return null;
+  const out = { id: isId(x.id) ? x.id : uid(), date: x.date, start, end: num(x.end, start, start + 86400000) ?? start };
+  if (x.away) out.away = true;
+  return out;
+}
+
 function plan(p, ids) {
   if (!p || typeof p !== 'object' || !isDate(p.date) || !Array.isArray(p.items)) return null;
   p.items = p.items.filter((it) => it && ids.has(it.itemId)).map(({ warmup, ...it }) => ({
@@ -162,6 +172,8 @@ export function sanitizeState(s) {
   s.diary = (Array.isArray(s.diary) ? s.diary : []).map((e) => diaryEntry(e, ids)).filter(Boolean);
   s.plan = plan(s.plan, ids);
   s.settings = settings(s.settings);
+  s.sessions = (Array.isArray(s.sessions) ? s.sessions : []).map(session).filter(Boolean);
+  s.timing = s.sessions.some((x) => x.id === s.timing) ? s.timing : null;
   s.assistantWishes = (Array.isArray(s.assistantWishes) ? s.assistantWishes : [])
     .filter((w) => w && typeof w === 'object')
     .map((w) => ({ date: isDate(w.date) ? w.date : '', request: str(w.request, 1000) }));

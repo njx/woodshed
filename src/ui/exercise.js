@@ -1,4 +1,5 @@
 import { store, save } from '../store.js';
+import { autoStart } from '../practicetime.js';
 import { LEVELS, PRIORITIES, RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
@@ -378,6 +379,7 @@ ${t.fromTune ? '' : `
       if (isPlayedToday(t.id)) unmarkPlayed(t.id);
       else {
         markPlayed(t.id, planItem || { keys: todayKeys });
+        autoStart();
         haptic();
       }
       save();

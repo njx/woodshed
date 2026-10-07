@@ -76,6 +76,21 @@ names. Under the hood it's [ABC notation](https://abcnotation.com) with an eight
 triplet, `z2` quarter rest, `C2-C2` tie, `|` bar line; `^` sharp, `_` flat, `=` natural; lowercase
 is the octave up and `,` / `'` go further down / up. Tap ⌨ to type ABC directly.
 
+## Practice time
+
+A timer at the top of Today's set: **Start practice**, and **End practice** when you're done (with
+Undo). Marking the first thing played on a day starts it too, if you haven't started it yourself.
+
+While it runs, the app keeps moving the session's end up to now — every half minute it's open, and
+when it's hidden. Switching to another app for a while (to play along in Quartet, say) carries on the
+same session when you come back within 15 minutes, counting the time away. If you're away longer, or
+the phone sleeps, the timer has stopped at the moment the app was last seen; **Count since then**
+puts the time away back in, or **Start again** starts a new session. Sessions count toward the
+practice day they started on (which runs until 4am).
+
+Progress shows practice time for the last 7 and 30 days, and per day in *Recent sessions* and the
+heatmap. The assistant sees it too.
+
 ## Metronome and tempo
 
 Open the **metronome** from Today, or from the tempo button on any tune or exercise card (or its
