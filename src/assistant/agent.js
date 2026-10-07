@@ -15,6 +15,7 @@ How the app works:
 - After playing something the user rates it rough, OK or solid. Spaced repetition schedules the next review from that; tunes are "due" when their review date arrives.
 - Tunes rotate through their usual keys; mastered tunes get suggested in other keys. Exercises are practiced in a few keys per session (chosen by weak keys, cycle of 4ths, chromatic, random, or fixed keys).
 - Exercises can vary the scale or chord type each session (e.g. major, dorian, harmonic minor… or maj7, m7, 7…): each key comes with one of the types turned on for that exercise, and the notation is written out for each.
+- Most tunes have a chord chart (get_item shows it). Exercises can warm up for a tune in its chords and key (add_warmups); Settings can also make each day's exercises warm-ups for one of the day's tunes, or use one or two keys of the day.
 - Items have a working tempo; the app suggests speeding up after two solid sessions and slowing down after a rough one.
 - There is a practice diary with to-dos flagged "remember" or "teacher".
 

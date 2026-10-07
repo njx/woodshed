@@ -42,9 +42,28 @@ function item(t, ids) {
   } else {
     t.keys = keyList(t.keys, 23);
     t.style = str(t.style || 'Standard', 60);
+    t.chart = chart(t.chart);
     t.mine = !!t.mine;
   }
   return t;
+}
+
+// A tune's own chord chart (see chords.js), or null.
+const Q = /^[\w#()+/]{0,20}$/;
+function chart(c) {
+  if (!c || typeof c !== 'object' || !Array.isArray(c.sections) || !c.sections.length) return null;
+  const chord = (x) => (x && int(x.root, 0, 11) != null && typeof x.q === 'string' && Q.test(x.q)
+    ? { root: x.root, q: x.q, ...(int(x.bass, 0, 11) != null ? { bass: x.bass } : {}) } : null);
+  const bar = (b) => ({ chords: (Array.isArray(b?.chords) ? b.chords : []).map(chord).filter(Boolean), alts: (Array.isArray(b?.alts) ? b.alts : []).map(chord).filter(Boolean) });
+  const bars = (a) => (Array.isArray(a) ? a.slice(0, 200).map(bar) : []);
+  return {
+    key: int(c.key, 0, 23),
+    meter: /^\d{1,2}\/\d{1,2}$/.test(c.meter) ? c.meter : '4/4',
+    sections: c.sections.slice(0, 40).map((s) => ({
+      label: str(s?.label, 20), repeats: int(s?.repeats, 0, 9) ?? 0, bars: bars(s?.bars),
+      endings: (Array.isArray(s?.endings) ? s.endings.slice(0, 4) : []).map(bars),
+    })),
+  };
 }
 
 // An exercise's scale or chord variation, or null.
@@ -89,7 +108,8 @@ function diaryEntry(e, ids) {
 
 function plan(p, ids) {
   if (!p || typeof p !== 'object' || !isDate(p.date) || !Array.isArray(p.items)) return null;
-  p.items = p.items.filter((it) => it && ids.has(it.itemId)).map((it) => ({
+  p.items = p.items.filter((it) => it && ids.has(it.itemId)).map(({ warmup, ...it }) => ({
+    ...(ids.has(warmup) ? { warmup } : {}), // a warm-up for this tune
     ...it,
     bucket: oneOf(it.bucket, Object.keys(BUCKETS), 'learn'),
     key: int(it.key, 0, 23),
@@ -99,6 +119,8 @@ function plan(p, ids) {
     alt: !!it.alt,
   }));
   p.skipped = (Array.isArray(p.skipped) ? p.skipped : []).filter(isId);
+  if (p.dayKeys != null) p.dayKeys = keyList(p.dayKeys, 11);
+  if (p.warmupFor != null && !ids.has(p.warmupFor)) delete p.warmupFor;
   p.focusSkipped = (Array.isArray(p.focusSkipped) ? p.focusSkipped : []).filter(isId);
   return p;
 }
@@ -113,6 +135,7 @@ function settings(s) {
   s.priority = str(s.priority, 20);
   s.newKeys = oneOf(s.newKeys, ['mastered', 'proficient', 'never'], DEFAULT_SETTINGS.newKeys);
   s.a4 = int(s.a4, 430, 450) ?? 440;
+  s.exerciseFocus = oneOf(s.exerciseFocus, ['own', 'day', 'tunes'], 'own');
   s.sound = oneOf(s.sound, Object.keys(SOUNDS), DEFAULT_SETTINGS.sound);
   s.swing = oneOf(s.swing, Object.keys(SWING), DEFAULT_SETTINGS.swing);
   s.recordKind = oneOf(s.recordKind, ['audio', 'video'], 'audio');

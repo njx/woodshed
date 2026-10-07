@@ -922,3 +922,28 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
   .play-row .pill-btn { width: 44px; padding: 0; justify-content: center; }
   .play-row .pill-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 }
+
+/* Chord charts */
+.chart { background: var(--surface); border-radius: 14px; padding: 10px 10px 4px; }
+.chart-section { display: grid; grid-template-columns: 22px 1fr; column-gap: 6px; margin-bottom: 8px; }
+.chart-label { font: 700 13px var(--sans); color: var(--ink-3); padding-top: 9px; }
+.chart-label.ending { font-weight: 600; }
+.bars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-left: 2px solid var(--line); }
+.bar {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-height: 36px; padding: 6px 6px 4px;
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  font: 600 15px/1.25 var(--serif); color: var(--ink); overflow: hidden;
+}
+.bar.n2 span, .bar.n3 span, .bar.n4 span { font-size: 13.5px; }
+.bar small { flex-basis: 100%; font: 500 11.5px var(--sans); color: var(--ink-3); }
+.bar.same { color: var(--ink-3); justify-content: center; }
+.chart-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.chart-foot .fine { margin: 0; }
+.chart-key {
+  height: 32px; padding: 0 22px 0 10px; border: 0; border-radius: 16px; -webkit-appearance: none; appearance: none;
+  background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238c8174' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 8px center / 10px;
+  font: 600 16px var(--sans); color: var(--ink);
+}
+textarea.mono { font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.day-note { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }
+.day-note b { color: var(--exercise); }

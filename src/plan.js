@@ -6,6 +6,8 @@ import { weightedPick, randomOf } from './util.js';
 import { itemStats, overdue, itemById, isPlayedToday } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 import { chooseTypes } from './theory.js';
+import { warmupsFor, warmupTune } from './warmups.js';
+import { chartsStatus } from './charts.js';
 
 export function bucketOf(t) {
   if (t.type === 'exercise') return 'exercise';
@@ -74,10 +76,89 @@ export function makePlanItem(t, stats, bucket = bucketOf(t)) {
     const s = stats.get(t.id);
     const keys = chooseExerciseKeys(t, { played: s?.keys || [], lastPlayed: s?.keyLast || {}, familiarity: keyFamiliarity() });
     // Exercises that vary get a scale or chord type for each key (or one, if there are no keys).
-    const types = t.vary ? chooseTypes(t.vary, Math.max(1, keys.length), s?.types || []) : null;
+    const types = t.vary ? chooseTypes(t.vary, Math.max(1, keys.length), s?.types || [], Math.random, typeCounts()) : null;
     return { itemId: t.id, bucket, key: null, keys, ...(types ? { types } : {}), alt: false, shift: null };
   }
   return { itemId: t.id, bucket, ...chooseKey(t, stats) };
+}
+
+// How often each scale or chord type has been played, across all exercises.
+export function typeCounts(log = store.state.log) {
+  const counts = {};
+  for (const e of log) for (const id of e.types || []) counts[id] = (counts[id] || 0) + 1;
+  return counts;
+}
+
+// ---------- How exercises relate to each other on a day (Settings → Exercises) ----------
+//   own:   each exercise picks its own keys (and types);
+//   day:   one or two keys of the day for all exercises that choose by weak keys or at random;
+//   tunes: the exercise slots are warm-ups for one of today's tunes, in its chords.
+
+export function applyExerciseFocus(plan = store.state.plan) {
+  const mode = store.state.settings.exerciseFocus || 'own';
+  delete plan.warmupsPending;
+  if (mode === 'day') {
+    if (!plan.dayKeys?.length) plan.dayKeys = chooseExerciseKeys({ keyMode: 'weak', keysPerSession: 2 }, { familiarity: keyFamiliarity() });
+    for (const it of plan.items) {
+      const t = itemById(it.itemId);
+      if (t?.type !== 'exercise' || it.warmup || isPlayedToday(t.id) || !['weak', 'random'].includes(t.keyMode || 'weak')) continue;
+      it.keys = plan.dayKeys.slice(0, Math.max(1, Math.min(t.keysPerSession || 1, plan.dayKeys.length)));
+      if (t.vary) it.types = chooseTypes(t.vary, it.keys.length, itemStats().get(t.id)?.types || [], Math.random, typeCounts());
+    }
+  } else if (mode === 'tunes') {
+    if (chartsStatus() !== 'ready') { plan.warmupsPending = true; return; }
+    const target = warmupTune(plan.items);
+    if (!target) return;
+    // Warm-ups take the place of today's regular exercise picks (not focus ones, or played ones).
+    const regular = plan.items.filter((it) => it.bucket === 'exercise' && !it.warmup && !isPlayedToday(it.itemId));
+    const slots = Math.max(1, store.state.settings.exercises ?? 0);
+    const keep = new Set(plan.items.filter((it) => !regular.includes(it)).map((it) => it.itemId));
+    const warm = warmupsFor(itemById(target.it.itemId), { key: target.it.key, exclude: keep }).slice(0, slots);
+    if (!warm.length) return;
+    const left = regular.filter((it) => !warm.some((w) => w.itemId === it.itemId)).slice(0, Math.max(0, slots - warm.length));
+    plan.items = [...plan.items.filter((it) => !regular.includes(it)), ...warm, ...left];
+    plan.warmupFor = target.it.itemId;
+    plan.items.sort((a, b) => BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket]);
+  }
+}
+
+// After the exercise setting changes: picks today's exercises again (keeping played ones,
+// focus exercises, and the tunes), then applies the setting.
+export function refreshExercises() {
+  ensurePlan();
+  const plan = store.state.plan;
+  const stats = itemStats();
+  const drop = (it) => it.bucket === 'exercise' && !isPlayedToday(it.itemId);
+  plan.items = plan.items.filter((it) => !drop(it));
+  delete plan.dayKeys;
+  delete plan.warmupFor;
+  const exclude = excludedIds();
+  const have = plan.items.filter((it) => it.bucket === 'exercise').length;
+  for (let i = have; i < (store.state.settings.exercises ?? 0); i++) {
+    const t = pickItem('exercise', exclude, stats);
+    if (!t) break;
+    exclude.add(t.id);
+    plan.items.push(makePlanItem(t, stats));
+  }
+  plan.items.sort((a, b) => BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket]);
+  applyExerciseFocus(plan);
+  save();
+}
+
+// Adds warm-ups for a tune to today's set (from its details): replaces exercises not played yet
+// that the warm-ups use, and adds the rest. Returns how many were added.
+export function addWarmups(t) {
+  ensurePlan();
+  const plan = store.state.plan;
+  const key = plan.items.find((i) => i.itemId === t.id)?.key ?? null;
+  const played = new Set(plan.items.filter((i) => isPlayedToday(i.itemId)).map((i) => i.itemId));
+  const warm = warmupsFor(t, { key, exclude: played });
+  if (!warm.length) return 0;
+  plan.items = [...plan.items.filter((i) => !warm.some((w) => w.itemId === i.itemId)), ...warm];
+  plan.skipped = (plan.skipped || []).filter((id) => !warm.some((w) => w.itemId === id));
+  plan.items.sort((a, b) => BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket]);
+  save();
+  return warm.length;
 }
 
 export function excludedIds() {
@@ -114,8 +195,10 @@ export function buildPlan(keepPlayed = false) {
     items,
     skipped: prev ? [...exclude].filter((id) => !items.some((i) => i.itemId === id)) : [],
     focusSkipped: prev?.focusSkipped || [],
+    ...(prev?.dayKeys ? { dayKeys: prev.dayKeys } : {}),
   };
   syncFocus();
+  applyExerciseFocus(state.plan);
   save();
 }
 
@@ -155,6 +238,12 @@ export function ensurePlan() {
     save();
   }
   syncFocus();
+  // Charts arrived after the set was made: switch in warm-ups, if no exercise has been played.
+  if (plan.warmupsPending && chartsStatus() === 'ready'
+    && !plan.items.some((it) => it.bucket === 'exercise' && isPlayedToday(it.itemId))) {
+    applyExerciseFocus(plan);
+    save();
+  }
 }
 
 // Picks today's scale or chord types for an exercise again, after its settings change (unless

@@ -15,7 +15,8 @@ import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
-import { exerciseKeysText } from './exercise.js';
+import { exerciseKeysText, rootName } from './exercise.js';
+import { chartsStatus } from '../charts.js';
 import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { openTuner } from './tuner.js';
 import { tempoSuggestion } from '../tempo.js';
@@ -38,6 +39,7 @@ export function renderToday(root) {
       <div>
         <p class="eyebrow eyebrow-row"><span>${esc(niceDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>${transposeToggle()}</p>
         <h1>Today’s set</h1>
+        ${dayNote()}
       </div>
       <div class="top-actions">
         ${progressRing(done, items.length)}
@@ -155,6 +157,21 @@ function keyChip(it, t) {
   return chip('', `Key of <b>${kn(it.key)}</b>`, others.length ? `also ${others.map(kn).join(', ')}` : '');
 }
 
+// What ties today's exercises together (Settings → Exercises), if anything.
+function dayNote() {
+  const s = store.state.settings;
+  const plan = store.state.plan;
+  if (s.exerciseFocus === 'day' && plan.dayKeys?.length) {
+    return `<p class="day-note">Key${plan.dayKeys.length > 1 ? 's' : ''} of the day: <b>${plan.dayKeys.map((r) => esc(rootName(r))).join(' · ')}</b></p>`;
+  }
+  if (s.exerciseFocus === 'tunes') {
+    if (plan.warmupFor && itemById(plan.warmupFor)) return `<p class="day-note">Exercises warm up for <b>${esc(itemById(plan.warmupFor).name)}</b></p>`;
+    if (plan.warmupsPending) return '<p class="day-note">Warm-ups will be picked once chord charts download.</p>';
+    if (chartsStatus() === 'ready') return '<p class="day-note">None of today’s tunes has a chord chart, so exercises are picked as usual.</p>';
+  }
+  return '';
+}
+
 function cardHtml(it, i, stats) {
   const t = itemById(it.itemId);
   if (!t) return '';
@@ -171,8 +188,8 @@ function cardHtml(it, i, stats) {
     </div>
     <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" data-item-id="${t.id}" tabindex="0">
       <div class="card-top">
-        <span class="bucket"><i></i>${BUCKETS[it.bucket].label}</span>
-        <span class="style">${esc(t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style)}</span>
+        <span class="bucket"><i></i>${it.warmup ? 'Warm-up' : BUCKETS[it.bucket].label}</span>
+        <span class="style">${esc(it.warmup ? `for ${itemById(it.warmup)?.name || 'a tune'}` : t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style)}</span>
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>

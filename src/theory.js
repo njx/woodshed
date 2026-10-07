@@ -174,17 +174,22 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
 }
 
 // Which types to practice this session, one per key: the ones played least on this exercise
-// come up most; no repeats within a session until every enabled type has had a turn.
-export function chooseTypes(vary, count, history = [], random = Math.random) {
+// come up most, and (with `overall`, counts across all exercises) the ones played least anywhere;
+// no repeats within a session until every enabled type has had a turn.
+export function chooseTypes(vary, count, history = [], random = Math.random, overall = null) {
   const enabled = (vary?.types || []).filter((id) => typeInfo(vary.kind, id));
   if (!enabled.length || !count) return [];
   const played = {};
   for (const id of history) played[id] = (played[id] || 0) + 1;
+  // Overall: relative to the average across the enabled types (a type played half as much as
+  // average comes up about twice as often, other things equal).
+  const avg = overall ? enabled.reduce((a, id) => a + (overall[id] || 0), 0) / enabled.length : 0;
+  const weight = (id) => 1 / Math.pow(1 + (played[id] || 0), 1.5) / (overall && avg ? 0.5 + (overall[id] || 0) / avg : 1);
   const out = [];
   let pool = [];
   for (let i = 0; i < count; i++) {
     if (!pool.length) pool = [...enabled];
-    const ws = pool.map((id) => 1 / Math.pow(1 + (played[id] || 0), 1.5));
+    const ws = pool.map((id) => weight(id));
     let r = random() * ws.reduce((a, b) => a + b, 0);
     let j = 0;
     while (j < pool.length - 1 && (r -= ws[j]) > 0) j++;

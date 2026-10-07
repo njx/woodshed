@@ -14,6 +14,7 @@ import { openRecorder } from './recorder.js';
 import { openExercise } from './exercise.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
+import { mountChart } from './chart.js';
 import { canRecord } from '../media.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
@@ -78,6 +79,7 @@ export function openItem(id, opts) {
         <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
         <input type="checkbox" id="f-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
+      ${isNew ? '' : '<div id="chart-box" class="chart-box"></div>'}
       ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
       ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
       <label class="field-label">How well do you know it?</label>
@@ -226,6 +228,7 @@ export function openItem(id, opts) {
         refresh();
       };
       const back = () => openItem(t.id);
+      mountChart($('#chart-box', sheet), t, { back });
       bindTempo(sheet, { back, onChange: refresh });
       $('#add-tune-note', sheet).onclick = () => openNote(null, { itemId: t.id, back });
       const recTune = $('#rec-tune', sheet);

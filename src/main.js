@@ -9,6 +9,7 @@ import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
 import { cleanupMedia } from './media.js';
 import { mountMetronomePill } from './ui/metronome.js';
+import { loadCharts, onChartsChange } from './charts.js';
 
 mountMetronomePill();
 registerViews({ today: renderToday, tunes: renderTunes, diary: renderDiary, progress: renderProgress, settings: renderSettings });
@@ -31,10 +32,16 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => flush());
 
+// Chord charts saved on this device load before the first screen (warm-ups use them); they're
+// downloaded the first time a tune's details are opened, or now if exercises warm up for tunes.
 loadState().then(
-  () => {
+  async () => {
+    await loadCharts({ download: false });
     render();
     cleanupMedia();
+    if (store.state.settings.exerciseFocus === 'tunes') loadCharts();
+    // When charts arrive, warm-ups waiting on them are picked (see ensurePlan).
+    onChartsChange((status) => { if (status === 'ready' && store.state.plan?.warmupsPending) render(); });
   },
   (err) => {
     // Don't start over from the seed list: the saved data is probably still there.

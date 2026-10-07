@@ -52,7 +52,9 @@ export function openExercise(id, opts = {}) {
   if (!t) return;
   const planItem = state.plan?.date === dateStr() ? state.plan.items.find((i) => i.itemId === t.id) : null;
   const todayKeys = opts.keys || planItem?.keys || [];
-  const todayTypes = () => (planItem?.types || opts.types || []).filter((id) => t.vary?.types.includes(id));
+  // Today's types can include ones not turned on (warm-ups follow a tune's chords).
+  const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
+  const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
   let previewRoot = todayKeys[0] ?? 0;
   // The scale or chord type shown: today's for the key shown, or the first one turned on.
   const typeFor = (root) => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
@@ -80,7 +82,7 @@ export function openExercise(id, opts = {}) {
             const r = writtenToConcert(w, view());
             return `<button class="${r === previewRoot ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root="${r}">${esc(rootName(r))}</button>`;
           }).join('')}</div>
-          ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${t.vary.types.map((id) => `
+          ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${stripTypes().map((id) => `
             <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary.kind, id).short)}</button>`).join('')}</div>` : ''}
           <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
           <div class="play-row">

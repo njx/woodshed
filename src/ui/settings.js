@@ -2,12 +2,19 @@ import { store, save, flush, seedState, migrate } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import { esc, clone } from '../util.js';
-import { buildPlan } from '../plan.js';
+import { buildPlan, refreshExercises } from '../plan.js';
+import { loadCharts } from '../charts.js';
 import { mediaStats, fmtSize } from '../media.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
 import { $, $$, ICON, render, toast, goTo } from './shell.js';
+
+const EX_FOCUS_HINTS = {
+  own: 'Each exercise picks its own keys (and scale or chord types).',
+  day: 'One or two keys of the day — weak keys come up more — for every exercise that picks keys by weak keys or at random.',
+  tunes: 'The exercises are warm-ups for one of today’s tunes, in its chords and key: a focus tune first, then one you’re learning. (Uses the chord charts, downloaded once.)',
+};
 
 export function renderSettings(root) {
   const s = store.state.settings;
@@ -42,6 +49,12 @@ export function renderSettings(root) {
       ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
       <p class="fine">Focus tunes come on top of this mix, every day. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
+    </section>
+
+    <section class="panel">
+      <h3 class="section-label">Exercises on a day</h3>
+      <div class="seg" id="ex-focus">${[['own', 'Each its own'], ['day', 'Key of the day'], ['tunes', 'From tunes']].map(([v, l]) => `<button class="${s.exerciseFocus === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>
+      <p class="fine" id="ex-focus-hint">${EX_FOCUS_HINTS[s.exerciseFocus]}</p>
     </section>
 
     <section class="panel">
@@ -120,6 +133,16 @@ export function renderSettings(root) {
       save();
     };
   });
+  $('#ex-focus', root).onclick = async (e) => {
+    const b = e.target.closest('button');
+    if (!b || s.exerciseFocus === b.dataset.v) return;
+    s.exerciseFocus = b.dataset.v;
+    $$('#ex-focus button', root).forEach((x) => x.classList.toggle('on', x === b));
+    $('#ex-focus-hint', root).textContent = EX_FOCUS_HINTS[s.exerciseFocus];
+    if (s.exerciseFocus === 'tunes') loadCharts(); // warm-ups need chord charts
+    refreshExercises();
+    toast('Today’s exercises picked again');
+  };
   $('#rebuild').onclick = () => {
     buildPlan(true);
     goTo('today');

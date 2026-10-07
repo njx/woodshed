@@ -42,6 +42,23 @@ For each exercise you choose:
 toward its key, recent sessions count more (a session counts half as much after about three
 weeks), and rough ones less. The Progress tab charts it around the circle of fifths.
 
+### Exercises on a day
+
+Settings → *Exercises on a day*:
+
+- **Each its own** (the default): every exercise picks its own keys and types.
+- **Key of the day**: one or two keys (weak keys come up more) for every exercise that picks keys
+  by weak keys or at random, so a day has a centre. Shown under *Today's set*.
+- **From tunes**: the exercises are **warm-ups** for one of today's tunes (a focus tune first, then
+  one you're learning), in its chords and in the key you're playing it in today: arpeggios on its
+  main chords (e.g. Gm6, Am7♭5, D7 for Autumn Leaves), a ii–V–I pattern into its major keys, and
+  scales that go with its chords (dorian on a m7, altered on a 7♭13…).
+
+Any tune's details also have **Warm up for this tune**, which adds its warm-ups to today.
+
+Scale and chord types are picked by how little you've played them on that exercise *and* across all
+exercises, the way keys already were.
+
 ### Notation
 
 An exercise can have notation, written once in C and shown in whichever key you pick, written for
@@ -77,6 +94,16 @@ history. After you rate a session:
 
 Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
 you actually played. Nudging the metronome while you practice updates today's session too.
+
+## Chord charts
+
+Each tune's details show its chord chart, by section with endings, written for your instrument and in
+the key you're playing it in today (pick another key from the menu). Charts come from
+[mikeoliphant/JazzStandards](https://github.com/mikeoliphant/JazzStandards) (iReal Pro's jazz
+playlists) — about 290 of the 301 tunes match — downloaded the first time they're needed (about
+1 MB) and kept on the device, not in backups. **Edit** a chart as text (`A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %`,
+endings as `A 1.:`), or add one for a tune that has none; your version is saved with the tune (and
+in backups), and can be put back to the downloaded one.
 
 ## Tuner
 
@@ -214,6 +241,9 @@ Layout:
 - `src/practice.js`: practice log, spaced-repetition scheduling, level suggestions
 - `src/plan.js`: picking the daily set and the key for each item
 - `src/theory.js`: scale and chord types, generated notation for them, and choosing types
+- `src/chords.js`: chord charts — reading, naming and transposing chords, editing as text, and
+  what's in a chart (main chords, ii–Vs, scales for chords); `src/charts.js` downloads them and
+  matches tunes; `src/warmups.js` picks warm-ups from them
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/keystats.js`: key familiarity and choosing exercise keys

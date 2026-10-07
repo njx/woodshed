@@ -4,7 +4,9 @@ import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel, deleteItem } from '../practice.js';
-import { ensurePlan, makePlanItem, syncFocus, refreshTypes } from '../plan.js';
+import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups } from '../plan.js';
+import { chartFor, loadCharts } from '../charts.js';
+import { chartToText, chartShift, usesSharps } from '../chords.js';
 import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern } from '../theory.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
 import { setTempo, clampBpm } from '../tempo.js';
@@ -117,6 +119,15 @@ function itemSummary(t, stats) {
   };
 }
 
+// A tune's chart as text, in its first usual key, written for the instrument being viewed.
+function chartText(t) {
+  const chart = chartFor(t);
+  if (!chart) return null;
+  const key = t.keys?.[0] ?? chart.key ?? 0;
+  const written = (((key % 12) + TRANSPOSITIONS[view()].offset) % 12) + (key >= 12 ? 12 : 0);
+  return `In ${writtenName(key)}, ${chart.meter}:\n${chartToText(chart, { shift: chartShift(chart, key, view()), sharps: usesSharps(written) })}`;
+}
+
 function planSummary() {
   ensurePlan();
   const stats = itemStats();
@@ -134,6 +145,7 @@ function planSummary() {
       keys: it.keys?.map(rootName),
       ...(it.types?.length && t.vary ? { types: it.types.map((id) => typeLabel(t.vary.kind, id)) } : {}),
       tempo: t.tempo || null,
+      ...(it.warmup ? { warm_up_for: itemById(it.warmup)?.name } : {}),
       played: !!e,
       rating: e?.rating || null,
       level: levelLabel(t.level),
@@ -250,7 +262,7 @@ export const TOOLS = [
   },
   {
     name: 'get_item',
-    description: 'Everything about one tune or exercise: details, notes, notation (exercises), recent practice history with keys, ratings and tempos, diary notes, and recordings to listen to (tunes).',
+    description: 'Everything about one tune or exercise: details, notes, notation (exercises), the chord chart (tunes, in its first usual key, written for the instrument being viewed: one section per line, bars separated by |, % = the chord carries on), recent practice history with keys, ratings and tempos, diary notes, and recordings to listen to (tunes).',
     input_schema: obj({ item_id: { type: 'string' } }),
     run: ({ item_id }) => {
       const t = findItem(item_id);
@@ -265,7 +277,10 @@ export const TOOLS = [
         goal_tempo: t.goalTempo || null,
         next_review: t.due || null,
         notes: t.notes || '',
-        ...(t.type === 'exercise' ? { notation_abc: t.abc || null, meter: t.meter } : { recordings: recordingsFor(t).map((r) => [r.artist, r.album, r.year].filter(Boolean).join(', ')) }),
+        ...(t.type === 'exercise' ? { notation_abc: t.abc || null, meter: t.meter } : {
+          recordings: recordingsFor(t).map((r) => [r.artist, r.album, r.year].filter(Boolean).join(', ')),
+          chords: chartText(t),
+        }),
         history,
         diary: entriesFor(t.id).slice(0, 8).map((e) => ({ date: e.date, text: e.text, flag: e.flag, done: e.done })),
       };
@@ -370,6 +385,25 @@ export const TOOLS = [
       if (removed.length) changes.push(`Removed from today: ${removed.join(', ')}`);
       save();
       return { removed, already_played_so_kept: kept };
+    },
+  },
+  {
+    name: 'add_warmups',
+    description: "Add warm-up exercises for a tune to today's set, from its chord chart and the key it's played in today: arpeggios on its main chords, ii–V–I patterns into its major keys, and scales that go with its chords. Replaces those exercises if they're already in today's set and not played yet.",
+    input_schema: obj({ tune_id: { type: 'string' } }),
+    write: true,
+    run: ({ tune_id }) => {
+      const t = findItem(tune_id);
+      if (t.type !== 'tune') return { error: 'Warm-ups are for tunes.' };
+      if (!chartFor(t)) {
+        loadCharts();
+        return { error: `There's no chord chart for ${t.name} (or charts haven't downloaded yet), so warm-ups can't be picked.` };
+      }
+      const n = addWarmups(t);
+      if (!n) return { error: 'No warm-up exercises to add (they may all have been played today).' };
+      const added = store.state.plan.items.filter((i) => i.warmup === t.id).map((i) => itemById(i.itemId)?.name);
+      changes.push(`Warm-ups for ${t.name}: ${added.join(', ')}`);
+      return { added };
     },
   },
   {

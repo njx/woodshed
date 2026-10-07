@@ -85,4 +85,5 @@ export const DEFAULT_SETTINGS = {
   a4: 440, // tuner reference pitch
   sound: 'piano', // notation playback (see sounds.js)
   swing: 'straight', // notation playback feel
+  exerciseFocus: 'own', // own | day | tunes (see plan.js)
 };
