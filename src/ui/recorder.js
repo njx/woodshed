@@ -84,7 +84,7 @@ export function openRecorder(opts = {}) {
         </div>
         ${existing ? '' : `
           <textarea id="rec-text" rows="2" placeholder="Add a note (optional)">${esc(opts.text || '')}</textarea>
-          <input id="rec-tune" list="rec-tunes" value="${esc(tuneName || '')}" placeholder="Tune (optional)" autocomplete="off">
+          <input id="rec-tune" list="rec-tunes" value="${esc(tuneName || '')}" placeholder="Tune or exercise (optional)" aria-label="Tune or exercise" autocomplete="off">
           <datalist id="rec-tunes">${tunes.map((t) => `<option value="${esc(t.name)}">`).join('')}</datalist>`}
         <div class="rec-actions">
           <button class="ghost-btn" id="rec-discard">Discard</button>

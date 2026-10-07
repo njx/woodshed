@@ -89,3 +89,42 @@ test('add a second clip to a note, remove one; files are cleaned up', async ({ p
   await ui.tab('settings');
   await expect(page.locator('p.fine', { hasText: 'Recordings:' })).toContainText('Recordings: 1');
 });
+
+test('record an exercise from its details: the take is kept with it, labelled with what was played @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
+  await expect(page.locator('.sheet')).toContainText('Record yourself playing it');
+  await page.click('#x-rec');
+  await record(page, 1000);
+  await expect(page.locator('#rec-text')).toHaveValue(/^In [A-G]/); // the key it's shown in
+  await expect(page.locator('#rec-tune')).toHaveValue('Major scale');
+  const label = await page.locator('#rec-text').inputValue();
+  await page.click('#rec-keep');
+  // Back in the exercise, the take is under Recordings (not in the notes below).
+  const takes = page.locator('#x-takes .note');
+  await expect(takes).toHaveCount(1);
+  await expect(takes).toContainText(label);
+  await expect(takes.locator('.clip-pill')).toHaveCount(1);
+  await expect.poll(async () => {
+    const { state } = await ui.saved();
+    return state.diary[0]?.itemId === state.items.find((t) => t.name === 'Major scale').id;
+  }).toBe(true);
+  await ui.expectNoSideScroll();
+});
+
+test('record from a card in today’s set: the take goes with that exercise @narrow', async ({ page, ui }) => {
+  await ui.start();
+  const card = page.locator('.card.b-exercise', { has: page.locator('.keychip') }).first();
+  const id = await card.getAttribute('data-item-id');
+  await card.locator('.rec-chip').click();
+  await record(page, 1000);
+  await expect(page.locator('#rec-tune')).toHaveValue(await card.locator('h2').textContent());
+  await expect(page.locator('#rec-text')).not.toHaveValue('');
+  await page.click('#rec-keep');
+  await expect(card.locator('.rec-chip')).toHaveText('1'); // one take today
+  await expect.poll(async () => (await ui.saved()).state.diary[0]?.itemId).toBe(id);
+  await page.screenshot({ path: test.info().outputPath('card.png') });
+  await ui.expectNoSideScroll();
+});

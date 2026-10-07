@@ -40,6 +40,13 @@ export function exerciseKeysText(keys = [], t = null, types = null, prog = null)
   return keys.map((k, i) => variantName(rootName(k), kind, types[i])).join(' · ');
 }
 
+// A recording's note for an exercise: what was played (keys and types, or the progression) and
+// the tempo, e.g. "In C · E♭ · 120 bpm", "D dorian · G mixolydian", "ii–V7–I in F".
+export function takeLabel(t, keys = [], types = null, prog = null) {
+  const what = exerciseKeysText(keys, t, types, prog);
+  return [what && (t.vary || prog ? what : `In ${what}`), t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+}
+
 const patternHint = (kind) => (kind === 'chord'
   ? 'Numbers are chord tones: 1 3 5 7, and 8 10 12 14 an octave up. Tap numbers to change the pattern.'
   : 'Numbers are notes of the scale: 1 is the root, and on a 7-note scale 8 is the octave. Tap numbers to change the pattern; the presets fit themselves to scales with more or fewer notes.');
@@ -70,13 +77,19 @@ export function openExercise(id, opts = {}) {
   // The scale or chord type shown: today's for the key shown, or the first one turned on.
   const typeFor = (root) => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
   let previewType = typeFor(previewRoot);
+  // A new take's note: today's keys and types, or else the key (and type) shown.
+  const label = () => (prog || !todayKeys.length
+    ? takeLabel(t, [previewRoot], previewType ? [previewType] : null, prog)
+    : takeLabel(t, todayKeys, todayTypes(), prog));
   let stopFn = null;
 
   const body = () => {
     const s = itemStats().get(t.id);
     const entries = state.log.filter((e) => e.itemId === t.id).sort((a, b) => b.date.localeCompare(a.date));
     const played = isPlayedToday(t.id);
-    const notes = entriesFor(t.id);
+    const all = entriesFor(t.id);
+    const takes = all.filter((e) => e.media?.length); // recordings, up top by the notation
+    const notes = all.filter((e) => !e.media?.length);
     return `
       <textarea class="title-input" id="x-name" rows="1" placeholder="Exercise name" aria-label="Exercise name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
       <label class="focus-toggle">
@@ -107,6 +120,12 @@ export function openExercise(id, opts = {}) {
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
 
       ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
+      ${isNew || !canRecord() ? '' : `
+        <div class="field-label row-label"><span>Recordings</span><span class="row-links">
+          <button class="link-btn" id="x-rec">${ICON.rec}Record</button></span></div>
+        ${takes.length ? `<ul class="notes panel-list" id="x-takes">${takes.slice(0, 3).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>
+          ${takes.length > 3 ? `<p class="fine">${takes.length - 3} more in the Diary.</p>` : ''}`
+          : '<p class="fine">Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.</p>'}`}
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
 
@@ -167,9 +186,8 @@ ${t.fromTune ? '' : `
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
-          ${canRecord() ? `<button class="link-btn" id="x-rec">${ICON.rec}Record</button>` : ''}
           <button class="link-btn" id="x-note">${ICON.plus}Add a note</button></span></div>
-        ${notes.length ? `<ul class="notes panel-list">${notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>` : '<p class="fine">Notes and recordings about this exercise show up here.</p>'}
+        ${notes.length ? `<ul class="notes panel-list">${notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>` : '<p class="fine">Notes about this exercise show up here.</p>'}
         <button class="danger-btn" id="x-delete">Delete exercise</button>`}
     `;
   };
@@ -390,7 +408,7 @@ ${t.fromTune ? '' : `
     // Opening the metronome leaves this sheet; come back to it afterwards.
     $$('[data-metro]', sheet).forEach((b) => (b.onclick = () => goTo(() => openMetronome({ itemId: t.id, back }))));
     const rec = $('#x-rec', sheet);
-    if (rec) rec.onclick = () => goTo(() => openRecorder({ itemId: t.id, back }));
+    if (rec) rec.onclick = () => goTo(() => openRecorder({ itemId: t.id, back, text: label() }));
     bindNotes(sheet, back, refresh);
     // Opening a note replaces this sheet without closing it: stop any playback first.
     $$('[data-note]', sheet).forEach((li) => li.addEventListener('click', () => stopFn?.(), true));

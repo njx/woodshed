@@ -211,7 +211,11 @@ Notes save automatically when you close the editor, however you close it.
 
 ### Recordings
 
-Record audio or video of your practice from Today, the Diary, a tune's details, or a note. The
+Record audio or video of your practice from Today, the Diary, a tune's or exercise's details, or a
+note. Each card in Today's set has a record button too (next to the tempo), which shows how many
+takes of it you've recorded today; a take from there goes with that tune or exercise, labelled with
+the key(s) it's in today. An exercise keeps its takes under **Recordings**, right below its notation, each labelled with
+what you were playing (keys, scale or chord types, or the progression, and tempo). The
 recorder shows a live level meter (or camera preview) and a timer; when you stop, play it back
 and **Keep** it (with an optional note and tune) or **Discard** it. Kept recordings attach to a
 diary note: audio plays right from the list, and the note shows players for each clip, with

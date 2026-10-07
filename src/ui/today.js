@@ -15,7 +15,8 @@ import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
-import { exerciseKeysText, rootName } from './exercise.js';
+import { exerciseKeysText, rootName, takeLabel } from './exercise.js';
+import { entriesFor } from '../diary.js';
 import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { openTuner } from './tuner.js';
 import { tempoSuggestion } from '../tempo.js';
@@ -137,6 +138,15 @@ function bindCard(card) {
     toast(`${t.name} is now ${LEVELS[t.level].label}`);
   };
   bindTempo(card, { onChange: render });
+  const recBtn = $('.rec-chip', card);
+  if (recBtn) recBtn.onclick = (e) => {
+    e.stopPropagation();
+    const t = itemById(item.itemId);
+    const text = t.type === 'exercise'
+      ? takeLabel(t, item.keys || [], item.types || null, item.prog || null)
+      : [item.key != null && `In ${kn(item.key)}`, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+    openRecorder({ itemId: t.id, text, back: render });
+  };
   card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip')) openItem(item.itemId, { keys: item.keys }); };
   attachSwipe(card, {
     right: toggle,
@@ -234,7 +244,7 @@ function cardHtml(it, i, stats) {
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>
-      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${tempoChip(t)}</div>
+      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${recChip(t)}${tempoChip(t)}</div>
       <div class="card-actions">
         ${keyChip(it, t)}
         ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
@@ -245,6 +255,13 @@ function cardHtml(it, i, stats) {
       ${played ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}
     </article>
   </li>`;
+}
+
+// Record a take of it; shows how many were recorded today.
+function recChip(t) {
+  if (!canRecord()) return '';
+  const n = entriesFor(t.id).filter((e) => e.date === dateStr() && e.media?.length).length;
+  return `<button class="tempo-chip rec-chip ${n ? '' : 'empty'}" aria-label="Record ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.rec}${n ? `<span>${n}</span>` : ''}</button>`;
 }
 
 function progressRing(done, total) {
