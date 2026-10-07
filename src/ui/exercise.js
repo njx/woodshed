@@ -251,6 +251,8 @@ export function openExercise(id, opts = {}) {
     const rec = $('#x-rec', sheet);
     if (rec) rec.onclick = () => goTo(() => openRecorder({ itemId: t.id, back }));
     bindNotes(sheet, back, refresh);
+    // Opening a note replaces this sheet without closing it: stop any playback first.
+    $$('[data-note]', sheet).forEach((li) => li.addEventListener('click', () => stopFn?.(), true));
     $('#x-delete', sheet).onclick = () => {
       if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
       closeSheet();

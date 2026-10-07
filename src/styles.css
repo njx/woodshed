@@ -856,3 +856,4 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 @media (max-width: 359px) { .today-tools button { font-size: 11.5px; } }
 .chat-cost { text-transform: none; letter-spacing: 0; font-weight: 500; }
 .msg-cost { margin: 4px 0 0; font-size: 11px; color: var(--ink-3); }
+.load-error { padding: 48px 8px; text-align: center; }

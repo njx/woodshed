@@ -1,7 +1,7 @@
 import { store, save } from '../store.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
-import { addEntry, entryById } from '../diary.js';
+import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
 import { canRecord, pickMime, constraints, saveClip, fmtDuration } from '../media.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
 
@@ -12,7 +12,7 @@ import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
 export function openRecorder(opts = {}) {
   if (!canRecord()) return toast('Recording isn’t supported in this browser');
   const settings = store.state.settings;
-  const tunes = store.state.items.filter((t) => t.type === 'tune');
+  const tunes = linkableItems();
   const existing = opts.entryId ? entryById(opts.entryId) : null;
 
   let kind = settings.recordKind === 'video' ? 'video' : 'audio';
@@ -147,18 +147,24 @@ export function openRecorder(opts = {}) {
     };
   }
 
+  let streamGen = 0;
   async function startStream() {
     stopStream();
+    const gen = ++streamGen;
     state = 'starting';
     view();
+    let s;
     try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints(kind, facing));
+      s = await navigator.mediaDevices.getUserMedia(constraints(kind, facing));
     } catch (err) {
+      if (gen !== streamGen) return;
       console.warn('getUserMedia failed', err);
       state = 'blocked';
       return view();
     }
-    if (closed) return stopStream();
+    // Switched camera or audio/video (or closed) while this one was starting: let it go.
+    if (gen !== streamGen || closed) return s.getTracks().forEach((tr) => tr.stop());
+    stream = s;
     if (audioCtx) {
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
@@ -239,8 +245,8 @@ export function openRecorder(opts = {}) {
     handled = true;
     const t = take;
     const text = $('#rec-text', box)?.value || opts.text || '';
-    const tuneInput = $('#rec-tune', box)?.value.trim().toLowerCase();
-    const tune = tuneInput ? tunes.find((x) => x.name.toLowerCase() === tuneInput) : opts.itemId ? { id: opts.itemId } : null;
+    const tuneInput = $('#rec-tune', box)?.value;
+    const tune = tuneInput?.trim() ? findItemByName(tuneInput) : opts.itemId ? { id: opts.itemId } : null;
     try {
       const clip = await saveClip(t.blob, kind, t.ms);
       const entry = existing && entryById(existing.id);
@@ -249,11 +255,21 @@ export function openRecorder(opts = {}) {
       save();
       render();
       toast(entry ? 'Recording added' : 'Recording saved to your diary');
-    } catch (err) {
-      console.warn('Could not save recording', err);
-      toast('Couldn’t save the recording — storage may be full');
-    } finally {
       URL.revokeObjectURL(t.url);
+    } catch (err) {
+      // Don't lose the take: offer it as a file instead (the URL stays alive for that).
+      console.warn('Could not save recording', err);
+      toast('Couldn’t save the recording — storage may be full', {
+        label: 'Download',
+        fn: () => {
+          const a = document.createElement('a');
+          a.href = t.url;
+          a.download = `woodshed-take.${(t.blob.type || '').includes('mp4') ? 'mp4' : 'webm'}`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        },
+      });
     }
   }
 

@@ -2,7 +2,7 @@ import { store, save } from '../store.js';
 import { dateStr, niceDate } from '../dates.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
-import { FLAGS, addEntry, entryById, deleteEntry, openTodos, diaryDays, todoText } from '../diary.js';
+import { FLAGS, addEntry, entryById, deleteEntry, openTodos, diaryDays, todoText, findItemByName, linkableItems } from '../diary.js';
 import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize } from '../media.js';
 import { openRecorder } from './recorder.js';
 import { $, $$, ICON, ui, render, goTo, toast, withUndo, openSheet, closeSheet } from './shell.js';
@@ -169,7 +169,7 @@ export function openNote(id, opts = {}) {
   const isNew = !id;
   const e = isNew ? { text: '', flag: opts.flag || null, itemId: opts.itemId || null, done: false, date: dateStr() } : entryById(id);
   if (!e) return;
-  const tunes = store.state.items.filter((t) => t.type === 'tune');
+  const tunes = linkableItems();
   const tuneName = () => (e.itemId ? itemById(e.itemId)?.name || '' : '');
 
   const sheet = openSheet(`
@@ -184,7 +184,7 @@ export function openNote(id, opts = {}) {
     </div>
     <label class="field">
       <span class="field-label">Tune (optional)</span>
-      <input id="n-tune" list="n-tunes" value="${esc(tuneName())}" placeholder="Which tune is this about?" autocomplete="off">
+      <input id="n-tune" list="n-tunes" value="${esc(tuneName())}" placeholder="Which tune or exercise is this about?" autocomplete="off">
       <datalist id="n-tunes">${tunes.map((t) => `<option value="${esc(t.name)}">`).join('')}</datalist>
     </label>
     ${e.media?.length ? `<div class="field-label">Recordings</div><ul class="clips" id="n-clips">${e.media.map((c, i) => `
@@ -267,8 +267,7 @@ export function openNote(id, opts = {}) {
       finished = true;
       next = () => openRecorder({ entryId: created.id, back: () => openNote(created.id, { back }) });
     } else {
-      const name = $('#n-tune', sheet).value.trim().toLowerCase();
-      const tune = name ? tunes.find((t) => t.name.toLowerCase() === name) : null;
+      const tune = findItemByName($('#n-tune', sheet).value);
       finished = true;
       next = () => openRecorder({ itemId: tune?.id || opts.itemId, flag: e.flag, back });
     }
@@ -316,8 +315,7 @@ export function openNote(id, opts = {}) {
   };
 
   const commit = () => {
-    const name = $('#n-tune', sheet).value.trim().toLowerCase();
-    const tune = name ? tunes.find((t) => t.name.toLowerCase() === name) : null;
+    const tune = findItemByName($('#n-tune', sheet).value);
     const fields = { text: text.value, flag: e.flag, itemId: tune?.id || null };
     if (!fields.text.trim() && !e.media?.length) return false;
     if (isNew) addEntry(fields);

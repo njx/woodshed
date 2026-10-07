@@ -83,6 +83,9 @@ function emit() {
 
 function schedule() {
   if (!ctx) return;
+  // After the timer was throttled (screen off, app in background), skip the missed clicks
+  // rather than playing them all at once.
+  if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
   while (nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
     click(nextTime, nextBeat === 0 && state.beats > 1);
     queue.push({ time: nextTime, beat: nextBeat });

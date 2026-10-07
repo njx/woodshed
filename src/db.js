@@ -37,21 +37,36 @@ function tx(store, mode, fn) {
   );
 }
 
-export async function kvGet(key) {
+const hasIdb = () => typeof indexedDB !== 'undefined';
+const lsKey = (key) => `woodshed.kv.${key}`;
+
+// The localStorage copy of a value: the main store where IndexedDB doesn't exist, and otherwise a
+// spill-over written when an IndexedDB write fails (e.g. storage full). loadState reconciles it.
+export function kvFallback(key) {
   try {
-    return await tx(KV, 'readonly', (s) => s.get(key));
-  } catch {
-    const raw = globalThis.localStorage?.getItem(`woodshed.kv.${key}`);
+    const raw = globalThis.localStorage?.getItem(lsKey(key));
     return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
   }
 }
 
+// Throws if IndexedDB exists but can't be read, so a failure isn't mistaken for "no data yet".
+export async function kvGet(key) {
+  if (!hasIdb()) return kvFallback(key);
+  return tx(KV, 'readonly', (s) => s.get(key));
+}
+
+// Throws if the IndexedDB write fails (after keeping a localStorage copy, where it fits).
 export async function kvSet(key, value) {
+  if (!hasIdb()) return globalThis.localStorage?.setItem(lsKey(key), JSON.stringify(value));
   try {
     await tx(KV, 'readwrite', (s) => s.put(value, key));
-  } catch {
-    globalThis.localStorage?.setItem(`woodshed.kv.${key}`, JSON.stringify(value));
+  } catch (err) {
+    try { globalThis.localStorage?.setItem(lsKey(key), JSON.stringify(value)); } catch { /* full too */ }
+    throw err;
   }
+  try { globalThis.localStorage?.removeItem(lsKey(key)); } catch { /* ignore */ }
 }
 
 export const mediaPut = (id, blob) => tx(MEDIA, 'readwrite', (s) => s.put(blob, id));

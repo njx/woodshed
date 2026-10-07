@@ -58,6 +58,7 @@ export function newConversation() {
 // Callbacks: onText(delta), onTool({ name, input, result }), onStep() between model calls.
 // Returns { changes: [summaries of what was changed], cost (dollars, this message),
 //   stop: 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps' }.
+// On failure the thrown error has .partial = { changes, cost }.
 export async function send(conv, text, { onText, onTool, onStep, signal } = {}) {
   const { Anthropic, client } = await getClient();
   takeChanges(); // start this turn's change list fresh
@@ -72,62 +73,73 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
 
   let cost = 0;
   const done = (stop) => ({ changes: takeChanges(), cost, stop });
-  let jsonRetries = 0;
-  for (let step = 0; step < MAX_STEPS; step++) {
-    if (step) onStep?.();
-    const stream = client.beta.messages.stream(
-      {
-        model: MODEL,
-        max_tokens: 16000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default', // if a request is declined, retry on a fallback model
-        output_config: { effort: 'medium' },
-        cache_control: { type: 'ephemeral' },
-        system: SYSTEM,
-        tools: apiTools(),
-        messages: conv.messages,
-      },
-      { signal },
-    );
-    stream.on('text', (delta) => onText?.(delta));
-
-    let message;
-    try {
-      message = await stream.finalMessage();
-      jsonRetries = 0;
-    } catch (err) {
-      if (err instanceof Anthropic.APIUserAbortError || signal?.aborted) return done('stopped');
-      // With streamed tool inputs, an unparseable input rejects here; retry that turn a couple of times.
-      if (err instanceof Anthropic.APIError || jsonRetries++ >= 2) throw err;
-      continue;
-    }
-
-    const stepCost = messageCost(message, MODEL);
-    cost += stepCost;
-    conv.cost = (conv.cost || 0) + stepCost;
-    await recordUsage(stepCost, tokensOf(message)).catch(() => {});
-
-    conv.messages.push({ role: 'assistant', content: message.content });
-    if (message.stop_reason === 'refusal') return done('refusal');
-    if (message.stop_reason === 'max_tokens') return done('max_tokens');
-    if (message.stop_reason === 'pause_turn') continue;
-
-    const uses = message.content.filter((b) => b.type === 'tool_use');
-    if (!uses.length) return done('done');
-
-    const results = uses.map((u) => {
-      const result = runTool(u.name, u.input);
-      onTool?.({ name: u.name, input: u.input, result, write: isWriteTool(u.name) });
-      return {
-        type: 'tool_result',
-        tool_use_id: u.id,
-        content: JSON.stringify(result),
-        ...(result?.error ? { is_error: true } : {}),
-      };
-    });
-    conv.messages.push({ role: 'user', content: results });
+  // If a later step fails, earlier steps may already have changed things: the error carries them
+  // (err.partial) so the app can still show them with an Undo.
+  try {
+    return await loop();
+  } catch (err) {
+    if (err && typeof err === 'object') err.partial = { changes: takeChanges(), cost };
+    throw err;
   }
-  return done('too_many_steps');
+
+  async function loop() {
+    let jsonRetries = 0;
+    for (let step = 0; step < MAX_STEPS; step++) {
+      if (step) onStep?.();
+      const stream = client.beta.messages.stream(
+        {
+          model: MODEL,
+          max_tokens: 16000,
+          betas: ['server-side-fallback-2026-07-01'],
+          fallbacks: 'default', // if a request is declined, retry on a fallback model
+          output_config: { effort: 'medium' },
+          cache_control: { type: 'ephemeral' },
+          system: SYSTEM,
+          tools: apiTools(),
+          messages: conv.messages,
+        },
+        { signal },
+      );
+      stream.on('text', (delta) => onText?.(delta));
+
+      let message;
+      try {
+        message = await stream.finalMessage();
+        jsonRetries = 0;
+      } catch (err) {
+        if (err instanceof Anthropic.APIUserAbortError || signal?.aborted) return done('stopped');
+        // With streamed tool inputs, an unparseable input rejects here; retry that turn a couple of times.
+        if (err instanceof Anthropic.APIError || jsonRetries++ >= 2) throw err;
+        continue;
+      }
+
+      const stepCost = messageCost(message, MODEL);
+      cost += stepCost;
+      conv.cost = (conv.cost || 0) + stepCost;
+      await recordUsage(stepCost, tokensOf(message)).catch(() => {});
+
+      conv.messages.push({ role: 'assistant', content: message.content });
+      if (message.stop_reason === 'refusal') return done('refusal');
+      if (message.stop_reason === 'max_tokens') return done('max_tokens');
+      if (message.stop_reason === 'pause_turn') continue;
+
+      const uses = message.content.filter((b) => b.type === 'tool_use');
+      if (!uses.length) return done('done');
+
+      const results = uses.map((u) => {
+        const result = runTool(u.name, u.input);
+        onTool?.({ name: u.name, input: u.input, result, write: isWriteTool(u.name) });
+        return {
+          type: 'tool_result',
+          tool_use_id: u.id,
+          content: JSON.stringify(result),
+          ...(result?.error ? { is_error: true } : {}),
+        };
+      });
+      conv.messages.push({ role: 'user', content: results });
+    }
+    return done('too_many_steps');
+  }
 }
 
 // Friendly text for API errors.

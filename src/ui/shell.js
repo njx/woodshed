@@ -59,14 +59,22 @@ export function withUndo(msg, fn) {
   fn();
   save();
   render();
+  const rev = store.rev;
   toast(msg, {
     label: 'Undo',
     fn: () => {
-      store.state = snapshot;
-      save();
-      render();
+      if (store.rev !== rev) return toast('Can’t undo — other things have changed since');
+      restoreState(snapshot);
     },
   });
+}
+// Puts back an earlier copy of the state. An open sheet holds objects from the replaced state,
+// so it's closed (after the swap, so anything it reopens reads the restored state).
+export function restoreState(snapshot) {
+  store.state = snapshot;
+  save();
+  closeSheet();
+  render();
 }
 export function haptic() {
   navigator.vibrate?.(12);

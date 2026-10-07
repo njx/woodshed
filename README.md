@@ -167,6 +167,12 @@ of album track lists checked online.
 - All your data (edits, practice log, settings) is stored in IndexedDB on your device. Data saved
   by the first version (in `localStorage`) is picked up automatically. Use **Settings → Export
   backup** now and then, and before switching phones.
+- Saved and imported data is checked on every load (`src/validate.js`): fields get the types the
+  app expects, and unsafe ids or values are replaced. If saved data can't be read, the app says so
+  and offers to retry rather than starting over. If a save fails (e.g. storage full), a copy is kept
+  in `localStorage` and picked up next time.
+- Restoring a backup keeps this phone's recordings: notes with recordings that aren't in the
+  backup are kept alongside it.
 
 ## Development
 
@@ -176,6 +182,7 @@ It's a small Vite project in plain JavaScript (no framework), with Vitest for te
 npm install
 npm run dev      # local dev server
 npm test         # unit tests
+npm run coverage # unit tests with a coverage report
 npm run build    # production build in dist/
 ```
 

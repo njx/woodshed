@@ -8,6 +8,21 @@ import { itemById } from './practice.js';
 // media: recorded clips (see media.js). A note with a recording doesn't need text.
 // Flagged entries work as a to-do list until marked done.
 
+// The item a note is about, from the name typed in its "which tune" field. Matches tunes and
+// exercises (a tune wins if both have the name).
+export function findItemByName(name) {
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return null;
+  const hits = store.state.items.filter((t) => t.name.trim().toLowerCase() === n);
+  return hits.find((t) => t.type === 'tune') || hits[0] || null;
+}
+
+// Names to suggest in that field: tunes, then exercises.
+export function linkableItems() {
+  const items = store.state.items;
+  return [...items.filter((t) => t.type === 'tune'), ...items.filter((t) => t.type !== 'tune')];
+}
+
 export const FLAGS = {
   remember: { label: 'Remember', long: 'To remember' },
   teacher: { label: 'Ask teacher', long: 'For my teacher' },

@@ -47,7 +47,8 @@ function formatReply(text) {
 
 function entryHtml(e, i) {
   if (e.role === 'user') return `<div class="msg user"><p>${esc(e.text)}</p></div>`;
-  const latestUndoable = transcript.findLastIndex((x) => x.changes?.length && !x.undone) === i;
+  // Undo is offered for the latest changes only, and only while nothing else has changed since.
+  const latestUndoable = transcript.findLastIndex((x) => x.changes?.length && !x.undone) === i && e.rev === store.rev;
   return `
     <div class="msg bot">
       ${e.tools?.length ? `<div class="tool-lines">${e.tools.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
@@ -110,6 +111,7 @@ export async function openAssistant() {
   function undo(i) {
     const e = transcript[i];
     if (!e?.undo) return;
+    if (e.rev !== store.rev) { draw(); return toast('Can’t undo — other things have changed since'); }
     store.state = e.undo;
     save();
     e.undone = true;
@@ -132,6 +134,15 @@ export async function openAssistant() {
     draw();
     setBusy(true);
     busy.controller = new AbortController();
+    const finishTurn = (r) => {
+      reply.changes = r?.changes || [];
+      reply.cost = r?.cost || 0;
+      if (reply.changes.length) {
+        reply.undo = snapshot;
+        render(); // refresh the screen behind the chat
+      }
+      reply.rev = store.rev;
+    };
     const message = pendingNote ? `(${pendingNote})\n\n${text}` : text;
     pendingNote = null;
     try {
@@ -148,13 +159,9 @@ export async function openAssistant() {
         },
       });
       reply.stop = result.stop;
-      reply.changes = result.changes;
-      reply.cost = result.cost;
-      if (result.changes.length) {
-        reply.undo = snapshot;
-        render(); // refresh the screen behind the chat
-      }
+      finishTurn(result);
     } catch (err) {
+      finishTurn(err?.partial); // changes made before the error still get listed, with Undo
       reply.error = await describeError(err);
       if (err?.code === 'no_key') return openKeySetup(() => openAssistant());
     } finally {

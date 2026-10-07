@@ -52,6 +52,7 @@ export function chooseKey(t, stats) {
     if (!t.keys.length) return { key: null, alt: true, shift: randomOf(Object.keys(SHIFTS).map(Number)) };
     const minor = isMinor(t.keys[0]);
     const others = [...Array(12).keys()].map((r) => r + (minor ? 12 : 0)).filter((k) => !t.keys.includes(k));
+    if (!others.length) return { key: leastPracticed(t.keys, played)[0], alt: false, shift: null }; // already in every key
     return { key: randomOf(leastPracticed(others, played)), alt: true, shift: null };
   }
   if (!t.keys.length) return { key: null, alt: false, shift: null };

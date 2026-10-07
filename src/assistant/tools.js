@@ -28,6 +28,20 @@ export function concertKey(name) {
   return root + (isMinor(k) ? 12 : 0);
 }
 
+// Key names → concert keys, or an error naming the ones that couldn't be read.
+function readKeys(names) {
+  const keys = (names || []).map(concertKey);
+  const bad = (names || []).filter((_, i) => keys[i] == null);
+  if (bad.length) return { error: `Couldn’t read these key names: ${bad.join(', ')}. Use names like C, Bb, F#, Ebm.` };
+  return { keys };
+}
+function readName(name) {
+  const n = String(name || '').trim().replace(/\s+/g, ' ');
+  if (!n) return { error: 'The name is empty.' };
+  if (n.length > 120) return { error: 'The name is too long (120 characters at most).' };
+  return { name: n };
+}
+
 const nullable = (schema) => ({
   ...schema,
   type: [schema.type, 'null'],
@@ -324,6 +338,8 @@ export const TOOLS = [
     write: true,
     run: (a) => {
       const t = findItem(a.item_id);
+      const keys = readKeys(a.keys);
+      if (keys.error) return keys; // check before changing anything
       const did = [];
       if (a.level) { setLevel(t, LEVELS.findIndex((l) => l.label.toLowerCase() === a.level)); did.push(`level → ${a.level}`); }
       if (a.priority) { t.priority = PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1; did.push(`priority → ${a.priority}`); }
@@ -338,7 +354,7 @@ export const TOOLS = [
       if (a.tempo) { setTempo(t, a.tempo, { nextTime: true }); did.push(`tempo → ${t.tempo}`); }
       if (a.goal_tempo) { t.goalTempo = clampBpm(a.goal_tempo); did.push(`goal tempo → ${t.goalTempo}`); }
       if (a.keys?.length) {
-        const ks = a.keys.map(concertKey).filter((k) => k != null);
+        const ks = keys.keys;
         if (t.type === 'exercise') { t.keys = [...new Set(ks.map((k) => k % 12))]; t.keyMode = 'fixed'; }
         else t.keys = [...new Set(ks)];
         did.push(`keys → ${a.keys.join(', ')}`);
@@ -366,10 +382,14 @@ export const TOOLS = [
     }),
     write: true,
     run: (a) => {
+      const name = readName(a.name);
+      const keys = readKeys(a.keys);
+      if (name.error || keys.error) return name.error ? name : keys;
+      if (a.key_mode === 'fixed' && !keys.keys.length) return { error: 'key_mode fixed needs at least one key.' };
       const t = {
-        id: uid(), type: 'exercise', name: a.name.trim(), category: a.category, keyMode: a.key_mode,
+        id: uid(), type: 'exercise', name: name.name, category: a.category, keyMode: a.key_mode,
         keysPerSession: Math.max(1, Math.min(12, a.keys_per_session || 1)),
-        keys: (a.keys || []).map(concertKey).filter((k) => k != null).map((k) => k % 12),
+        keys: [...new Set(keys.keys.map((k) => k % 12))],
         abc: a.abc?.trim() || '', meter: a.meter || '4/4', notes: a.notes || '',
         tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: null, ivl: null, due: null,
       };
@@ -393,9 +413,12 @@ export const TOOLS = [
     }),
     write: true,
     run: (a) => {
+      const name = readName(a.name);
+      const keys = readKeys(a.keys);
+      if (name.error || keys.error) return name.error ? name : keys;
       const t = {
-        id: uid(), type: 'tune', name: a.name.trim(), style: a.style || 'Standard',
-        keys: (a.keys || []).map(concertKey).filter((k) => k != null),
+        id: uid(), type: 'tune', name: name.name, style: a.style || 'Standard',
+        keys: [...new Set(keys.keys)],
         level: a.level ? LEVELS.findIndex((l) => l.label.toLowerCase() === a.level) : 0,
         priority: a.priority ? PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1 : 2,
         notes: '', mine: true, ivl: null, due: null,

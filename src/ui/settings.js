@@ -1,7 +1,7 @@
 import { store, save, flush, seedState, migrate } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
-import { esc } from '../util.js';
+import { esc, clone } from '../util.js';
 import { buildPlan } from '../plan.js';
 import { mediaStats, fmtSize } from '../media.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
@@ -191,10 +191,15 @@ async function importData(e) {
     if (!confirm(`Replace current data with this backup (${items.length} tunes, ${data.log.length} log entries)?`)) return;
     delete data.app;
     delete data.exported;
+    // Recordings aren't in backups, and clips nothing refers to are deleted at startup: keep the
+    // notes that hold this phone's recordings unless the backup has them too.
+    const backupIds = new Set((data.diary || []).map((e) => e?.id));
+    const keep = store.state.diary.filter((e) => e.media?.length && !backupIds.has(e.id));
+    data.diary = [...(data.diary || []), ...clone(keep)];
     store.state = migrate(data);
     save();
     render();
-    toast('Backup restored');
+    toast(keep.length ? `Backup restored — kept ${keep.length} note${keep.length > 1 ? 's' : ''} with recordings` : 'Backup restored');
   } catch {
     toast('That file doesn’t look like a Woodshed backup');
   }

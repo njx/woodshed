@@ -3,7 +3,8 @@ import { SEED_EXERCISES } from './data/exercises.js';
 import { DEFAULT_SETTINGS } from './constants.js';
 import { parseKey } from './keys.js';
 import { uid } from './util.js';
-import { kvGet, kvSet } from './db.js';
+import { sanitizeState } from './validate.js';
+import { kvGet, kvSet, kvFallback } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
@@ -25,7 +26,8 @@ export const SCHEMA_VERSION = 3;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
-export const store = { state: null };
+// rev counts saves: an undo only applies if nothing has changed since it was offered.
+export const store = { state: null, rev: 0 };
 
 export function seedExercises() {
   return SEED_EXERCISES.map((x) => ({
@@ -47,7 +49,7 @@ export function seedExercises() {
 }
 
 export function seedState() {
-  return {
+  return normalize({
     version: SCHEMA_VERSION,
     items: [...SEED_TUNES.map((t) => ({
       id: uid(),
@@ -67,7 +69,7 @@ export function seedState() {
     diary: [],
     plan: null,
     settings: { ...DEFAULT_SETTINGS },
-  };
+  });
 }
 
 // Bring any saved or imported state up to the current schema.
@@ -95,29 +97,14 @@ export function migrate(s) {
 }
 
 export function normalize(s) {
-  s.items ||= [];
-  s.log ||= [];
-  s.diary ||= [];
-  s.plan ??= null;
-  s.settings = { ...DEFAULT_SETTINGS, ...s.settings };
-  if (!s.settings.instruments?.length) s.settings.instruments = ['c'];
-  if (!s.settings.instruments.includes(s.settings.view)) s.settings.view = s.settings.instruments[0];
-  for (const t of s.items) {
-    t.type ||= 'tune';
-    if (!Array.isArray(t.keys)) t.keys = [];
-    if (t.type === 'exercise') {
-      t.keyMode ||= 'weak';
-      t.keysPerSession ||= 1;
-      t.abc ??= '';
-      t.meter ||= '4/4';
-      t.category ||= 'other';
-    }
-  }
-  return s;
+  return sanitizeState(s);
 }
 
 export async function loadState() {
-  let s = await kvGet(STATE_KEY);
+  let s = await kvGet(STATE_KEY); // throws if storage can't be read: never seed over real data
+  // A save that failed in IndexedDB left a newer copy in localStorage.
+  const spill = kvFallback(STATE_KEY);
+  if (spill && spill !== s && (!s || (spill.savedAt || 0) > (s.savedAt || 0))) s = spill;
   if (!s) {
     // First run on this version: pick up data saved by version 1, if any.
     try {
@@ -128,7 +115,7 @@ export async function loadState() {
     }
   }
   store.state = s ? migrate(s) : seedState();
-  await kvSet(STATE_KEY, store.state);
+  await flush();
   return store.state;
 }
 
@@ -140,6 +127,7 @@ export function setSaveErrorHandler(fn) {
 
 // Debounced: many small edits (typing notes) become one write.
 export function save() {
+  store.rev++;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 250);
 }
@@ -147,6 +135,8 @@ export function save() {
 export async function flush() {
   clearTimeout(saveTimer);
   saveTimer = null;
+  if (!store.state) return; // still loading: nothing to save, and never write over saved data
+  store.state.savedAt = Date.now();
   try {
     await kvSet(STATE_KEY, store.state);
   } catch (e) {
