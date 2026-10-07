@@ -6,7 +6,7 @@ import {
   itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus } from '../plan.js';
+import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus, swapWarmup } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
   levelLabel, transposeToggle, bindTransposeToggle, suggestionHtml,
@@ -110,20 +110,30 @@ function bindCard(card) {
     save();
     render();
   };
+  const name = () => itemById(item.itemId).name;
+  // Take it out of today's set: a focus item for today, a warm-up, or a pick (not suggested again today).
+  const skip = () => {
+    if (isPlanItemPlayed(item)) return;
+    const msg = item.warmup ? `Took out the ${name()} warm-up` : `Skipped ${name()} for today`;
+    withUndo(msg, () => {
+      if (item.bucket === 'focus') state.plan.focusSkipped.push(item.itemId);
+      else if (!item.warmup) state.plan.skipped.push(item.itemId);
+      state.plan.items.splice(i, 1);
+      prepTunes(); // a tune's warm-ups go with it
+    });
+  };
   const swap = () => {
     if (isPlanItemPlayed(item)) return;
     if (item.warmup) {
-      return withUndo(`Took out the ${itemById(item.itemId).name} warm-up`, () => state.plan.items.splice(i, 1));
-    }
-    if (item.bucket === 'focus') {
-      return withUndo(`Skipped ${itemById(item.itemId).name} for today`, () => {
-        state.plan.focusSkipped.push(item.itemId);
-        state.plan.items.splice(i, 1);
-      });
+      const was = name();
+      if (!swapWarmup(i)) { render(); return toast('No other warm-up for this tune'); }
+      save();
+      render();
+      return toast(`Swapped the ${was} warm-up`);
     }
     const t = pickItem(item.bucket, excludedIds(), itemStats());
-    if (!t) return toast(item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
-    withUndo(`Swapped out ${itemById(item.itemId).name}`, () => {
+    if (!t) { render(); return toast(item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest'); }
+    withUndo(`Swapped out ${name()}`, () => {
       state.plan.skipped.push(item.itemId);
       state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
       prepTunes();
@@ -131,7 +141,7 @@ function bindCard(card) {
   };
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
   const swapBtn = $('.swap', card);
-  if (swapBtn) swapBtn.onclick = (e) => { e.stopPropagation(); swap(); };
+  if (swapBtn) swapBtn.onclick = (e) => { e.stopPropagation(); (item.bucket === 'focus' ? skip : swap)(); };
   $$('.rating button', card).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
     rate(item.itemId, b.dataset.v, item);
@@ -160,7 +170,7 @@ function bindCard(card) {
   card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
   attachSwipe(card, {
     right: toggle,
-    left: isPlanItemPlayed(item) ? null : swap,
+    actions: isPlanItemPlayed(item) ? [] : leftActions(item).map((a) => (a === 'swap' ? swap : skip)),
   });
 }
 
@@ -246,8 +256,9 @@ function cardHtml(it, i, stats) {
   <li class="card-wrap">
     <div class="swipe-bg" aria-hidden="true">
       <span class="bg-right">${ICON.check}${played ? 'Unmark' : 'Played'}</span>
-      <span class="bg-left">${focus ? 'Skip today' : 'Swap'}${ICON.swap}</span>
     </div>
+    ${played ? '' : `<div class="swipe-actions">${leftActions(it).map((a, n) => `
+      <button class="sa-${a}" data-act="${n}" tabindex="-1">${a === 'swap' ? ICON.swap : ICON.skip}<span>${a === 'swap' ? 'Swap' : it.warmup ? 'Remove' : 'Skip today'}</span></button>`).join('')}</div>`}
     <article class="card b-${it.bucket} ${played ? 'done' : ''}" data-i="${i}" data-item-id="${t.id}" tabindex="0">
       <div class="card-top">
         <span class="bucket"><i></i>${it.warmup ? 'Warm-up' : BUCKETS[it.bucket].label}</span>
@@ -258,7 +269,7 @@ function cardHtml(it, i, stats) {
       <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${recChip(t)}${tempoChip(t)}</div>
       <div class="card-actions">
         ${keyChip(it, t)}
-        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
+        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
       ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}
@@ -273,6 +284,14 @@ function recChip(t) {
   if (!canRecord()) return '';
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && e.media?.length).length;
   return `<button class="rec-chip ${n ? '' : 'empty'}" aria-label="Record ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.rec}${n ? `<span>${n}</span>` : ''}</button>`;
+}
+
+// What a left swipe offers, the edge-most (a long swipe) last: warm-ups swap or go; focus items
+// can be skipped for today; others skipped or swapped.
+function leftActions(it) {
+  if (it.warmup) return ['swap', 'remove'];
+  if (it.bucket === 'focus') return ['skip'];
+  return ['skip', 'swap'];
 }
 
 function progressRing(done, total) {

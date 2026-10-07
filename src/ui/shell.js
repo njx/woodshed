@@ -171,14 +171,42 @@ export function closeSheet() {
 
 // ---------- Swipeable cards ----------
 
-export function attachSwipe(card, { right, left }) {
+// Swipes on a card in a .card-wrap:
+//   right: past the threshold, calls `right` (mark played);
+//   left: reveals the card's actions (buttons in its .swipe-actions, edge-most last), like Mail:
+//   a short swipe leaves them open to tap, a long one does the edge-most action.
+// actions: [fn, …] in the order of the buttons. Tapping the open card (or another) closes it.
+const ACTION_W = 78;
+let openWrap = null;
+export function closeSwipes() {
+  if (!openWrap) return;
+  const card = openWrap.querySelector('.card');
+  card.style.transform = '';
+  openWrap.classList.remove('open');
+  openWrap.style.setProperty('--pull', '0px');
+  openWrap = null;
+}
+document.addEventListener('pointerdown', (e) => { if (openWrap && !openWrap.contains(e.target)) closeSwipes(); }, true);
+
+export function attachSwipe(card, { right, actions = [] }) {
   const wrap = card.parentElement;
   const THRESH = 90;
-  let sx = 0, sy = 0, dx = 0, active = false, decided = false, horiz = false, pid = null;
+  const openW = actions.length * ACTION_W;
+  let sx = 0, sy = 0, dx = 0, base = 0, active = false, decided = false, horiz = false, pid = null;
+  const full = () => Math.max(openW + 70, card.offsetWidth * 0.6);
+  wrap.style.setProperty('--open', `${openW}px`);
+
+  $$('.swipe-actions [data-act]', wrap).forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const fn = actions[Number(b.dataset.act)];
+    closeSwipes();
+    fn?.();
+  }));
 
   card.addEventListener('pointerdown', (e) => {
     if (e.target.closest('button')) return;
     sx = e.clientX; sy = e.clientY; dx = 0;
+    base = wrap.classList.contains('open') ? -openW : 0;
     active = true; decided = false; horiz = false; pid = e.pointerId;
     card._swiped = false;
   });
@@ -192,18 +220,25 @@ export function attachSwipe(card, { right, left }) {
       if (!horiz) { active = false; return; }
       card.setPointerCapture(pid);
       card.classList.add('dragging');
+      if (openWrap && openWrap !== wrap) closeSwipes();
     }
-    dx = mx;
-    if (dx < 0 && !left) dx = dx / 4; // resist when swap isn't allowed
-    card.style.transform = `translateX(${dx}px) rotate(${dx / 50}deg)`;
+    dx = base + mx;
+    if (dx < 0 && !actions.length) dx = dx / 4; // resist when there's nothing to do
+    if (dx > 0 && !right) dx = dx / 4;
+    card.style.transform = `translateX(${dx}px)${dx > 0 ? ` rotate(${dx / 50}deg)` : ''}`;
     wrap.dataset.dir = dx > 0 ? 'right' : 'left';
     wrap.style.setProperty('--reveal', Math.min(1, Math.abs(dx) / THRESH));
-    wrap.classList.toggle('armed', Math.abs(dx) >= THRESH);
+    wrap.style.setProperty('--pull', `${Math.max(0, -dx)}px`);
+    wrap.classList.toggle('armed', dx >= THRESH || (actions.length > 0 && -dx >= full()));
   });
   const end = () => {
     if (!active) return;
     active = false;
-    if (!horiz) return;
+    if (!horiz) {
+      // A tap on an open card closes it rather than opening it.
+      if (wrap.classList.contains('open')) { card._swiped = true; setTimeout(() => (card._swiped = false), 50); closeSwipes(); }
+      return;
+    }
     card._swiped = true;
     setTimeout(() => (card._swiped = false), 50);
     card.classList.remove('dragging');
@@ -212,13 +247,24 @@ export function attachSwipe(card, { right, left }) {
       card.style.transform = '';
       wrap.style.setProperty('--reveal', 0);
       right();
-    } else if (dx <= -THRESH && left) {
-      card.style.transform = `translateX(${-window.innerWidth}px) rotate(-8deg)`;
+    } else if (actions.length && -dx >= full()) {
+      // All the way: the edge-most action, the card sliding off.
+      wrap.classList.remove('open');
+      if (openWrap === wrap) openWrap = null;
+      card.style.transform = `translateX(${-window.innerWidth}px)`;
       card.style.opacity = '0';
-      setTimeout(left, 180);
+      setTimeout(actions[actions.length - 1], 180);
+    } else if (actions.length && -dx >= openW / 2) {
+      card.style.transform = `translateX(${-openW}px)`;
+      wrap.style.setProperty('--pull', `${openW}px`);
+      wrap.classList.add('open');
+      openWrap = wrap;
     } else {
       card.style.transform = '';
       wrap.style.setProperty('--reveal', 0);
+      wrap.style.setProperty('--pull', '0px');
+      wrap.classList.remove('open');
+      if (openWrap === wrap) openWrap = null;
     }
   };
   card.addEventListener('pointerup', end);

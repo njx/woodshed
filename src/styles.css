@@ -144,8 +144,26 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 }
 .swipe-bg span { display: flex; align-items: center; gap: 6px; opacity: 0; transition: opacity .1s; }
 .card-wrap[data-dir="right"] .swipe-bg { background: var(--good-soft); color: var(--good); }
-.card-wrap[data-dir="left"] .swipe-bg { background: var(--surface-2); color: var(--ink-2); }
-.card-wrap[data-dir="right"] .bg-right, .card-wrap[data-dir="left"] .bg-left { opacity: 1; }
+.card-wrap[data-dir="left"] .swipe-bg { display: none; }
+.card-wrap[data-dir="right"] .bg-right { opacity: 1; }
+
+/* Left swipe: the card's actions behind it, on the right, as wide as the card has been pulled;
+   pulled all the way, the edge-most one takes the space. */
+.card-wrap { --pull: 0px; --open: 0px; }
+.swipe-actions {
+  position: absolute; top: 0; bottom: 0; right: 0; display: flex; overflow: hidden;
+  width: var(--pull); border-radius: var(--radius);
+}
+.swipe-actions button {
+  flex: 0 0 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 12.5px; font-weight: 650; color: #fff; padding: 0 4px; text-align: center;
+}
+.swipe-actions button:last-child { flex: 1 0 78px; }
+.swipe-actions button svg { width: 20px; height: 20px; }
+.sa-swap { background: var(--accent); }
+.sa-skip { background: #8a8072; }
+.sa-remove { background: var(--danger); }
+.card-wrap.armed .swipe-actions button:not(:last-child) { flex-basis: 0; padding: 0; overflow: hidden; }
 .card-wrap.armed .swipe-bg span { transform: scale(1.08); }
 
 .card {
@@ -1033,3 +1051,6 @@ body.scrolled .today-top .day-note { display: none; }
 @media (max-width: 419px) {
   body:has(.metro-pill:not([hidden])) .tuner-pill { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--dock, 0px) + 64px); }
 }
+/* No scroll anchoring: when the sticky header shrinks, the page shouldn't scroll to compensate
+   (that undoes the scroll that shrank it, and it flickers back and forth). */
+html { overflow-anchor: none; }

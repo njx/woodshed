@@ -50,9 +50,11 @@ function helpers(page) {
       await page.waitForTimeout(350); // closing animation, and any sheet it returns to
     },
     async swipe(locator, dx) {
-      await locator.scrollIntoViewIfNeeded();
+      await locator.evaluate((el) => el.scrollIntoView({ block: 'center' })); // clear of the sticky header and tools
+      await page.waitForTimeout(100);
       const box = await locator.boundingBox();
-      const x = box.x + box.width / 2, y = box.y + 40;
+      // Start near the edge it moves away from, so a long swipe stays on screen.
+      const x = box.x + box.width * (dx < 0 ? 0.92 : 0.08), y = box.y + 40;
       await page.mouse.move(x, y);
       await page.mouse.down();
       for (let i = 1; i <= 10; i++) await page.mouse.move(x + (dx * i) / 10, y + i * 0.5);

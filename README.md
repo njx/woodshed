@@ -45,6 +45,10 @@ weeks), and rough ones less. The Progress tab charts it around the circle of fif
 Today's header and its tools (Ask, Note, Record, Metronome, Tuner) stay on screen as you scroll;
 the header shrinks to the title, keys and progress.
 
+Swiping a card: right marks it played; a short swipe left shows its actions — **Skip today** and
+**Swap** (a warm-up: **Swap** and **Remove**; a focus item: **Skip today**) — and a long one does
+the last of them.
+
 ### Exercises on a day
 
 Settings → *Exercises on a day*:
@@ -56,7 +60,7 @@ Settings → *Exercises on a day*:
   7♭13), then **Through the changes** — one of its progressions (say iii–VI7–ii–V7–I or iiø–V7♭9–i)
   arpeggiated a bar per chord, in the key it leads to. So a set reads: exercises, then warm-ups →
   tune, warm-ups → tune… The same exercise can come up before several tunes, each set to that tune
-  and ticked off on its own. Swipe a warm-up left to take it out; a tune swapped in (or added with
+  and ticked off on its own. Swipe a warm-up left for **Swap** (scales for arpeggios or the other way round, or the tune's next progression) or **Remove**; a tune swapped in (or added with
   *One more tune*, or made a focus tune) gets its own.
 - **Key of the day**: one or two keys (weak keys come up more) for every exercise that picks keys
   by weak keys or at random, so a day has a centre. Shown under *Today's set*.

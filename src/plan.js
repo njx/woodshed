@@ -6,7 +6,7 @@ import { weightedPick, randomOf, uid } from './util.js';
 import { itemStats, overdue, itemById, isPlayedToday, isPlanItemPlayed } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 import { chooseTypes } from './theory.js';
-import { warmupsFor, prepFor } from './warmups.js';
+import { warmupsFor, prepFor, altWarmup } from './warmups.js';
 
 export function bucketOf(t) {
   if (t.type === 'exercise') return 'exercise';
@@ -122,6 +122,18 @@ export function applyExerciseFocus(plan = store.state.plan) {
   }
   plan.mode = mode;
   orderPlan(plan);
+}
+
+// Swaps the warm-up at index i of today's set for another (see altWarmup). False if there's none.
+export function swapWarmup(i, plan = store.state.plan) {
+  const it = plan.items[i];
+  const t = it?.warmup && itemById(it.warmup);
+  if (!t) return false;
+  const tuneItem = plan.items.find((x) => x.itemId === it.warmup && !x.warmup);
+  const alt = altWarmup(t, it, { key: tuneItem?.key ?? null });
+  if (!alt) return false;
+  plan.items[i] = alt;
+  return true;
 }
 
 // The order of today's set: exercises, then tunes (focus first); in "From tunes", each tune's

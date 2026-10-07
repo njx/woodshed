@@ -110,3 +110,25 @@ export function prepFor(t, { key = null, prefer = 'chord' } = {}) {
   if (prog && changes) items.push(progItem(changes, t, prog, up));
   return items;
 }
+
+// Another warm-up in place of `it` before tune `t` (played in `key` today): the other kind of
+// setup (scales for arpeggios or the other way round), or the tune's next progression. Null if
+// there's nothing else.
+export function altWarmup(t, it, { key = null } = {}) {
+  const chart = chartFor(t);
+  if (!chart) return null;
+  if (it.prog) {
+    const progs = progressions(chart).filter((p) => p.chords.length >= 2 && p.chords.every((c) => CHORDS[c.family]));
+    if (progs.length < 2) return null;
+    const playKey = key ?? t.keys?.[0] ?? chart.key ?? 0;
+    const shift = (((playKey - (chart.key ?? playKey)) % 12) + 12) % 12;
+    // The same progression can come up into different keys: match on both.
+    const at = progs.findIndex((p) => p.name === it.prog.name && (p.target + shift) % 12 === it.keys?.[0]);
+    const next = progs[(at + 1) % progs.length];
+    const changes = exercises().find((x) => x.id === it.itemId);
+    return changes ? progItem(changes, t, next, (r) => (r + shift) % 12) : null;
+  }
+  const kind = exercises().find((x) => x.id === it.itemId)?.vary?.kind;
+  const other = prepFor(t, { key, prefer: kind === 'chord' ? 'scale' : 'chord' })[0];
+  return other && !other.prog && other.itemId !== it.itemId ? other : null;
+}

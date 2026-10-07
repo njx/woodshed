@@ -38,8 +38,14 @@ document.addEventListener('visibilitychange', () => {
     maybeGreet();
   }
 });
-// Shrinks the sticky header once the page is scrolled.
-window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 24), { passive: true });
+// Shrinks the sticky header once the page is scrolled. Shrinking moves the page up, so it only
+// grows back nearer the top (otherwise it could flicker between the two around one point).
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  const on = document.body.classList.contains('scrolled');
+  if (!on && y > 60) document.body.classList.add('scrolled');
+  else if (on && y < 4) document.body.classList.remove('scrolled');
+}, { passive: true });
 window.addEventListener('pagehide', () => { if (store.state) heartbeat(); flush(); });
 setInterval(() => {
   if (store.state && document.visibilityState === 'visible' && heartbeat() === 'stopped') render();

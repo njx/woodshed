@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { store, seedState, migrate } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
-import { warmupsFor, prepFor } from '../src/warmups.js';
+import { warmupsFor, prepFor, altWarmup } from '../src/warmups.js';
 import { buildPlan, addWarmups, ensurePlan } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday } from '../src/practice.js';
 import { chooseTypes } from '../src/theory.js';
@@ -72,6 +72,16 @@ describe('warm-ups for a tune', () => {
     expect(prepFor(t, { key: 19 }).map(name)).toEqual(['Seventh-chord arpeggios', 'Through the changes']);
     expect(prepFor(t, { key: 19, prefer: 'scale' }).map(name)).toEqual(['Scales: major and minors', 'Through the changes']);
     expect(prepFor(byName('Killer Joe'))).toEqual([]); // no chart
+  });
+  it('can be swapped: arpeggios for scales, or the tune’s next progression', () => {
+    const t = byName('There Will Never Be Another You');
+    const [setup, prog] = prepFor(t, { key: 3 });
+    const name = (x) => store.state.items.find((i) => i.id === x.itemId).name;
+    expect(name(altWarmup(t, setup, { key: 3 }))).toBe('Scales: major and minors');
+    const next = altWarmup(t, prog, { key: 3 });
+    expect(`${next.prog.name} in ${next.keys[0]}`).not.toBe(`${prog.prog.name} in ${prog.keys[0]}`);
+    expect(next.warmup).toBe(t.id);
+    expect(next.pid).not.toBe(prog.pid);
   });
 });
 
