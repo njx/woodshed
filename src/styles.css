@@ -887,3 +887,12 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .t-a4 { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
 .t-a4 .pill-btn { min-width: 36px; padding: 0; justify-content: center; font-size: 18px; }
 .today-tools #today-tuner svg { color: var(--good); }
+
+/* Scale or chord type, under the key strip */
+.type-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; }
+.type-strip button { min-height: 30px; padding: 0 10px; border-radius: 15px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--surface); }
+.type-strip button.on { background: var(--exercise); color: #fff; }
+.fine.error { color: var(--danger); }
+/* Exercise keys (and scale or chord types) wrap between keys instead of being cut off. */
+.keychip.multi .kc-text span { white-space: normal; }
+.keychip.multi b { white-space: nowrap; }

@@ -1,7 +1,39 @@
 // Starter exercises. Notation is ABC with L:1/8, written as if in C; the app transposes it
 // up into whichever key you're practicing (and into your instrument's written key).
 
+// `vary`: exercises that change scale or chord type each session (see theory.js); their notation
+// is generated. `since`: the data version that added the exercise, for existing users.
 export const SEED_EXERCISES = [
+  {
+    name: 'Scales: major and minors',
+    category: 'scale',
+    keyMode: 'weak',
+    keysPerSession: 3,
+    abc: '',
+    vary: { kind: 'scale', types: ['major', 'dorian', 'aeolian', 'harmonic', 'melodic', 'dimHW'], shape: 'updown', pattern: '' },
+    notes: 'Each key comes with one of the scale types turned on below. Once it’s comfortable, take it through the full range of the horn.',
+    since: 4,
+  },
+  {
+    name: 'Scale patterns: 1-2-3-5',
+    category: 'pattern',
+    keyMode: 'weak',
+    keysPerSession: 2,
+    abc: '',
+    vary: { kind: 'scale', types: ['major', 'dorian', 'harmonic', 'melodic'], shape: 'p1235', pattern: '' },
+    notes: '1-2-3-5 from each note of the scale, up an octave.',
+    since: 4,
+  },
+  {
+    name: 'Seventh-chord arpeggios',
+    category: 'arpeggio',
+    keyMode: 'weak',
+    keysPerSession: 4,
+    abc: '',
+    vary: { kind: 'chord', types: ['maj7', 'm7', 'dom7', 'm7b5', 'dim7'], shape: 'updown', pattern: '' },
+    notes: 'Each key comes with one of the chord types turned on below.',
+    since: 4,
+  },
   {
     name: 'Major scale',
     category: 'scale',

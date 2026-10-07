@@ -13,9 +13,10 @@ export function itemStats() {
   const log = [...store.state.log].sort((a, b) => a.date.localeCompare(b.date) || (a.at || 0) - (b.at || 0));
   for (const e of log) {
     let s = stats.get(e.itemId);
-    if (!s) stats.set(e.itemId, (s = { count: 0, last: null, keys: [], keyLast: {} }));
+    if (!s) stats.set(e.itemId, (s = { count: 0, last: null, keys: [], keyLast: {}, types: [] }));
     s.count++;
     if (!s.last || e.date > s.last) s.last = e.date;
+    if (e.types) s.types.push(...e.types);
     for (const k of entryKeys(e)) {
       s.keys.push(k);
       s.keyLast[k % 12] = e.date;
@@ -69,6 +70,7 @@ export function markPlayed(itemId, planItem) {
     id: uid(), date: dateStr(), itemId, at: Date.now(),
     key: planItem?.key ?? null, alt: !!planItem?.alt, shift: planItem?.shift ?? null,
     ...(planItem?.keys?.length ? { keys: [...planItem.keys] } : {}),
+    ...(planItem?.types?.length ? { types: [...planItem.types] } : {}),
     rating: 'ok', prev: { ivl: t.ivl, due: t.due },
     ...(t.tempo ? { bpm: t.tempo } : {}),
   };

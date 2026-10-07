@@ -28,6 +28,15 @@ For each exercise you choose:
   ones this exercise hasn't been played in lately), *cycle of 4ths* or *chromatic* (picking up
   where you left off), *random*, *chosen keys* only, or *no key* (long tones, the chromatic scale).
 
+- **Vary the scale or chord type** (optional): each session, every key comes with one of the
+  scale types (major, dorian, aeolian, harmonic minor, melodic minor, diminished H/W, and more) or
+  chord types (maj7, m7, 7, ø7, °7, and more) you've turned on for that exercise, favouring the
+  ones you've played least, e.g. "In C dorian · F♯ harm min · B♭ dim H/W". The notation is
+  written out for each type, correctly spelled (harmonic minor in C has A♭ and B♮), in a shape you
+  pick: up and down one or two octaves, in 3rds, groups of 4, 1-2-3-5 from each note, inversions
+  (chords), or your own note numbers. The starter set has three of these: scales, 1-2-3-5 patterns,
+  and seventh-chord arpeggios.
+
 **Key familiarity** comes from everything you log, tunes and exercises alike: each session counts
 toward its key, recent sessions count more (a session counts half as much after about three
 weeks), and rough ones less. The Progress tab charts it around the circle of fifths.
@@ -200,6 +209,7 @@ Layout:
 
 - `src/practice.js`: practice log, spaced-repetition scheduling, level suggestions
 - `src/plan.js`: picking the daily set and the key for each item
+- `src/theory.js`: scale and chord types, generated notation for them, and choosing types
 - `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
 - `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
 - `src/keystats.js`: key familiarity and choosing exercise keys

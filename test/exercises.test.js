@@ -99,3 +99,33 @@ describe('upgrading mid-day', () => {
     expect(store.state.plan.items).toHaveLength(2);
   });
 });
+
+describe('exercises that vary the scale or chord', () => {
+  it('get a type for each key in the plan, and the log keeps them', async () => {
+    const { store } = await import('../src/store.js');
+    const { makePlanItem } = await import('../src/plan.js');
+    const { itemStats, markPlayed } = await import('../src/practice.js');
+    const { setState, freezeToday } = await import('./helpers.js');
+    freezeToday();
+    setState([{ id: 'sc', type: 'exercise', name: 'Scales', keyMode: 'random', keysPerSession: 3, vary: { kind: 'scale', types: ['major', 'dorian', 'harmonic'], shape: 'updown' } }]);
+    const t = store.state.items[0];
+    const item = makePlanItem(t, itemStats());
+    expect(item.keys).toHaveLength(3);
+    expect(item.types).toHaveLength(3);
+    expect(new Set(item.types).size).toBe(3);
+    markPlayed(t.id, item);
+    expect(store.state.log[0].types).toEqual(item.types);
+    expect(itemStats().get(t.id).types).toEqual(item.types);
+  });
+
+  it('with no keys, still get one type', async () => {
+    const { store } = await import('../src/store.js');
+    const { makePlanItem } = await import('../src/plan.js');
+    const { itemStats } = await import('../src/practice.js');
+    const { setState } = await import('./helpers.js');
+    setState([{ id: 'c', type: 'exercise', name: 'Chords', keyMode: 'none', vary: { kind: 'chord', types: ['m7'] } }]);
+    const item = makePlanItem(store.state.items[0], itemStats());
+    expect(item.keys).toEqual([]);
+    expect(item.types).toEqual(['m7']);
+  });
+});

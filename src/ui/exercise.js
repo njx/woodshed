@@ -4,10 +4,11 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { syncFocus } from '../plan.js';
+import { syncFocus, refreshTypes } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
+import { VARY, SHAPES, typesOf, typeInfo, variantName, generateAbc, parsePattern } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -22,8 +23,18 @@ const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
 export const rootName = (r) => keyName(r % 12, view());
 
-export function exerciseKeysText(keys) {
-  return keys.map(rootName).join(' · ');
+// What to play: "C · F · B♭", or with scale or chord types "C dor · F harm min", "Cm7 · F7".
+export function exerciseKeysText(keys = [], t = null, types = null) {
+  const kind = t?.vary?.kind;
+  if (!kind || !types?.length) return keys.map(rootName).join(' · ');
+  if (!keys.length) return types.map((id) => typeInfo(kind, id)?.label || id).join(' · ');
+  return keys.map((k, i) => variantName(rootName(k), kind, types[i])).join(' · ');
+}
+
+// The notation to show: generated for a scale or chord type, or the exercise's own.
+function notationFor(t, type) {
+  if (t.vary) return generateAbc(t.vary.kind, type, { shape: t.vary.shape, pattern: t.vary.pattern, meter: t.meter || '4/4' });
+  return t.abc;
 }
 
 // Detail sheet for an exercise. id null = new exercise. opts.keys: today's keys, to preview first.
@@ -36,7 +47,11 @@ export function openExercise(id, opts = {}) {
   if (!t) return;
   const planItem = state.plan?.date === dateStr() ? state.plan.items.find((i) => i.itemId === t.id) : null;
   const todayKeys = opts.keys || planItem?.keys || [];
+  const todayTypes = () => (planItem?.types || opts.types || []).filter((id) => t.vary?.types.includes(id));
   let previewRoot = todayKeys[0] ?? 0;
+  // The scale or chord type shown: today's for the key shown, or the first one turned on.
+  const typeFor = (root) => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
+  let previewType = typeFor(previewRoot);
   let stopFn = null;
 
   const body = () => {
@@ -52,24 +67,47 @@ export function openExercise(id, opts = {}) {
         <input type="checkbox" id="x-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
 
-      <div class="field-label row-label"><span>Notation</span>${t.abc ? `<button class="link-btn" id="x-edit-abc">Edit</button>` : ''}</div>
-      ${t.abc ? `
+      <div class="field-label row-label"><span>Notation</span>${t.abc && !t.vary ? `<button class="link-btn" id="x-edit-abc">Edit</button>` : ''}</div>
+      ${t.vary || t.abc ? `
         <div class="notation-card">
           <div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
             const r = writtenToConcert(w, view());
             return `<button class="${r === previewRoot ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root="${r}">${esc(rootName(r))}</button>`;
           }).join('')}</div>
+          ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${t.vary.types.map((id) => `
+            <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary.kind, id).short)}</button>`).join('')}</div>` : ''}
           <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
           <div class="play-row">
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
             <span class="fine">at ${t.tempo || 100} bpm</span>
           </div>
-          ${todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
+          ${t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
+            : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
 
       ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
+
+      <label class="field-label">Each session, vary the</label>
+      <div class="seg" id="x-vary">
+        <button class="${!t.vary ? 'on' : ''}" data-vary="">Key only</button>
+        <button class="${t.vary?.kind === 'scale' ? 'on' : ''}" data-vary="scale">Scale type</button>
+        <button class="${t.vary?.kind === 'chord' ? 'on' : ''}" data-vary="chord">Chord type</button>
+      </div>
+      ${t.vary ? `
+        <p class="fine">Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.</p>
+        <div class="chips wrap" id="x-types">${Object.entries(typesOf(t.vary.kind)).map(([id, x]) => `
+          <button class="chip ${t.vary.types.includes(id) ? 'on' : ''}" data-vtype="${id}" aria-pressed="${t.vary.types.includes(id)}">${esc(x.label)}</button>`).join('')}</div>
+        <label class="field-label">Shape</label>
+        <div class="chips wrap" id="x-shape">${Object.entries(SHAPES).filter(([, x]) => x.kinds.includes(t.vary.kind)).map(([id, x]) => `
+          <button class="chip ${t.vary.shape === id ? 'on' : ''}" data-shape="${id}">${esc(x.label)}</button>`).join('')}</div>
+        ${t.vary.shape === 'custom' ? `
+          <label class="field">
+            <span class="field-label">Notes, as numbers</span>
+            <input id="x-pattern" type="text" inputmode="numeric" autocomplete="off" value="${esc(t.vary.pattern)}" placeholder="${t.vary.kind === 'chord' ? '1 3 5 7 8 7 5 3' : '1 2 3 5'}">
+          </label>
+          <p class="fine" id="x-pattern-msg">${t.vary.kind === 'chord' ? 'Chord tones 1 3 5 7, and 8 10 12 14 an octave up.' : 'Notes of the scale: 1 is the root; on a 7-note scale, 8 is the octave.'}</p>` : ''}` : ''}
 
       <label class="field-label">Choose keys by</label>
       <div class="chips wrap" id="x-mode">${Object.entries(KEY_MODES).map(([k, m]) => `<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode="${k}">${m.label}</button>`).join('')}</div>
@@ -102,7 +140,7 @@ export function openExercise(id, opts = {}) {
           </div>
           ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
             <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
-            <span>${esc(exerciseKeysText(entryKeys(e)))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
+            <span>${esc(exerciseKeysText(entryKeys(e), t, e.types))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
             <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
@@ -121,6 +159,16 @@ export function openExercise(id, opts = {}) {
     if (!leaving) outerBack?.();
   });
   const commit = () => { if (!isNew) save(); };
+  // After the scale or chord settings change, today's types for this exercise are picked again
+  // (unless it's already been played today).
+  const varyChanged = () => {
+    if (planItem) {
+      refreshTypes(t);
+      previewType = typeFor(previewRoot);
+    }
+    commit();
+    refresh();
+  };
   const back = () => openExercise(t.id, { keys: todayKeys, back: outerBack });
   const refresh = () => {
     const bodyEl = $('.sheet-body', sheet);
@@ -138,18 +186,36 @@ export function openExercise(id, opts = {}) {
 
   async function drawNotation() {
     const el = $('#x-notation', sheet);
-    if (!el || !t.abc) return null;
-    return renderNotation(el, t.abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: t.tempo || 100 })
+    const abc = notationFor(t, previewType);
+    if (!el || !abc) return null;
+    return renderNotation(el, abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: t.tempo || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });
   }
 
   function bind() {
     let tune = null;
     drawNotation().then((x) => { tune = x; });
+    const stopPlaying = () => {
+      if (!stopFn) return;
+      stopFn();
+      stopFn = null;
+      const p = $('#x-play', sheet);
+      p?.classList.remove('on');
+      if (p) $('span', p).textContent = 'Play';
+    };
     $$('[data-root]', sheet).forEach((b) => (b.onclick = async () => {
       previewRoot = Number(b.dataset.root);
+      // Today's keys show with today's scale or chord type.
+      if (t.vary && todayKeys.includes(previewRoot)) previewType = typeFor(previewRoot);
       $$('[data-root]', sheet).forEach((x) => x.classList.toggle('on', x === b));
-      stopFn?.();
+      $$('[data-type]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.type === previewType));
+      stopPlaying();
+      tune = await drawNotation();
+    }));
+    $$('[data-type]', sheet).forEach((b) => (b.onclick = async () => {
+      previewType = b.dataset.type;
+      $$('[data-type]', sheet).forEach((x) => x.classList.toggle('on', x === b));
+      stopPlaying();
       tune = await drawNotation();
     }));
     const play = $('#x-play', sheet);
@@ -196,6 +262,34 @@ export function openExercise(id, opts = {}) {
       commit();
     };
     $$('[data-cat]', sheet).forEach((b) => (b.onclick = () => { t.category = b.dataset.cat; commit(); refresh(); }));
+    $$('[data-vary]', sheet).forEach((b) => (b.onclick = () => {
+      const kind = b.dataset.vary;
+      if ((t.vary?.kind || '') === kind) return;
+      t.vary = kind ? { kind, types: [...VARY[kind].defaults], shape: 'updown', pattern: '' } : null;
+      previewType = t.vary?.types[0];
+      varyChanged();
+    }));
+    $$('[data-vtype]', sheet).forEach((b) => (b.onclick = () => {
+      const id = b.dataset.vtype;
+      const on = t.vary.types.includes(id);
+      if (on && t.vary.types.length === 1) return toast('Keep at least one turned on');
+      // Keep the catalogue's order.
+      t.vary.types = Object.keys(typesOf(t.vary.kind)).filter((x) => (x === id ? !on : t.vary.types.includes(x)));
+      if (!t.vary.types.includes(previewType)) previewType = t.vary.types[0];
+      varyChanged();
+    }));
+    $$('[data-shape]', sheet).forEach((b) => (b.onclick = () => { t.vary.shape = b.dataset.shape; commit(); refresh(); }));
+    const pattern = $('#x-pattern', sheet);
+    if (pattern) pattern.oninput = async () => {
+      const { error } = parsePattern(pattern.value, t.vary.kind);
+      $('#x-pattern-msg', sheet).textContent = error || 'Looks good.';
+      $('#x-pattern-msg', sheet).classList.toggle('error', !!error);
+      if (error) return;
+      t.vary.pattern = pattern.value.trim();
+      commit();
+      stopPlaying();
+      tune = await drawNotation();
+    };
     $$('[data-mode]', sheet).forEach((b) => (b.onclick = () => { t.keyMode = b.dataset.mode; commit(); refresh(); }));
     $$('[data-fixed]', sheet).forEach((b) => (b.onclick = () => {
       const r = Number(b.dataset.fixed);

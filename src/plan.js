@@ -5,6 +5,7 @@ import { isMinor } from './keys.js';
 import { weightedPick, randomOf } from './util.js';
 import { itemStats, overdue, itemById, isPlayedToday } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
+import { chooseTypes } from './theory.js';
 
 export function bucketOf(t) {
   if (t.type === 'exercise') return 'exercise';
@@ -72,7 +73,9 @@ export function makePlanItem(t, stats, bucket = bucketOf(t)) {
   if (t.type === 'exercise') {
     const s = stats.get(t.id);
     const keys = chooseExerciseKeys(t, { played: s?.keys || [], lastPlayed: s?.keyLast || {}, familiarity: keyFamiliarity() });
-    return { itemId: t.id, bucket, key: null, keys, alt: false, shift: null };
+    // Exercises that vary get a scale or chord type for each key (or one, if there are no keys).
+    const types = t.vary ? chooseTypes(t.vary, Math.max(1, keys.length), s?.types || []) : null;
+    return { itemId: t.id, bucket, key: null, keys, ...(types ? { types } : {}), alt: false, shift: null };
   }
   return { itemId: t.id, bucket, ...chooseKey(t, stats) };
 }
@@ -152,4 +155,17 @@ export function ensurePlan() {
     save();
   }
   syncFocus();
+}
+
+// Picks today's scale or chord types for an exercise again, after its settings change (unless
+// it's already been played today). `types` asks for particular ones, in key order.
+export function refreshTypes(t, types = null) {
+  const plan = store.state.plan;
+  const item = plan?.date === dateStr() && plan.items.find((i) => i.itemId === t.id);
+  if (!item || isPlayedToday(t.id)) return;
+  if (!t.vary) { delete item.types; return; }
+  const count = Math.max(1, item.keys?.length || 0);
+  const wanted = (types || []).filter((id) => t.vary.types.includes(id)).slice(0, count);
+  const rest = chooseTypes(t.vary, count - wanted.length, itemStats().get(t.id)?.types || []);
+  item.types = [...wanted, ...rest];
 }

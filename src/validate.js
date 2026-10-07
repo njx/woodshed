@@ -1,4 +1,5 @@
 import { uid } from './util.js';
+import { VARY, SHAPES } from './theory.js';
 import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
 
 // Makes saved or imported state safe to use: every field the app reads gets the type it expects.
@@ -36,6 +37,7 @@ function item(t, ids) {
     t.abc = str(t.abc);
     t.meter = /^\d{1,2}\/\d{1,2}$/.test(t.meter) ? t.meter : '4/4';
     t.category = oneOf(t.category, Object.keys(CATEGORIES), 'other');
+    t.vary = vary(t.vary);
   } else {
     t.keys = keyList(t.keys, 23);
     t.style = str(t.style || 'Standard', 60);
@@ -44,12 +46,23 @@ function item(t, ids) {
   return t;
 }
 
+// An exercise's scale or chord variation, or null.
+function vary(v) {
+  if (!v || typeof v !== 'object' || !VARY[v.kind]) return null;
+  const known = VARY[v.kind].types;
+  const types = (Array.isArray(v.types) ? v.types : []).filter((id, i, a) => known[id] && a.indexOf(id) === i);
+  const shape = SHAPES[v.shape]?.kinds.includes(v.kind) ? v.shape : 'updown';
+  return { kind: v.kind, types: types.length ? types : [...VARY[v.kind].defaults], shape, pattern: str(v.pattern, 200) };
+}
+const typeList = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && ID.test(x)) : []);
+
 function logEntry(e, ids) {
   if (!e || typeof e !== 'object' || !isDate(e.date) || !ids.has(e.itemId)) return null;
   if (!isId(e.id)) e.id = uid();
   e.at = num(e.at, 0, 8.64e15) ?? 0;
   e.key = int(e.key, 0, 23);
   if (e.keys != null) e.keys = keyList(e.keys, 11);
+  if (e.types != null) e.types = typeList(e.types);
   e.rating = oneOf(e.rating, RATINGS.map((r) => r.v), null);
   e.bpm = e.bpm == null ? null : int(Math.round(e.bpm), 10, 400);
   e.alt = !!e.alt;
@@ -80,6 +93,7 @@ function plan(p, ids) {
     bucket: oneOf(it.bucket, Object.keys(BUCKETS), 'learn'),
     key: int(it.key, 0, 23),
     keys: it.keys == null ? it.keys : keyList(it.keys, 11),
+    ...(it.types != null ? { types: typeList(it.types) } : {}),
     shift: int(it.shift, -11, 11),
     alt: !!it.alt,
   }));

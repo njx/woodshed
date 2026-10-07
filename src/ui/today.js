@@ -141,8 +141,10 @@ function bindCard(card) {
 function keyChip(it, t) {
   const chip = (cls, main, sub) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   if (t.type === 'exercise') {
-    if (!it.keys?.length) return '';
-    return chip('', `In <b>${esc(exerciseKeysText(it.keys)).replaceAll(' · ', '</b> · <b>')}</b>`, t.abc ? 'tap for notation' : '');
+    if (!it.keys?.length && !it.types?.length) return '';
+    const what = esc(exerciseKeysText(it.keys, t, it.types)).replaceAll(' · ', '</b> · <b>');
+    // The whole list matters here, so it wraps (between keys) rather than being cut off.
+    return chip('multi', `${it.keys?.length ? 'In ' : ''}<b>${what}</b>`, t.abc || t.vary ? 'tap for notation' : '');
   }
   if (it.alt) {
     if (it.key == null) return chip('alt', `Transpose it <b>${SHIFTS[it.shift]}</b>`);

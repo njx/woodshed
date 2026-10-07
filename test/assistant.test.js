@@ -146,3 +146,60 @@ describe('deleting', () => {
     expect(store.state.items).toHaveLength(1);
   });
 });
+
+describe('exercises that vary the scale or chord', () => {
+  const blank = { category: 'scale', key_mode: 'weak', keys_per_session: 3, keys: null, abc: null, meter: null, tempo: null, notes: null, add_to_today: false };
+  const noChange = { level: null, priority: null, focus: null, tempo: null, goal_tempo: null, keys: null, notes_append: null };
+
+  it('creates one, with chosen types in catalogue order', () => {
+    setState([]);
+    const r = runTool('create_exercise', { ...blank, name: 'Minor scales', vary: 'scale', types: ['melodic', 'dorian', 'harmonic'], shape: 'thirds', pattern: null });
+    expect(r.created).toBeTruthy();
+    expect(store.state.items[0].vary).toEqual({ kind: 'scale', types: ['dorian', 'harmonic', 'melodic'], shape: 'thirds', pattern: '' });
+  });
+
+  it('refuses unknown types, shapes that don’t fit, and bad patterns', () => {
+    setState([]);
+    expect(runTool('create_exercise', { ...blank, name: 'X', vary: 'chord', types: ['dorian'] }).error).toMatch(/Not chord types: dorian/);
+    expect(runTool('create_exercise', { ...blank, name: 'X', vary: 'chord', shape: 'thirds' }).error).toMatch(/isn't available/);
+    expect(runTool('create_exercise', { ...blank, name: 'X', vary: 'chord', shape: 'custom', pattern: '1 2' }).error).toMatch(/chord tones/);
+    expect(runTool('create_exercise', { ...blank, name: 'X', types: ['major'] }).error).toMatch(/Set vary/);
+    expect(store.state.items).toHaveLength(0);
+  });
+
+  it('turns variation on, changes it, and turns it off; today’s types follow', () => {
+    setState([{ id: 'x', type: 'exercise', name: 'Arps', keyMode: 'random', keysPerSession: 2, abc: 'C E G c' }]);
+    buildPlan(true);
+    takeChanges();
+    runTool('update_item', { ...noChange, item_id: 'x', vary: 'chord', types: ['m7', 'dom7'] });
+    expect(store.state.items[0].vary).toMatchObject({ kind: 'chord', types: ['m7', 'dom7'], shape: 'updown' });
+    const item = store.state.plan.items.find((i) => i.itemId === 'x');
+    expect(item.types).toHaveLength(2);
+    expect(item.types.every((id) => ['m7', 'dom7'].includes(id))).toBe(true);
+    expect(takeChanges()[0]).toMatch(/varies chord: Minor 7, Dominant 7/);
+    // Only the types change; the kind stays.
+    runTool('update_item', { ...noChange, item_id: 'x', types: ['dim7'] });
+    expect(store.state.items[0].vary.types).toEqual(['dim7']);
+    expect(item.types).toEqual(['dim7', 'dim7']);
+    runTool('update_item', { ...noChange, item_id: 'x', vary: 'none' });
+    expect(store.state.items[0].vary).toBe(null);
+    expect(item.types).toBeUndefined();
+    expect(store.state.items[0].abc).toBe('C E G c'); // its own notation is kept
+  });
+
+  it('adds one to today with chosen keys and types, and reports them', () => {
+    setState([{ id: 'x', type: 'exercise', name: 'Scales', keyMode: 'weak', keysPerSession: 2, vary: { kind: 'scale', types: ['major', 'dorian', 'harmonic'], shape: 'updown' } }]);
+    store.state.settings.view = 'c';
+    buildPlan(true);
+    store.state.plan.items = [];
+    const r = runTool('add_to_today', { items: [{ item_id: 'x', keys: ['F', 'Bb'], types: ['harmonic', 'lydian'] }] });
+    expect(r.notes[0]).toMatch(/lydian isn't turned on/);
+    const item = store.state.plan.items[0];
+    expect(item.keys).toEqual([5, 10]);
+    expect(item.types[0]).toBe('harmonic');
+    expect(item.types).toHaveLength(2);
+    const today = runTool('get_today', {});
+    const listed = today.items ? today.items.find((i) => i.item_id === 'x') : today.find?.((i) => i.item_id === 'x');
+    expect(listed.types[0]).toBe('Harmonic minor');
+  });
+});

@@ -36,8 +36,19 @@ describe('migration', () => {
 
   it('adds starter exercises to version 2 data once', () => {
     const s = migrate(migrate(v1()));
-    expect(s.version).toBe(3);
-    expect(s.items.filter((t) => t.type === 'exercise').length).toBe(11);
+    expect(s.version).toBe(4);
+    expect(s.items.filter((t) => t.type === 'exercise').length).toBe(14);
+  });
+
+  it('adds the exercises that vary scale or chord to version 3 data, once', () => {
+    const v3 = migrate(v1());
+    v3.version = 3;
+    v3.items = v3.items.filter((t) => !t.vary); // as saved before version 4
+    const s = migrate(migrate(v3));
+    const varied = s.items.filter((t) => t.vary);
+    expect(varied.map((t) => t.name)).toEqual(['Scales: major and minors', 'Scale patterns: 1-2-3-5', 'Seventh-chord arpeggios']);
+    expect(varied[0].vary).toEqual({ kind: 'scale', types: ['major', 'dorian', 'aeolian', 'harmonic', 'melodic', 'dimHW'], shape: 'updown', pattern: '' });
+    expect(s.items.filter((t) => t.type === 'exercise').length).toBe(14);
   });
 
   it('leaves current data alone', () => {

@@ -14,6 +14,7 @@ How the app works:
 - Each day the app builds a practice set: exercises, then tunes grouped as hone (proficient/mastered), learn (familiar) and fresh (not known yet). Focus items are in every day's set until turned off.
 - After playing something the user rates it rough, OK or solid. Spaced repetition schedules the next review from that; tunes are "due" when their review date arrives.
 - Tunes rotate through their usual keys; mastered tunes get suggested in other keys. Exercises are practiced in a few keys per session (chosen by weak keys, cycle of 4ths, chromatic, random, or fixed keys).
+- Exercises can vary the scale or chord type each session (e.g. major, dorian, harmonic minor… or maj7, m7, 7…): each key comes with one of the types turned on for that exercise, and the notation is written out for each.
 - Items have a working tempo; the app suggests speeding up after two solid sessions and slowing down after a rough one.
 - There is a practice diary with to-dos flagged "remember" or "teacher".
 

@@ -4,7 +4,8 @@ import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel, deleteItem } from '../practice.js';
-import { ensurePlan, makePlanItem, syncFocus } from '../plan.js';
+import { ensurePlan, makePlanItem, syncFocus, refreshTypes } from '../plan.js';
+import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern } from '../theory.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
 import { setTempo, clampBpm } from '../tempo.js';
 import { addEntry, openTodos, entriesFor } from '../diary.js';
@@ -44,6 +45,43 @@ function readName(name) {
 
 // Optional fields: may be left out, or sent as null.
 const OPTIONAL = new WeakSet();
+// Scale or chord variation from tool input, applied to an exercise. Returns an error, or null.
+const typeLabel = (kind, id) => typeInfo(kind, id)?.label || id;
+function applyVary(t, a) {
+  const kind = a.vary === 'none' ? null : a.vary || t.vary?.kind || null;
+  if (!kind) {
+    if (a.types?.length || a.shape || a.pattern) return 'Set vary to "scale" or "chord" to choose types, a shape or a pattern.';
+    if (a.vary === 'none') t.vary = null;
+    return null;
+  }
+  const known = VARY[kind].types;
+  const bad = (a.types || []).filter((id) => !known[id]);
+  if (bad.length) return `Not ${kind} types: ${bad.join(', ')}. Use: ${Object.keys(known).join(', ')}.`;
+  if (a.shape && !SHAPES[a.shape]?.kinds.includes(kind)) return `The shape "${a.shape}" isn't available for ${kind}s.`;
+  const shape = a.shape || (t.vary?.kind === kind ? t.vary.shape : 'updown');
+  const pattern = a.pattern ?? (t.vary?.kind === kind ? t.vary.pattern : '');
+  if (shape === 'custom') {
+    const { error } = parsePattern(pattern, kind);
+    if (error) return `Pattern: ${error}`;
+  }
+  const types = a.types?.length ? Object.keys(known).filter((id) => a.types.includes(id))
+    : t.vary?.kind === kind ? t.vary.types : [...VARY[kind].defaults];
+  t.vary = { kind, types, shape, pattern: pattern || '' };
+  return null;
+}
+const varySummary = (t) => (t.vary ? {
+  varies: t.vary.kind,
+  types: t.vary.types.map((id) => typeLabel(t.vary.kind, id)),
+  shape: SHAPES[t.vary.shape]?.label,
+  ...(t.vary.shape === 'custom' ? { pattern: t.vary.pattern } : {}),
+} : {});
+const varyFields = () => ({
+  vary: nullable({ type: 'string', enum: ['scale', 'chord', 'none'], description: 'Change the scale or chord type each session (notation is then written out for each type, so `abc` isn\'t used); none = the same notes every time.' }),
+  types: nullable({ type: 'array', items: { type: 'string', enum: [...Object.keys(SCALES), ...Object.keys(CHORDS)] }, description: `Which types are turned on. Scales: ${Object.entries(SCALES).map(([id, x]) => `${id} (${x.label})`).join(', ')}. Chords: ${Object.entries(CHORDS).map(([id, x]) => `${id} (${x.label})`).join(', ')}. Defaults: scales ${VARY.scale.defaults.join(', ')}; chords ${VARY.chord.defaults.join(', ')}.` }),
+  shape: nullable({ type: 'string', enum: Object.keys(SHAPES), description: 'updown = up and down an octave; updown2 = two octaves; thirds, fours (groups of 4) and p1235 (1-2-3-5 from each note) are for scales; inversions for chords; custom uses `pattern`.' }),
+  pattern: nullable({ type: 'string', description: 'For shape custom: note numbers. Scales: notes of the scale, 1 = root (8 = octave on a 7-note scale), e.g. "1 2 3 5". Chords: chord tones 1 3 5 7, and 8 10 12 14 an octave up.' }),
+});
+
 const nullable = (schema) => {
   const s = { ...schema, type: [schema.type, 'null'], ...(schema.enum ? { enum: [...schema.enum, null] } : {}) };
   OPTIONAL.add(s);
@@ -66,7 +104,8 @@ function itemSummary(t, stats) {
       category: CATEGORIES[t.category],
       key_mode: KEY_MODES[t.keyMode]?.label,
       keys_per_session: t.keyMode === 'none' ? 0 : t.keysPerSession,
-      has_notation: !!t.abc,
+      has_notation: !!(t.abc || t.vary),
+      ...varySummary(t),
     }),
     level: levelLabel(t.level),
     priority: PRIORITIES[(t.priority || 3) - 1].label.toLowerCase(),
@@ -93,6 +132,7 @@ function planSummary() {
       key: it.key != null ? writtenName(it.key) : null,
       new_key: !!it.alt,
       keys: it.keys?.map(rootName),
+      ...(it.types?.length && t.vary ? { types: it.types.map((id) => typeLabel(t.vary.kind, id)) } : {}),
       tempo: t.tempo || null,
       played: !!e,
       rating: e?.rating || null,
@@ -122,7 +162,7 @@ export function takeChanges() {
   return changes.splice(0);
 }
 
-function addToPlan(t, keys) {
+function addToPlan(t, keys, types = null) {
   ensurePlan();
   const plan = store.state.plan;
   if (plan.items.some((i) => i.itemId === t.id)) return `${t.name} is already in today's set.`;
@@ -142,6 +182,8 @@ function addToPlan(t, keys) {
   }
   plan.items.push(item);
   plan.skipped = (plan.skipped || []).filter((id) => id !== t.id);
+  // Types to go with the keys (asked-for ones first).
+  if (t.vary && (keys?.length || types?.length)) refreshTypes(t, types);
   return null;
 }
 
@@ -276,21 +318,27 @@ export const TOOLS = [
   },
   {
     name: 'add_to_today',
-    description: "Add tunes or exercises to today's set. Optionally choose keys: for a tune, one key it should be played in; for an exercise, the keys to play it in. Leave keys null to let the app choose (usual keys rotate; weak keys for exercises).",
+    description: "Add tunes or exercises to today's set. Optionally choose keys: for a tune, one key it should be played in; for an exercise, the keys to play it in. For exercises that vary the scale or chord type, optionally the type for each key, in the same order (type ids as in create_exercise). Leave keys and types null to let the app choose (usual keys rotate; weak keys for exercises; least-played types).",
     input_schema: obj({
       items: {
         type: 'array',
-        items: obj({ item_id: { type: 'string' }, keys: nullable({ type: 'array', items: { type: 'string' } }) }),
+        items: obj({
+          item_id: { type: 'string' },
+          keys: nullable({ type: 'array', items: { type: 'string' } }),
+          types: nullable({ type: 'array', items: { type: 'string' } }),
+        }),
       },
     }),
     write: true,
     run: ({ items }) => {
       const added = [];
       const notes = [];
-      for (const { item_id, keys } of items) {
+      for (const { item_id, keys, types } of items) {
         const t = itemById(item_id);
         if (!t) { notes.push(`No item with id ${item_id}; use search_library to find ids.`); continue; }
-        const msg = addToPlan(t, keys);
+        const unknown = t.vary ? (types || []).filter((id) => !t.vary.types.includes(id)) : [];
+        if (unknown.length) notes.push(`${t.name}: ${unknown.join(', ')} isn't turned on for it, so the app chose instead (turn types on with update_item).`);
+        const msg = addToPlan(t, keys, types);
         if (msg) notes.push(msg);
         else added.push(t.name);
       }
@@ -349,12 +397,21 @@ export const TOOLS = [
       goal_tempo: nullable({ type: 'integer' }),
       keys: nullable({ type: 'array', items: { type: 'string' }, description: 'Tunes: the usual keys, most common first. Exercises: the chosen keys (sets key mode to chosen keys).' }),
       notes_append: nullable({ type: 'string', description: 'Text to add to the item’s notes' }),
+      ...varyFields(),
     }),
     write: true,
     run: (a) => {
       const t = findItem(a.item_id);
       const keys = readKeys(a.keys);
       if (keys.error) return keys; // check before changing anything
+      const wantsVary = a.vary || a.types?.length || a.shape || a.pattern != null;
+      if (wantsVary && t.type !== 'exercise') return { error: 'Only exercises can vary the scale or chord type.' };
+      const before = JSON.stringify(t.vary ?? null);
+      if (wantsVary) {
+        const draft = { vary: t.vary ? { ...t.vary, types: [...t.vary.types] } : null };
+        const err = applyVary(draft, a);
+        if (err) return { error: err };
+      }
       const did = [];
       if (a.level) { setLevel(t, LEVELS.findIndex((l) => l.label.toLowerCase() === a.level)); did.push(`level → ${a.level}`); }
       if (a.priority) { t.priority = PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1; did.push(`priority → ${a.priority}`); }
@@ -375,6 +432,13 @@ export const TOOLS = [
         did.push(`keys → ${a.keys.join(', ')}`);
       }
       if (a.notes_append) { t.notes = [t.notes, a.notes_append].filter(Boolean).join('\n'); did.push('notes added'); }
+      if (wantsVary) {
+        applyVary(t, a);
+        if (JSON.stringify(t.vary ?? null) !== before) {
+          did.push(t.vary ? `varies ${t.vary.kind}: ${t.vary.types.map((id) => typeLabel(t.vary.kind, id)).join(', ')} (${SHAPES[t.vary.shape].label.toLowerCase()})` : 'same notes each time');
+          refreshTypes(t);
+        }
+      }
       if (did.length) changes.push(`${t.name}: ${did.join(', ')}`);
       save();
       return { updated: t.name, changes: did };
@@ -393,6 +457,7 @@ export const TOOLS = [
       meter: nullable({ type: 'string', enum: ['4/4', '3/4', '5/4', '6/8', '2/4'] }),
       tempo: nullable({ type: 'integer' }),
       notes: nullable({ type: 'string', description: 'How to practice it' }),
+      ...varyFields(),
       add_to_today: { type: 'boolean' },
     }),
     write: true,
@@ -406,8 +471,10 @@ export const TOOLS = [
         keysPerSession: Math.max(1, Math.min(12, a.keys_per_session || 1)),
         keys: [...new Set(keys.keys.map((k) => k % 12))],
         abc: a.abc?.trim() || '', meter: a.meter || '4/4', notes: a.notes || '',
-        tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: null, ivl: null, due: null,
+        tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: null, ivl: null, due: null, vary: null,
       };
+      const varyError = applyVary(t, a);
+      if (varyError) return { error: varyError };
       store.state.items.push(t);
       if (a.add_to_today) addToPlan(t, null);
       changes.push(`New exercise: ${t.name}${a.add_to_today ? ' (added to today)' : ''}`);
