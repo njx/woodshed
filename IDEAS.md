@@ -28,6 +28,21 @@ sessions), L (a big piece, or needs a native app).
   `irealbook://` / `irealb://` link format, so the backing track and changes play in iReal Pro.
   (Building our own backing-track generator was discussed and set aside in favour of this.)
 
+## Tunes and exercises together
+
+- **Chord charts for tunes** (M). The changes for ~290 of the 301 tunes are in
+  mikeoliphant/JazzStandards (from iReal Pro's playlists; the same source as the tunes' keys —
+  no licence file, so maybe fetch on first use rather than bundle). Show them by section with
+  endings, written for your instrument and transposed into the key you're practicing; editable,
+  and addable for tunes that don't match.
+- **Warm-ups from a tune's chords** (M–L, needs charts). Find a tune's main chord qualities and
+  its ii–Vs (major and minor), and pick exercises in those roots and types as a warm-up for it
+  (e.g. Autumn Leaves: arpeggios on Am7♭5 and D7, harmonic minor in G, 1-2-3-5 on Cm7–F7).
+- **Same key or chord across a day's exercises** (S). A setting: each exercise picks its own (now)
+  / key of the day (one or two keys for all exercises, weak keys favoured) / from today's tunes.
+- **Scale and chord types by overall weakness** (S). Weight types by how little you've played
+  them across all exercises, times how long since this exercise had them (as keys already work).
+
 ## Listening and slowing down
 
 - **YouTube loop / slow-downer** (M). Play a recording's YouTube video inside the app with A–B
