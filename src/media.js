@@ -23,7 +23,9 @@ export function canRecord() {
 // suppression, automatic gain) smears sustained notes and pumps the volume, so turn it off.
 // mic: a microphone's deviceId, or null for the phone's default.
 export function constraints(kind, facingMode = 'user', mic = null) {
-  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, ...(mic ? { deviceId: { exact: mic } } : {}) };
+  // One channel: an iPhone with voice processing off can otherwise give two, with the sound only in
+  // the left, so takes played back in one ear. (The recorder also makes them mono; see recorder.js.)
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 1 }, ...(mic ? { deviceId: { exact: mic } } : {}) };
   if (kind === 'audio') return { audio };
   return { audio, video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
 }

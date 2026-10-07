@@ -23,7 +23,7 @@ describe('recording formats', () => {
   });
 
   it('turns off voice processing so instruments sound natural', () => {
-    expect(constraints('audio')).toEqual({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    expect(constraints('audio')).toEqual({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 1 } } });
     expect(constraints('video', 'environment').video).toMatchObject({ facingMode: 'environment' });
   });
 });

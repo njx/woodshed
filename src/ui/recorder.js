@@ -43,6 +43,7 @@ export function openRecorder(opts = {}) {
   const audioCtx = AudioCtx ? new AudioCtx() : null;
   audioCtx?.resume?.();
   let analyser = null;
+  let monoStream = null; // the stream recorded: see startStream
 
   let afterStop = null;
   const sheet = openSheet('<div class="recorder" id="rec"></div>', () => {
@@ -196,10 +197,26 @@ export function openRecorder(opts = {}) {
       }
     }
     if (gen !== streamGen || closed) return s.getTracks().forEach((tr) => tr.stop());
+    monoStream = null;
     if (audioCtx) {
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
-      audioCtx.createMediaStreamSource(stream).connect(analyser);
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      // What's recorded: the mic's first channel only, as a mono track (with the camera, if any),
+      // so a take plays in both ears even if the phone gives two channels with sound in one.
+      try {
+        const mono = audioCtx.createGain();
+        mono.channelCount = 1;
+        mono.channelCountMode = 'explicit';
+        mono.channelInterpretation = 'discrete'; // channel 1 as it is, not averaged with a silent one
+        const dest = audioCtx.createMediaStreamDestination();
+        dest.channelCount = 1;
+        source.connect(mono).connect(dest);
+        monoStream = new MediaStream([...stream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+      } catch (err) {
+        console.warn('Recording the mic as it comes', err);
+      }
     }
     state = 'ready';
     view();
@@ -208,14 +225,16 @@ export function openRecorder(opts = {}) {
 
   function startRecording() {
     const mimeType = pickMime(kind);
+    // Through Web Audio only while it's running (a suspended one would record silence).
+    const source = monoStream && audioCtx?.state === 'running' ? monoStream : stream;
     try {
-      recorder = new MediaRecorder(stream, {
+      recorder = new MediaRecorder(source, {
         ...(mimeType ? { mimeType } : {}),
         audioBitsPerSecond: 128000,
         ...(kind === 'video' ? { videoBitsPerSecond: 2500000 } : {}),
       });
     } catch {
-      recorder = new MediaRecorder(stream);
+      recorder = new MediaRecorder(source);
     }
     chunks = [];
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
@@ -322,6 +341,8 @@ export function openRecorder(opts = {}) {
 
   function stopStream() {
     cancelAnimationFrame(raf);
+    monoStream?.getAudioTracks().forEach((tr) => tr.stop());
+    monoStream = null;
     stream?.getTracks().forEach((tr) => tr.stop());
     stream = null;
     analyser = null;

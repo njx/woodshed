@@ -167,3 +167,40 @@ test('a recording can be deleted from the list it’s in, with undo', async ({ p
   await expect(note).toHaveCount(1);
   await expect.poll(async () => (await ui.saved()).state.diary.length).toBe(1);
 });
+
+test('a mic that gives two channels with sound only in the left still records a take for both ears', async ({ page, ui }) => {
+  await page.addInitScript(() => {
+    // Like an iPhone with voice processing off: stereo, the sound in the left channel only.
+    navigator.mediaDevices.getUserMedia = async () => {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 440;
+      const merge = ctx.createChannelMerger(2);
+      osc.connect(merge, 0, 0); // left only
+      const dest = ctx.createMediaStreamDestination();
+      dest.channelCount = 2;
+      merge.connect(dest);
+      osc.start();
+      return dest.stream;
+    };
+  });
+  await ui.start();
+  await page.click('#today-rec');
+  await record(page, 1500);
+  await page.click('#rec-keep');
+  await expect.poll(async () => (await ui.saved()).clipIds.length).toBe(1);
+  // Decode the saved take: one channel, with the sound in it.
+  const { channels, peak } = await page.evaluate(() => new Promise((resolve) => {
+    const q = indexedDB.open('woodshed');
+    q.onsuccess = () => {
+      const g = q.result.transaction('media').objectStore('media').getAll();
+      g.onsuccess = async () => {
+        const buf = await new AudioContext().decodeAudioData(await g.result[0].arrayBuffer());
+        const data = buf.getChannelData(buf.numberOfChannels - 1); // the last channel too has sound
+        resolve({ channels: buf.numberOfChannels, peak: Math.max(...data.slice(buf.sampleRate * 0.3).map(Math.abs)) });
+      };
+    };
+  }));
+  expect(channels).toBe(1);
+  expect(peak).toBeGreaterThan(0.1);
+});
