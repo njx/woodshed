@@ -2,8 +2,9 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { store, seedState, migrate } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { warmupsFor, prepFor, altWarmup } from '../src/warmups.js';
-import { buildPlan, addWarmups, ensurePlan } from '../src/plan.js';
-import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday } from '../src/practice.js';
+import { buildPlan, addWarmups, ensurePlan, dropOrphanWarmups } from '../src/plan.js';
+import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
+import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
 import { freezeToday } from './helpers.js';
 import { progressions } from '../src/chords.js';
@@ -181,5 +182,55 @@ describe('progression warm-ups', () => {
     store.state.settings.exerciseFocus = 'own';
     buildPlan();
     expect(store.state.plan.items.some((i) => i.itemId === changes.id)).toBe(false);
+  });
+});
+
+describe('from the review', () => {
+  it('deleting a tune keeps its played warm-ups (and their log entries stay theirs)', () => {
+    buildPlan(true);
+    const plan = store.state.plan;
+    const changes = byName('Through the changes');
+    const [a, b] = plan.items.filter((i) => i.itemId === changes.id);
+    markPlayed(changes.id, a);
+    deleteItem(a.warmup);
+    expect(isPlanItemPlayed(a)).toBe(true);
+    expect(a.warmup).toBeUndefined();
+    expect(isPlanItemPlayed(b)).toBe(false); // not mistaken for played
+  });
+  it('several plays in a day are one session for level and tempo suggestions', () => {
+    buildPlan(true);
+    const changes = byName('Through the changes');
+    changes.level = 0;
+    changes.tempo = 100;
+    for (const it of store.state.plan.items.filter((i) => i.itemId === changes.id)) {
+      markPlayed(changes.id, it);
+      rate(changes.id, 'solid', it);
+    }
+    expect(store.state.log.filter((e) => e.itemId === changes.id).length).toBeGreaterThan(2);
+    expect(levelSuggestion(changes)).toBe(null);
+    expect(tempoSuggestion(changes)).toBe(null);
+  });
+  it('a set from before the exercise settings keeps the exercises already shown', () => {
+    store.state.settings.exerciseFocus = 'own';
+    buildPlan(true);
+    const plan = store.state.plan;
+    const shown = plan.items.filter((i) => i.bucket === 'exercise').map((i) => i.pid);
+    delete plan.mode;
+    store.state.settings.exerciseFocus = 'tunes';
+    ensurePlan();
+    expect(plan.items.filter((i) => !i.warmup && i.bucket === 'exercise').map((i) => i.pid)).toEqual(shown);
+    expect(plan.items.some((i) => i.warmup)).toBe(true);
+  });
+  it('warm-ups for a tune that left the set go, unless played', () => {
+    store.state.settings.exerciseFocus = 'own';
+    buildPlan(true);
+    const t = byName('Autumn Leaves');
+    addWarmups(t);
+    const plan = store.state.plan;
+    const [played] = plan.items.filter((i) => i.warmup === t.id);
+    markPlayed(played.itemId, played);
+    plan.items = plan.items.filter((i) => i.itemId !== t.id || i.warmup);
+    dropOrphanWarmups(plan);
+    expect(plan.items.filter((i) => i.warmup === t.id)).toEqual([played]);
   });
 });

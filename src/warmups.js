@@ -23,13 +23,13 @@ function findExercise(test, category, exclude) {
 const count = (x, fallback) => Math.max(2, Math.min(4, x.keysPerSession || fallback));
 
 // `key`: the concert key the tune is played in today (defaults to its first usual key).
-export function warmupsFor(t, { key = null, exclude = new Set() } = {}) {
+export function warmupsFor(t, { key = null } = {}) {
   const chart = chartFor(t);
   if (!chart) return [];
   const playKey = key ?? t.keys?.[0] ?? chart.key ?? 0;
   const shift = (((playKey - (chart.key ?? playKey)) % 12) + 12) % 12;
   const up = (r) => (r + shift) % 12;
-  const taken = new Set(exclude);
+  const taken = new Set();
   const items = [];
   const add = (x, keys, types) => {
     taken.add(x.id);
@@ -123,8 +123,10 @@ export function altWarmup(t, it, { key = null } = {}) {
     const playKey = key ?? t.keys?.[0] ?? chart.key ?? 0;
     const shift = (((playKey - (chart.key ?? playKey)) % 12) + 12) % 12;
     // The same progression can come up into different keys: match on both.
-    const at = progs.findIndex((p) => p.name === it.prog.name && (p.target + shift) % 12 === it.keys?.[0]);
-    const next = progs[(at + 1) % progs.length];
+    const same = (p) => p.name === it.prog.name && (p.target + shift) % 12 === it.keys?.[0];
+    const at = progs.findIndex(same);
+    const next = at >= 0 ? progs[(at + 1) % progs.length] : progs.find((p) => p.name !== it.prog.name);
+    if (!next) return null;
     const changes = exercises().find((x) => x.id === it.itemId);
     return changes ? progItem(changes, t, next, (r) => (r + shift) % 12) : null;
   }

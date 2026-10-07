@@ -71,7 +71,10 @@ export function openExercise(id, opts = {}) {
   // before tunes); opened from elsewhere, its own place in the set, if it has one.
   const today = state.plan?.date === dateStr() ? state.plan.items.filter((i) => i.itemId === t.id) : [];
   const planItem = today.find((i) => opts.pid && i.pid === opts.pid) || today.find((i) => !i.warmup) || null;
-  const isPlayed = () => (planItem ? isPlanItemPlayed(planItem) : isPlayedToday(t.id));
+  // What Played logs against: that, or if it's only in the set as warm-ups, one of them (shown as
+  // itself here, not with a tune's keys) — so it doesn't count for every copy.
+  const logItem = () => planItem || today.find((i) => !isPlanItemPlayed(i)) || today[0] || null;
+  const isPlayed = () => (logItem() ? isPlanItemPlayed(logItem()) : isPlayedToday(t.id));
   const todayKeys = opts.keys || planItem?.keys || [];
   const prog = planItem?.prog || opts.prog || null; // a tune's progression (warm-ups)
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
@@ -398,9 +401,9 @@ ${t.fromTune ? '' : `
       return;
     }
     $('#x-log', sheet).onclick = () => {
-      if (isPlayed()) unmarkPlayed(t.id, planItem);
+      if (isPlayed()) unmarkPlayed(t.id, logItem());
       else {
-        markPlayed(t.id, planItem || { keys: todayKeys });
+        markPlayed(t.id, logItem() || { keys: todayKeys });
         autoStart();
         haptic();
       }

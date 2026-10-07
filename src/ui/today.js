@@ -6,7 +6,7 @@ import {
   itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus, swapWarmup } from '../plan.js';
+import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus, swapWarmup, dropOrphanWarmups } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
   levelLabel, transposeToggle, bindTransposeToggle, suggestionHtml,
@@ -90,8 +90,10 @@ export function renderToday(root) {
   $$('.card', root).forEach((card) => bindCard(card));
 }
 
-// In "From tunes", a tune added to the set (or swapped in) gets its warm-ups.
+// After tunes come or go: warm-ups for a tune that's gone go with it, and in "Before tunes" a tune
+// added (or swapped in) gets its own.
 function prepTunes() {
+  dropOrphanWarmups(store.state.plan);
   if (store.state.settings.exerciseFocus === 'tunes') applyExerciseFocus(store.state.plan);
 }
 

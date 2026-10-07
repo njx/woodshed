@@ -1,5 +1,5 @@
 import { store } from './store.js';
-import { todaysEntry } from './practice.js';
+import { todaysEntry, latestPerDay } from './practice.js';
 
 // Working tempo per tune or exercise (t.tempo, in quarter-note BPM) and an optional goal
 // (t.goalTempo). Each logged session records the tempo it was played at (entry.bpm).
@@ -33,9 +33,9 @@ export function setTempo(t, bpm, { nextTime = false } = {}) {
 
 export function tempoSuggestion(t, log = store.state.log) {
   if (!t.tempo) return null;
-  const recent = log
+  const recent = latestPerDay(log
     .filter((e) => e.itemId === t.id && e.bpm === t.tempo && (e.at || 0) >= (t.tempoSetAt || 0))
-    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0)));
   if (!recent.length) return null;
   if (recent[0].rating === 'rough') {
     const to = stepDown(t.tempo);

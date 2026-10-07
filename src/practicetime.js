@@ -109,6 +109,9 @@ export function fmtClock(ms) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
+// Whether the timer has run at all today (even for no time).
+export const timedToday = (now = Date.now()) => !!running() || sessions().some((s) => s.date === today(new Date(now)));
+
 // Marking something played starts the timer, if it hasn't been started (or stopped) today.
 export function autoStart(now = Date.now()) {
   if (running() || sessions().some((s) => s.date === today(new Date(now)))) return null;

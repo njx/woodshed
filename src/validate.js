@@ -110,6 +110,7 @@ function diaryEntry(e, ids) {
   e.text = str(e.text);
   e.flag = oneOf(e.flag, ['remember', 'teacher'], null);
   e.done = !!e.done;
+  if (e.take) e.take = true; else delete e.take;
   e.itemId = ids.has(e.itemId) ? e.itemId : null;
   e.media = (Array.isArray(e.media) ? e.media : [])
     .filter((c) => c && isId(c.id))
@@ -144,7 +145,7 @@ function plan(p, ids) {
   }));
   p.skipped = (Array.isArray(p.skipped) ? p.skipped : []).filter(isId);
   if (p.dayKeys != null) p.dayKeys = keyList(p.dayKeys, 11);
-  if (p.warmupFor != null && !ids.has(p.warmupFor)) delete p.warmupFor;
+  delete p.warmupFor; // from an earlier version
   p.prepped = (Array.isArray(p.prepped) ? p.prepped : []).filter((id) => ids.has(id)); // tunes given warm-ups
   p.mode = oneOf(p.mode, ['own', 'day', 'tunes'], null);
   p.focusSkipped = (Array.isArray(p.focusSkipped) ? p.focusSkipped : []).filter(isId);

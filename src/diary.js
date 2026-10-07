@@ -28,8 +28,9 @@ export const FLAGS = {
   teacher: { label: 'Ask teacher', long: 'For my teacher' },
 };
 
-export function addEntry({ text = '', flag = null, itemId = null, date = dateStr(), media = [] }) {
-  const e = { id: uid(), date, at: Date.now(), text: text.trim(), flag, done: false, itemId, media };
+// take: made by the recorder (its text is just a label), so deleting the recording deletes it.
+export function addEntry({ text = '', flag = null, itemId = null, date = dateStr(), media = [], take = false }) {
+  const e = { id: uid(), date, at: Date.now(), text: text.trim(), flag, done: false, itemId, media, ...(take ? { take: true } : {}) };
   store.state.diary.push(e);
   return e;
 }

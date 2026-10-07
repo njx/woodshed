@@ -109,7 +109,10 @@ export function deleteItem(id) {
   s.items = s.items.filter((x) => x.id !== id);
   s.log = s.log.filter((e) => e.itemId !== id);
   if (s.plan) {
-    s.plan.items = s.plan.items.filter((i) => i.itemId !== id && i.warmup !== id);
+    // Its warm-ups go too, unless played (they stay, as plain exercises, so their entries still
+    // belong to them).
+    s.plan.items = s.plan.items.filter((i) => i.itemId !== id && (i.warmup !== id || planEntry(i)));
+    for (const i of s.plan.items) if (i.warmup === id) delete i.warmup;
     s.plan.skipped = (s.plan.skipped || []).filter((x) => x !== id);
     s.plan.focusSkipped = (s.plan.focusSkipped || []).filter((x) => x !== id);
   }
@@ -141,11 +144,18 @@ export function setLevel(t, level) {
   if (e) schedule(t, e.rating, e.prev);
 }
 
+// Newest-first entries, one per day (the latest): an exercise played as warm-ups before several
+// tunes is still one day's session for suggestions.
+export function latestPerDay(entries) {
+  const seen = new Set();
+  return entries.filter((e) => !seen.has(e.date) && seen.add(e.date));
+}
+
 // Suggest moving up after a run of solid sessions, or down after a run of rough ones.
 export function levelSuggestion(t) {
-  const recent = store.state.log
+  const recent = latestPerDay(store.state.log
     .filter((e) => e.itemId === t.id && (e.at || 0) > (t.levelSetAt || 0))
-    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0)));
   const streak = (rating, n) => recent.length >= n && recent.slice(0, n).every((e) => e.rating === rating);
   if (t.level !== 3 && streak('solid', SOLID_TO_LEVEL_UP)) {
     const to = t.level == null ? 1 : t.level + 1;

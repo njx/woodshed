@@ -44,6 +44,7 @@ export function openRecorder(opts = {}) {
   audioCtx?.resume?.();
   let analyser = null;
   let monoStream = null; // the stream recorded: see startStream
+  let micSource = null; // the mic in Web Audio (for the meter and the mono track)
 
   let afterStop = null;
   const sheet = openSheet('<div class="recorder" id="rec"></div>', () => {
@@ -202,6 +203,7 @@ export function openRecorder(opts = {}) {
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
       const source = audioCtx.createMediaStreamSource(stream);
+      micSource = source;
       source.connect(analyser);
       // What's recorded: the mic's first channel only, as a mono track (with the camera, if any),
       // so a take plays in both ears even if the phone gives two channels with sound in one.
@@ -298,7 +300,7 @@ export function openRecorder(opts = {}) {
       const clip = await saveClip(t.blob, kind, t.ms);
       const entry = existing && entryById(existing.id);
       if (entry) (entry.media ||= []).push(clip);
-      else addEntry({ text, itemId: tune?.id || null, flag: opts.flag || null, media: [clip] });
+      else addEntry({ text, itemId: tune?.id || null, flag: opts.flag || null, media: [clip], take: true });
       save();
       render();
       toast(entry ? 'Recording added' : 'Recording saved to your diary');
@@ -343,6 +345,8 @@ export function openRecorder(opts = {}) {
     cancelAnimationFrame(raf);
     monoStream?.getAudioTracks().forEach((tr) => tr.stop());
     monoStream = null;
+    micSource?.disconnect(); // the old mic's meter and mono chain go with it
+    micSource = null;
     stream?.getTracks().forEach((tr) => tr.stop());
     stream = null;
     analyser = null;

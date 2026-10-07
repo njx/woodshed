@@ -4,7 +4,7 @@ import { esc } from '../util.js';
 import { ensurePlan } from '../plan.js';
 import { itemById } from '../practice.js';
 import { openTodos } from '../diary.js';
-import { running, practicedMs, startPractice } from '../practicetime.js';
+import { timedToday, startPractice } from '../practicetime.js';
 import { $, ICON, goTo } from './shell.js';
 
 // The first time the app opens on a practice day (and the timer hasn't run yet), a welcome with
@@ -12,7 +12,7 @@ import { $, ICON, goTo } from './shell.js';
 
 export function maybeGreet() {
   const s = store.state;
-  if (!s?.settings.instrumentsChosen || s.greetedOn === dateStr() || running() || practicedMs() > 0) return;
+  if (!s?.settings.instrumentsChosen || s.greetedOn === dateStr() || timedToday()) return;
   if (document.querySelector('.greet')) return;
   openGreet();
 }

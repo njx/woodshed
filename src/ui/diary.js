@@ -79,20 +79,26 @@ export function bindNotes(root, back, onChange = render) {
     if (e.done) toast('Marked done', { label: 'Undo', fn: () => { e.done = false; save(); onChange(); } });
   }));
   $$('[data-play]', root).forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); toggleListPlay(b); }));
-  // Deleting a recording (its note with it), with Undo. The clip file is cleaned up the next time
-  // the app starts, if it's still not wanted.
+  // Deleting a recording, with Undo: a take (or a note that's only a recording) goes altogether; a
+  // note you wrote keeps its text. The clip file is cleaned up the next time the app starts, if
+  // it's still not wanted.
   $$('[data-rm-take]', root).forEach((b) => (b.onclick = (ev) => {
     ev.stopPropagation();
     const diary = store.state.diary;
     const i = diary.findIndex((x) => x.id === b.dataset.rmTake);
     if (i < 0) return;
-    if (listPlayer?.btn.dataset.play?.startsWith(`${diary[i].id}:`)) toggleListPlay(listPlayer.btn);
-    const [gone] = diary.splice(i, 1);
+    const e = diary[i];
+    if (listPlayer?.btn.dataset.play?.startsWith(`${e.id}:`)) toggleListPlay(listPlayer.btn);
+    const whole = e.take || !e.text;
+    const media = e.media;
+    if (whole) diary.splice(i, 1);
+    else e.media = [];
     save();
     onChange();
-    toast('Recording deleted', { label: 'Undo', fn: () => {
+    toast(media.length > 1 ? 'Recordings deleted' : 'Recording deleted', { label: 'Undo', fn: () => {
       if (store.state.diary !== diary) return toast('Can’t undo — other things have changed since');
-      diary.splice(Math.min(i, diary.length), 0, gone);
+      if (whole) diary.splice(Math.min(i, diary.length), 0, e);
+      else e.media = media;
       save();
       onChange();
     } });

@@ -204,3 +204,22 @@ test('a mic that gives two channels with sound only in the left still records a 
   expect(channels).toBe(1);
   expect(peak).toBeGreaterThan(0.1);
 });
+
+test('deleting the recording on a note you wrote keeps the note', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-note');
+  await page.fill('#n-text', 'Bridge is rushing — record it');
+  await page.click('#n-record');
+  await record(page, 800);
+  await page.click('#rec-keep');
+  await ui.backdrop(); // the note reopens after; close it
+  await ui.tab('diary');
+  const note = page.locator('.note', { hasText: 'Bridge is rushing' });
+  await expect(note.locator('.clip-pill')).toHaveCount(1);
+  await note.locator('.note-rm').click();
+  await expect(note).toHaveCount(1); // still there, without the recording
+  await expect(note.locator('.clip-pill')).toHaveCount(0);
+  await expect(note.locator('.note-rm')).toHaveCount(0);
+  await page.click('#toast button'); // Undo
+  await expect(note.locator('.clip-pill')).toHaveCount(1);
+});

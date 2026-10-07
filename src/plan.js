@@ -136,6 +136,12 @@ export function swapWarmup(i, plan = store.state.plan) {
   return true;
 }
 
+// Unplayed warm-ups for tunes no longer in today's set go (in any setting).
+export function dropOrphanWarmups(plan = store.state.plan) {
+  const tunes = new Set(plan.items.filter((it) => !it.warmup).map((it) => it.itemId));
+  plan.items = plan.items.filter((it) => !it.warmup || tunes.has(it.warmup) || isPlanItemPlayed(it));
+}
+
 // The order of today's set: exercises, then tunes (focus first); in "From tunes", each tune's
 // warm-ups go just before it. Warm-ups for a tune that isn't in the set go with the exercises.
 export function orderPlan(plan = store.state.plan) {
@@ -151,8 +157,10 @@ export function orderPlan(plan = store.state.plan) {
 // After the exercise setting changes: picks today's exercises again (keeping played ones,
 // focus exercises, and the tunes), then applies the setting.
 export function refreshExercises() {
-  ensurePlan();
-  repickExercises(store.state.plan);
+  const plan = store.state.plan;
+  if (!plan || plan.date !== dateStr()) return buildPlan(); // made with the current setting
+  syncFocus();
+  repickExercises(plan);
 }
 
 function repickExercises(plan) {
@@ -160,7 +168,6 @@ function repickExercises(plan) {
   const drop = (it) => it.bucket === 'exercise' && !isPlanItemPlayed(it);
   plan.items = plan.items.filter((it) => !drop(it));
   delete plan.dayKeys;
-  delete plan.warmupFor;
   plan.prepped = [...new Set(plan.items.map((it) => it.warmup).filter(Boolean))]; // played ones stay
   const exclude = excludedIds();
   const have = plan.items.filter((it) => it.bucket === 'exercise' && !it.warmup).length;
@@ -274,7 +281,11 @@ export function ensurePlan() {
   }
   syncFocus();
   // Made with another exercise setting (or before this one existed): picked again.
-  if (plan.mode !== (store.state.settings.exerciseFocus || 'own')) repickExercises(plan);
+  // Made with another exercise setting: picked again. One from before there were settings for this
+  // (no mode) keeps the exercises already shown, and just gets what the setting adds.
+  const mode = store.state.settings.exerciseFocus || 'own';
+  if (plan.mode == null) { applyExerciseFocus(plan); save(); }
+  else if (plan.mode !== mode) repickExercises(plan);
 }
 
 // Picks today's scale or chord types for an exercise again, after its settings change (unless

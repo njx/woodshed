@@ -4,8 +4,8 @@ import { LEVELS, PRIORITIES, TRANSPOSITIONS, CATEGORIES, KEY_MODES } from '../co
 import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
-import { itemStats, itemById, isDue, isPlayedToday, planEntry, setLevel, deleteItem } from '../practice.js';
-import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups } from '../plan.js';
+import { itemStats, itemById, isDue, isPlanItemPlayed, planEntry, setLevel, deleteItem } from '../practice.js';
+import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups, dropOrphanWarmups } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
 import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern } from '../theory.js';
@@ -189,7 +189,7 @@ export function takeChanges() {
 function addToPlan(t, keys, types = null) {
   ensurePlan();
   const plan = store.state.plan;
-  if (plan.items.some((i) => i.itemId === t.id)) return `${t.name} is already in today's set.`;
+  if (plan.items.some((i) => i.itemId === t.id && !i.warmup)) return `${t.name} is already in today's set.`;
   const item = makePlanItem(t, itemStats());
   if (keys?.length) {
     if (t.type === 'exercise') {
@@ -390,12 +390,16 @@ export const TOOLS = [
       for (const id of item_ids) {
         const t = itemById(id);
         if (!t || !plan.items.some((i) => i.itemId === id)) continue;
-        if (isPlayedToday(id)) { kept.push(t.name); continue; }
-        plan.items = plan.items.filter((i) => i.itemId !== id);
+        // Its unplayed places in the set go (an exercise can be there more than once, as warm-ups).
+        const mine = plan.items.filter((i) => i.itemId === id);
+        if (mine.every((i) => isPlanItemPlayed(i))) { kept.push(t.name); continue; }
+        plan.items = plan.items.filter((i) => i.itemId !== id || isPlanItemPlayed(i));
+        if (mine.every((i) => i.warmup)) { removed.push(`${t.name} (warm-up)`); continue; }
         if (t.focus) plan.focusSkipped.push(id);
         else plan.skipped.push(id);
         removed.push(t.name);
       }
+      dropOrphanWarmups(plan);
       if (removed.length) changes.push(`Removed from today: ${removed.join(', ')}`);
       save();
       return { removed, already_played_so_kept: kept };

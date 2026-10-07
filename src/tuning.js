@@ -20,6 +20,7 @@ let buf = null;
 let timer = null;
 let releaseAudio = null;
 let releaseAwake = null;
+let gen = 0; // each start; a mic request that answers after a stop (or a restart) is let go
 let last = null; // { midi, cents, hz, at } (at: performance.now())
 const trace = []; // { t, cents, midi } (cents null = no note)
 
@@ -38,13 +39,14 @@ export const tuner = {
     st.running = true;
     st.error = false;
     emit();
+    const mine = ++gen;
     try {
       ctx = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
       // A session that allows the mic alongside playback (the metronome keeps clicking).
       releaseAudio = holdAudio('record');
       releaseAwake = keepAwake();
       const s = await navigator.mediaDevices.getUserMedia({ audio: constraints('audio').audio });
-      if (!st.running) return s.getTracks().forEach((tr) => tr.stop()); // stopped meanwhile
+      if (mine !== gen || !st.running) return s.getTracks().forEach((tr) => tr.stop()); // stopped meanwhile
       stream = s;
       await ctx.resume().catch(() => {});
       analyser = ctx.createAnalyser();
@@ -53,6 +55,7 @@ export const tuner = {
       ctx.createMediaStreamSource(stream).connect(analyser);
       timer = setInterval(detect, DETECT_MS);
     } catch (err) {
+      if (mine !== gen) return;
       console.warn('Tuner could not use the mic', err);
       teardown();
       st.running = false;
@@ -62,6 +65,7 @@ export const tuner = {
   },
   stop() {
     if (!st.running && !st.mini) return;
+    gen++;
     teardown();
     st.running = false;
     st.mini = false;
@@ -74,6 +78,19 @@ export const tuner = {
     emit();
   },
 };
+
+// Back from the background (or after the recorder took the mic): phones suspend the audio and
+// can end the mic track, which would leave the mini tuner showing nothing. Wake it up, or listen
+// again from the start.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !st.running || !stream) return;
+  if (stream.getAudioTracks().some((tr) => tr.readyState === 'ended' || tr.muted)) {
+    const mini = st.mini;
+    tuner.stop();
+    tuner.setMini(mini); // keeps the pill (or sheet) as it was
+    tuner.start();
+  } else ctx?.resume().catch(() => {});
+});
 
 function emit() {
   for (const fn of listeners) fn(tuner.state);
