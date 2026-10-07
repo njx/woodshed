@@ -1,9 +1,9 @@
 import { store, save } from '../store.js';
 import { TRANSPOSITIONS } from '../constants.js';
 import { constraints } from '../media.js';
-import { metronome } from '../metronome.js';
 import { detectPitch, noteOf, concertName, writtenName } from '../pitch.js';
 import { $, openSheet } from './shell.js';
+import { holdAudio } from '../audiosession.js';
 
 // Tuner: a dial for the note you're playing now, and a trace of the last few seconds underneath
 // (handy for long tones: you can see the pitch sag at the end of a breath).
@@ -77,20 +77,15 @@ export function openTuner(opts = {}) {
     $('#t-a4', sheet).textContent = a4;
   }));
 
-  // While the tuner listens, iOS needs a session that allows the mic alongside playback
-  // (so the metronome can keep clicking).
-  function setSession(type) {
-    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch { /* not supported */ }
-  }
-  function restoreSession() {
-    setSession(metronome.state.running ? 'playback' : 'auto');
-  }
+  // While the tuner listens, the session has to allow the mic alongside playback.
+  let releaseAudio = null;
+  const restoreSession = () => { releaseAudio?.(); releaseAudio = null; };
 
   async function start() {
     try {
       // Created during the tap that opened the tuner, so it's allowed to run.
       ctx = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
-      setSession('play-and-record');
+      releaseAudio = holdAudio('record');
       stream = await navigator.mediaDevices.getUserMedia({ audio: constraints('audio').audio });
     } catch (err) {
       console.warn('Tuner could not use the mic', err);

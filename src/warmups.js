@@ -2,17 +2,19 @@ import { store } from './store.js';
 import { chartFor } from './charts.js';
 import { mainChords, twoFives, scaleFor, progressions } from './chords.js';
 import { CHORDS, SCALES } from './theory.js';
-import { isPlayedToday } from './practice.js';
+import { uid } from './util.js';
 
 // Warm-ups for a tune: exercises set to its chords, in the key it's played in today.
 //   - its main progression (iii–VI–ii–V, a minor ii–V–i…), arpeggiated through the changes;
 //   - arpeggios (an exercise that varies the chord type) on its main chords;
 //   - scales (an exercise that varies the scale type) that go with its main chords;
 //   - ii–V–I patterns (a written ii–V–I exercise, whose keys are the I) into its major keys.
-// Each is a plan item: { itemId, bucket: 'exercise', keys, types?, warmup: tune id }.
+// Each is a plan item: { pid, itemId, bucket: 'exercise', keys, types?, prog?, warmup: tune id }.
+// prepFor() is the short version that goes before each tune in the set: one of the first two
+// (scales or arpeggios), then the progression.
 
 const exercises = () => store.state.items.filter((x) => x.type === 'exercise');
-const usable = (x, exclude) => !exclude.has(x.id) && !isPlayedToday(x.id);
+const usable = (x, exclude) => !exclude.has(x.id);
 // An exercise of a kind, preferring the expected category.
 function findExercise(test, category, exclude) {
   const all = exercises().filter((x) => usable(x, exclude) && test(x));
@@ -31,7 +33,7 @@ export function warmupsFor(t, { key = null, exclude = new Set() } = {}) {
   const items = [];
   const add = (x, keys, types) => {
     taken.add(x.id);
-    items.push({ itemId: x.id, bucket: 'exercise', key: null, keys, ...(types ? { types } : {}), alt: false, shift: null, warmup: t.id });
+    items.push(warmItem(x, t, keys, types));
   };
 
   const main = mainChords(chart, 6).filter((c) => CHORDS[c.family]);
@@ -41,10 +43,7 @@ export function warmupsFor(t, { key = null, exclude = new Set() } = {}) {
   const changes = exercises().find((x) => x.fromTune && usable(x, taken));
   if (prog && changes) {
     taken.add(changes.id);
-    items.push({
-      itemId: changes.id, bucket: 'exercise', key: null, keys: [up(prog.target)], alt: false, shift: null, warmup: t.id,
-      prog: { name: prog.name, chords: prog.chords.map(({ d, family }) => ({ d, family })) },
-    });
+    items.push(progItem(changes, t, prog, up));
   }
 
   const arps = findExercise((x) => x.vary?.kind === 'chord', 'arpeggio', taken);
@@ -68,13 +67,46 @@ export function warmupsFor(t, { key = null, exclude = new Set() } = {}) {
   return items;
 }
 
-// The tune to warm up for in a set: a focus tune first, then one being learned, then the rest;
-// one with a chart that hasn't been played yet.
-export function warmupTune(planItems) {
-  const order = { focus: 0, learn: 1, hone: 2, fresh: 3 };
-  return planItems
-    .filter((it) => order[it.bucket] != null && !isPlayedToday(it.itemId))
-    .map((it) => ({ it, t: store.state.items.find((x) => x.id === it.itemId) }))
-    .filter(({ t }) => t?.type === 'tune' && chartFor(t))
-    .sort((a, b) => order[a.it.bucket] - order[b.it.bucket])[0] || null;
+const warmItem = (x, t, keys, types = null, extra = {}) => ({
+  pid: uid(), itemId: x.id, bucket: 'exercise', key: null, keys, ...(types ? { types } : {}), alt: false, shift: null, warmup: t.id, ...extra,
+});
+const progItem = (x, t, prog, up) => warmItem(x, t, [up(prog.target)], null, {
+  prog: { name: prog.name, chords: prog.chords.map(({ d, family }) => ({ d, family })) },
+});
+
+// Before a tune in today's set: scales or arpeggios on a few of its chords (`prefer`: 'chord' or
+// 'scale', taking the other if there's none), then one of its progressions. The same exercises
+// can come up before several tunes, each set to that tune.
+export function prepFor(t, { key = null, prefer = 'chord' } = {}) {
+  const chart = chartFor(t);
+  if (!chart) return [];
+  const playKey = key ?? t.keys?.[0] ?? chart.key ?? 0;
+  const shift = (((playKey - (chart.key ?? playKey)) % 12) + 12) % 12;
+  const up = (r) => (r + shift) % 12;
+  const pick = (kind, category) => {
+    const all = exercises().filter((x) => x.vary?.kind === kind && !x.fromTune);
+    return all.find((x) => x.category === category) || all[0] || null;
+  };
+  const main = mainChords(chart, 6).filter((c) => CHORDS[c.family]);
+  const items = [];
+  const chordItem = () => {
+    const x = pick('chord', 'arpeggio');
+    if (!x || !main.length) return null;
+    const picks = main.slice(0, count(x, 3));
+    return warmItem(x, t, picks.map((c) => up(c.root)), picks.map((c) => c.family));
+  };
+  const scaleItem = () => {
+    const x = pick('scale', 'scale');
+    if (!x || !main.length) return null;
+    const byRoot = [];
+    for (const c of main) if (!byRoot.some((y) => y.root === c.root)) byRoot.push(c);
+    const picks = byRoot.slice(0, count(x, 3)).map((c) => ({ root: up(c.root), scale: scaleFor(c) })).filter((y) => SCALES[y.scale]);
+    return picks.length ? warmItem(x, t, picks.map((y) => y.root), picks.map((y) => y.scale)) : null;
+  };
+  const setup = prefer === 'scale' ? scaleItem() || chordItem() : chordItem() || scaleItem();
+  if (setup) items.push(setup);
+  const prog = progressions(chart).find((p) => p.chords.length >= 2 && p.chords.every((c) => CHORDS[c.family]));
+  const changes = exercises().find((x) => x.fromTune);
+  if (prog && changes) items.push(progItem(changes, t, prog, up));
+  return items;
 }

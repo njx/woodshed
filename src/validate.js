@@ -93,6 +93,7 @@ function logEntry(e, ids) {
   if (e.keys != null) e.keys = keyList(e.keys, 11);
   if (e.types != null) e.types = typeList(e.types);
   if (e.progName != null) e.progName = str(e.progName, 60);
+  if (e.pid != null && !isId(e.pid)) delete e.pid;
   e.rating = oneOf(e.rating, RATINGS.map((r) => r.v), null);
   e.bpm = e.bpm == null ? null : int(Math.round(e.bpm), 10, 400);
   e.alt = !!e.alt;
@@ -128,9 +129,11 @@ function session(x) {
 
 function plan(p, ids) {
   if (!p || typeof p !== 'object' || !isDate(p.date) || !Array.isArray(p.items)) return null;
+  const pids = new Set();
   p.items = p.items.filter((it) => it && ids.has(it.itemId)).map(({ warmup, ...it }) => ({
     ...(ids.has(warmup) ? { warmup } : {}), // a warm-up for this tune
     ...it,
+    pid: isId(it.pid) && !pids.has(it.pid) ? (pids.add(it.pid), it.pid) : (() => { const x = uid(); pids.add(x); return x; })(),
     bucket: oneOf(it.bucket, Object.keys(BUCKETS), 'learn'),
     key: int(it.key, 0, 23),
     keys: it.keys == null ? it.keys : keyList(it.keys, 11),
@@ -142,6 +145,8 @@ function plan(p, ids) {
   p.skipped = (Array.isArray(p.skipped) ? p.skipped : []).filter(isId);
   if (p.dayKeys != null) p.dayKeys = keyList(p.dayKeys, 11);
   if (p.warmupFor != null && !ids.has(p.warmupFor)) delete p.warmupFor;
+  p.prepped = (Array.isArray(p.prepped) ? p.prepped : []).filter((id) => ids.has(id)); // tunes given warm-ups
+  p.mode = oneOf(p.mode, ['own', 'day', 'tunes'], null);
   p.focusSkipped = (Array.isArray(p.focusSkipped) ? p.focusSkipped : []).filter(isId);
   return p;
 }
@@ -156,10 +161,11 @@ function settings(s) {
   s.priority = str(s.priority, 20);
   s.newKeys = oneOf(s.newKeys, ['mastered', 'proficient', 'never'], DEFAULT_SETTINGS.newKeys);
   s.a4 = int(s.a4, 430, 450) ?? 440;
-  s.exerciseFocus = oneOf(s.exerciseFocus, ['own', 'day', 'tunes'], 'own');
+  s.exerciseFocus = oneOf(s.exerciseFocus, ['own', 'day', 'tunes'], DEFAULT_SETTINGS.exerciseFocus);
   s.sound = oneOf(s.sound, Object.keys(SOUNDS), DEFAULT_SETTINGS.sound);
   s.swing = oneOf(s.swing, Object.keys(SWING), DEFAULT_SETTINGS.swing);
   s.recordKind = oneOf(s.recordKind, ['audio', 'video'], 'audio');
+  s.recordMic = typeof s.recordMic === 'string' && s.recordMic.length < 300 ? s.recordMic : null;
   if (s.metroBpm != null) s.metroBpm = int(Math.round(s.metroBpm), 10, 400) ?? 100;
   if (s.metroBeats != null) s.metroBeats = int(s.metroBeats, 1, 12) ?? 4;
   return s;

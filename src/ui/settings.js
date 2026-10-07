@@ -13,7 +13,7 @@ import { $, $$, ICON, render, toast, goTo } from './shell.js';
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
   day: 'One or two keys of the day — weak keys come up more — for every exercise that picks keys by weak keys or at random.',
-  tunes: 'The exercises are warm-ups for one of today’s tunes, in its chords and key: a focus tune first, then one you’re learning. (Uses the tunes’ chord charts.)',
+  tunes: 'Your exercises (the Exercises count above) come first. Then each tune with a chord chart has two warm-ups just before it, in the key you’re playing it: scales or arpeggios on its chords, then one of its progressions.',
 };
 
 export function renderSettings(root) {
@@ -53,7 +53,7 @@ export function renderSettings(root) {
 
     <section class="panel">
       <h3 class="section-label">Exercises on a day</h3>
-      <div class="seg" id="ex-focus">${[['own', 'Each its own'], ['day', 'Key of the day'], ['tunes', 'From tunes']].map(([v, l]) => `<button class="${s.exerciseFocus === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>
+      <div class="seg" id="ex-focus">${[['tunes', 'Before tunes'], ['day', 'Key of the day'], ['own', 'Each its own']].map(([v, l]) => `<button class="${s.exerciseFocus === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>
       <p class="fine" id="ex-focus-hint">${EX_FOCUS_HINTS[s.exerciseFocus]}</p>
     </section>
 

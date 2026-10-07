@@ -6,7 +6,19 @@ test('first run picks instruments and builds a set @narrow', async ({ page, ui }
   await page.click('.welcome .chip[data-ins="bb"]');
   await page.click('#ins-done');
   await expect(page.locator('.welcome')).toHaveCount(0);
-  await expect(page.locator('.card')).toHaveCount(7); // 2 exercises, 2 hone, 2 learn, 1 new
+  // Two exercises up top, then the tunes (2 hone, 2 learn, 1 new), each after its warm-ups.
+  await expect(page.locator('.card:not(.b-exercise)')).toHaveCount(5);
+  const cards = await page.$$eval('.card', (cs) => cs.map((c) => ({
+    bucket: c.querySelector('.bucket').textContent, style: c.querySelector('.style').textContent, name: c.querySelector('h2').textContent,
+  })));
+  expect(cards.slice(0, 2).map((c) => c.bucket)).toEqual(['Exercise', 'Exercise']);
+  const warm = cards.filter((c) => c.bucket === 'Warm-up');
+  expect(warm.length).toBeGreaterThanOrEqual(5);
+  for (const [i, c] of cards.entries()) {
+    if (c.bucket !== 'Warm-up') continue;
+    const tune = cards.slice(i + 1).find((x) => x.bucket !== 'Warm-up');
+    expect(c.style).toBe(`for ${tune.name}`);
+  }
   await expect(page.locator('#transpose')).toContainText('B♭');
   await ui.expectNoSideScroll();
 });
@@ -15,7 +27,7 @@ test('swipe right marks played, swipe left swaps @narrow', async ({ page, ui }) 
   await ui.start();
   await ui.swipe(page.locator('.card').first(), 160);
   await expect(page.locator('.card.done')).toHaveCount(1);
-  await expect(page.locator('.ring')).toHaveAttribute('aria-label', /1 of 7/);
+  await expect(page.locator('.ring')).toHaveAttribute('aria-label', /^1 of \d+ played/);
 
   const before = (await ui.cardTitles())[1];
   await ui.swipe(page.locator('.card').nth(1), -160);
@@ -55,7 +67,8 @@ test('focus tunes lead the set; recordings and listening links', async ({ page, 
   await page.click('.seg[data-setting="listen"] button[data-v="spotify"]');
 
   await ui.tab('today');
-  await expect(page.locator('.card .bucket').first()).toHaveText('Focus');
+  await expect(page.locator('.card:not(.b-exercise) .bucket').first()).toHaveText('Focus');
+  await expect(page.locator('.card').filter({ hasText: 'for Giant Steps' })).toHaveCount(2); // its warm-ups
   await page.locator('.card h2', { hasText: 'Giant Steps' }).click();
   await expect(page.locator('.recordings a').first()).toHaveAttribute('href', /spotify\.com/);
 });

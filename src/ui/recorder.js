@@ -4,6 +4,7 @@ import { itemById } from '../practice.js';
 import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
 import { canRecord, pickMime, constraints, saveClip, fmtDuration } from '../media.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
+import { holdAudio } from '../audiosession.js';
 
 // Record a practice clip, then keep it (as a diary note, or added to an existing one) or discard it.
 //   opts.entryId: add the clip to this diary entry
@@ -24,6 +25,7 @@ export function openRecorder(opts = {}) {
   let elapsed = 0;
   let take = null; // { blob, url, ms } once a recording has stopped
   let state = 'starting'; // starting | ready | recording | review | blocked
+  let mics = []; // microphones to pick from, once allowed: [{ id, label }]
   let closed = false;
   let handled = false; // take kept or discarded
   let tick = null;
@@ -31,6 +33,9 @@ export function openRecorder(opts = {}) {
   let wakeLock = null;
   const levels = [];
 
+  // The mic needs a session that allows it alongside playback (the metronome in your earbuds).
+  // Held until the recorder closes, so the metronome isn't interrupted between takes.
+  const releaseAudio = holdAudio('record');
   // Created during the tap that opened the recorder, so iOS lets it run (for the level meter).
   const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
   const audioCtx = AudioCtx ? new AudioCtx() : null;
@@ -65,7 +70,10 @@ export function openRecorder(opts = {}) {
           ${['audio', 'video'].map((k) => `<button class="${kind === k ? 'on' : ''}" data-kind="${k}">${k === 'audio' ? 'Audio' : 'Video'}</button>`).join('')}
         </div>
         ${kind === 'video' && state !== 'review' ? `<button class="icon-btn small" id="rec-flip" aria-label="Switch camera">${ICON.swap}</button>` : ''}
-      </div>`;
+      </div>
+      ${mics.length > 1 && state !== 'review' ? `
+        <label class="rec-mic"><span>Mic</span><select id="rec-mic" ${state === 'recording' ? 'disabled' : ''}>${mics.map((m) => `
+          <option value="${esc(m.id)}" ${m.id === currentMic() ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>` : ''}`;
 
     if (state === 'blocked') {
       box.innerHTML = `${header}
@@ -127,6 +135,12 @@ export function openRecorder(opts = {}) {
     };
     const go = $('#rec-go', box);
     if (go) go.onclick = () => (state === 'recording' ? recorder.stop() : startRecording());
+    const mic = $('#rec-mic', box);
+    if (mic) mic.onchange = () => {
+      settings.recordMic = mic.value;
+      save();
+      startStream();
+    };
     const retry = $('#rec-retry', box);
     if (retry) retry.onclick = startStream;
     const keepBtn = $('#rec-keep', box);
@@ -155,7 +169,10 @@ export function openRecorder(opts = {}) {
     view();
     let s;
     try {
-      s = await navigator.mediaDevices.getUserMedia(constraints(kind, facing));
+      s = await navigator.mediaDevices.getUserMedia(constraints(kind, facing, settings.recordMic || null))
+        // The chosen mic isn't there now (earbuds put away): the default one.
+        .catch((err) => (settings.recordMic && err.name !== 'NotAllowedError'
+          ? navigator.mediaDevices.getUserMedia(constraints(kind, facing)) : Promise.reject(err)));
     } catch (err) {
       if (gen !== streamGen) return;
       console.warn('getUserMedia failed', err);
@@ -165,6 +182,18 @@ export function openRecorder(opts = {}) {
     // Switched camera or audio/video (or closed) while this one was starting: let it go.
     if (gen !== streamGen || closed) return s.getTracks().forEach((tr) => tr.stop());
     stream = s;
+    // With headphones in, the phone may switch to their mic; the phone's own is usually better for
+    // an instrument (and lets the metronome play in the earbuds). Mic names show once allowed.
+    if (!mics.length) {
+      mics = await listMics();
+      const builtIn = mics.find((m) => /iphone|ipad|built-?in|internal/i.test(m.label));
+      if (!settings.recordMic && builtIn && mics.length > 1 && builtIn.id !== trackMic(s) && gen === streamGen && !closed) {
+        settings.recordMic = builtIn.id;
+        save();
+        return startStream();
+      }
+    }
+    if (gen !== streamGen || closed) return s.getTracks().forEach((tr) => tr.stop());
     if (audioCtx) {
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
@@ -279,6 +308,19 @@ export function openRecorder(opts = {}) {
     elapsed = 0;
   }
 
+  async function listMics() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      return all.filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+        .map((d, i) => ({ id: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
+    } catch {
+      return [];
+    }
+  }
+  const trackMic = (s) => s?.getAudioTracks()[0]?.getSettings?.().deviceId || null;
+  // The mic in use: the stream's, else the chosen one.
+  const currentMic = () => trackMic(stream) || settings.recordMic;
+
   function stopStream() {
     cancelAnimationFrame(raf);
     stream?.getTracks().forEach((tr) => tr.stop());
@@ -296,6 +338,7 @@ export function openRecorder(opts = {}) {
     releaseWakeLock();
     stopStream();
     audioCtx?.close?.().catch(() => {});
+    releaseAudio();
     document.removeEventListener('visibilitychange', onHide);
   }
 

@@ -4,7 +4,7 @@ import { LEVELS, PRIORITIES, TRANSPOSITIONS, CATEGORIES, KEY_MODES } from '../co
 import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
-import { itemStats, itemById, isDue, isPlayedToday, todaysEntry, setLevel, deleteItem } from '../practice.js';
+import { itemStats, itemById, isDue, isPlayedToday, planEntry, setLevel, deleteItem } from '../practice.js';
 import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
@@ -145,7 +145,7 @@ function planSummary() {
   return store.state.plan.items.map((it) => {
     const t = itemById(it.itemId);
     if (!t) return null;
-    const e = todaysEntry(t.id);
+    const e = planEntry(it);
     return {
       item_id: t.id,
       name: t.name,

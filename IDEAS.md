@@ -35,6 +35,14 @@ sessions), L (a big piece, or needs a native app).
   more progression shapes (Coltrane changes, rhythm-changes bridge, minor-key turnarounds);
   guide-tone lines through a progression.
 
+- **Tempo per key** (M). An exercise's harder keys often want a slower tempo. Proposal: keep one
+  working tempo per exercise, plus an optional offset for a key ("B: −16"), set from the metronome
+  when it was opened for an exercise in a key (*Just for B*), shown on the card per key, and
+  nudged by the same up/down suggestions using only that key's ratings. Logs already keep each
+  session's keys and bpm, so per-key history is there to start from.
+- **Compact warm-ups** (S). Show a tune's warm-ups as smaller cards grouped under it, so a day
+  with many tunes stays scannable.
+
 ## Listening and slowing down
 
 - **YouTube loop / slow-downer** (M). Play a recording's YouTube video inside the app with A–B

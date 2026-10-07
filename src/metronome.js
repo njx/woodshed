@@ -1,4 +1,5 @@
 import { clampBpm } from './tempo.js';
+import { holdAudio } from './audiosession.js';
 
 // A metronome on the Web Audio clock. A timer wakes every 25 ms and schedules any clicks due in
 // the next 120 ms at exact audio times, so the beat stays steady even if the page is busy.
@@ -13,6 +14,7 @@ let nextTime = 0;
 let nextBeat = 0;
 let queue = []; // scheduled beats [{ time, beat }] for the visuals
 let wakeLock = null;
+let releaseAudio = null;
 
 export const metronome = {
   get state() { return { ...state }; },
@@ -29,8 +31,8 @@ export const metronome = {
     const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
     ctx = new Ctx();
     ctx.resume?.();
-    // Play through the iPhone's silent switch, like a music app (Safari 17+).
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    // Play through the iPhone's silent switch, like a music app.
+    releaseAudio = holdAudio('playback');
     state.running = true;
     nextBeat = 0;
     nextTime = ctx.currentTime + 0.06;
@@ -47,7 +49,8 @@ export const metronome = {
     ctx?.close?.().catch(() => {});
     ctx = null;
     queue = [];
-    try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch {}
+    releaseAudio?.();
+    releaseAudio = null;
     wakeLock?.release?.().catch(() => {});
     wakeLock = null;
     emit();

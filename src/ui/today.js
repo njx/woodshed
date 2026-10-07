@@ -3,10 +3,10 @@ import { BUCKETS, RATINGS, SHIFTS, LEVELS, TRANSPOSITIONS } from '../constants.j
 import { dateStr, niceDate, ago } from '../dates.js';
 import { esc, randomOf } from '../util.js';
 import {
-  itemStats, itemById, todaysEntry, isPlayedToday, markPlayed, unmarkPlayed, rate, setLevel,
+  itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds } from '../plan.js';
+import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
   levelLabel, transposeToggle, bindTransposeToggle, suggestionHtml,
@@ -31,7 +31,7 @@ export function renderToday(root) {
   ensurePlan();
   const stats = itemStats();
   const items = state.plan.items.filter((it) => itemById(it.itemId));
-  const done = items.filter((it) => isPlayedToday(it.itemId)).length;
+  const done = items.filter((it) => isPlanItemPlayed(it)).length;
   const today = dateStr();
   const planIds = new Set(items.map((i) => i.itemId));
   const extras = state.log.filter((e) => e.date === today && !planIds.has(e.itemId)).map((e) => itemById(e.itemId)).filter(Boolean);
@@ -75,6 +75,7 @@ export function renderToday(root) {
     const t = pickItem(randomOf(['fresh', 'learn', 'hone']), excludedIds(), stats);
     if (!t) return toast('No more tunes to suggest');
     state.plan.items.push(makePlanItem(t, stats));
+    prepTunes();
     save();
     render();
   };
@@ -89,23 +90,31 @@ export function renderToday(root) {
   $$('.card', root).forEach((card) => bindCard(card));
 }
 
+// In "From tunes", a tune added to the set (or swapped in) gets its warm-ups.
+function prepTunes() {
+  if (store.state.settings.exerciseFocus === 'tunes') applyExerciseFocus(store.state.plan);
+}
+
 function bindCard(card) {
   const state = store.state;
   const i = Number(card.dataset.i);
   const item = state.plan.items[i];
   const toggle = () => {
-    if (isPlayedToday(item.itemId)) unmarkPlayed(item.itemId);
+    if (isPlanItemPlayed(item)) unmarkPlayed(item.itemId, item);
     else {
       markPlayed(item.itemId, item);
       autoStart();
       haptic();
-      if (state.plan.items.every((it) => !itemById(it.itemId) || isPlayedToday(it.itemId))) toast('All done for today — nice work 🎷');
+      if (state.plan.items.every((it) => !itemById(it.itemId) || isPlanItemPlayed(it))) toast('All done for today — nice work 🎷');
     }
     save();
     render();
   };
   const swap = () => {
-    if (isPlayedToday(item.itemId)) return;
+    if (isPlanItemPlayed(item)) return;
+    if (item.warmup) {
+      return withUndo(`Took out the ${itemById(item.itemId).name} warm-up`, () => state.plan.items.splice(i, 1));
+    }
     if (item.bucket === 'focus') {
       return withUndo(`Skipped ${itemById(item.itemId).name} for today`, () => {
         state.plan.focusSkipped.push(item.itemId);
@@ -117,6 +126,7 @@ function bindCard(card) {
     withUndo(`Swapped out ${itemById(item.itemId).name}`, () => {
       state.plan.skipped.push(item.itemId);
       state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
+      prepTunes();
     });
   };
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
@@ -124,7 +134,7 @@ function bindCard(card) {
   if (swapBtn) swapBtn.onclick = (e) => { e.stopPropagation(); swap(); };
   $$('.rating button', card).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
-    rate(item.itemId, b.dataset.v);
+    rate(item.itemId, b.dataset.v, item);
     save();
     render();
   }));
@@ -147,10 +157,10 @@ function bindCard(card) {
       : [item.key != null && `In ${kn(item.key)}`, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     openRecorder({ itemId: t.id, text, back: render });
   };
-  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip')) openItem(item.itemId, { keys: item.keys }); };
+  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
   attachSwipe(card, {
     right: toggle,
-    left: isPlayedToday(item.itemId) ? null : swap,
+    left: isPlanItemPlayed(item) ? null : swap,
   });
 }
 
@@ -217,8 +227,9 @@ function dayNote() {
     return `<p class="day-note">Key${plan.dayKeys.length > 1 ? 's' : ''} of the day: <b>${plan.dayKeys.map((r) => esc(rootName(r))).join(' · ')}</b></p>`;
   }
   if (s.exerciseFocus === 'tunes') {
-    if (plan.warmupFor && itemById(plan.warmupFor)) return `<p class="day-note">Exercises warm up for <b>${esc(itemById(plan.warmupFor).name)}</b></p>`;
-    return '<p class="day-note">None of today’s tunes has a chord chart, so exercises are picked as usual.</p>';
+    const n = new Set(plan.items.filter((it) => it.warmup && itemById(it.warmup)).map((it) => it.warmup)).size;
+    if (n) return `<p class="day-note">Each tune comes with warm-ups from its chords, just before it.</p>`;
+    return '<p class="day-note">None of today’s tunes has a chord chart, so there are no warm-ups for them.</p>';
   }
   return '';
 }
@@ -227,7 +238,7 @@ function cardHtml(it, i, stats) {
   const t = itemById(it.itemId);
   if (!t) return '';
   const s = stats.get(t.id);
-  const entry = todaysEntry(t.id);
+  const entry = planEntry(it);
   const played = !!entry;
   const late = !played && (it.bucket === 'hone' || it.bucket === 'learn') && s?.count && overdue(t, stats) >= 1.5;
   const focus = it.bucket === 'focus';

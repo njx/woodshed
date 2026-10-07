@@ -41,14 +41,15 @@ function planLines() {
   ensurePlan();
   const plan = store.state.plan;
   const items = plan.items.map((it) => ({ it, t: itemById(it.itemId) })).filter((x) => x.t);
-  const ex = items.filter((x) => x.t.type === 'exercise').length;
-  const tunes = items.length - ex;
+  const ex = items.filter((x) => x.t.type === 'exercise' && !x.it.warmup).length;
+  const tunes = items.filter((x) => x.t.type === 'tune').length;
   const lines = [];
   const parts = [ex && `${ex} exercise${ex > 1 ? 's' : ''}`, tunes && `${tunes} tune${tunes > 1 ? 's' : ''}`].filter(Boolean);
   if (parts.length) lines.push(`Today’s set: ${parts.join(' and ')}`);
   const focus = items.filter((x) => x.it.bucket === 'focus').map((x) => x.t.name);
   if (focus.length) lines.push(`Focus on <b>${focus.map(esc).join('</b>, <b>')}</b>`);
-  if (plan.warmupFor && itemById(plan.warmupFor)) lines.push(`Warm-ups for <b>${esc(itemById(plan.warmupFor).name)}</b>`);
+  const prepped = new Set(items.filter((x) => x.it.warmup && itemById(x.it.warmup)).map((x) => x.it.warmup)).size;
+  if (prepped) lines.push(`Warm-ups from the chords before ${prepped === 1 ? 'one of them' : `${prepped} of them`}`);
   const remember = openTodos('remember').length;
   if (remember) lines.push(`${remember} thing${remember > 1 ? 's' : ''} to remember`);
   return lines;

@@ -78,7 +78,7 @@ test('today’s card names the scale or chord for each key, and the log keeps it
   await page.click('.focus-toggle');
   await ui.backdrop();
   await ui.tab('today');
-  const card = page.locator('.card', { hasText: 'Scales: major and minors' });
+  const card = page.locator('.card.b-focus', { hasText: 'Scales: major and minors' });
   await expect(card.locator('.keychip')).toContainText(/In [A-G][♭♯]? (maj|dor|aeol|harm min|mel min|dim H\/W) · /);
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('card.png') });

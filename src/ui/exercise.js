@@ -4,7 +4,7 @@ import { LEVELS, PRIORITIES, RATINGS, CATEGORIES, KEY_MODES } from '../constants
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
-import { itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
+import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
 import { syncFocus, refreshTypes } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
@@ -67,7 +67,11 @@ export function openExercise(id, opts = {}) {
     ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', notes: '', priority: 2, level: null, ivl: null, due: null }
     : itemById(id);
   if (!t) return;
-  const planItem = state.plan?.date === dateStr() ? state.plan.items.find((i) => i.itemId === t.id) : null;
+  // Today's plan item it was opened from (it can be in the set more than once, as warm-ups
+  // before tunes); opened from elsewhere, its own place in the set, if it has one.
+  const today = state.plan?.date === dateStr() ? state.plan.items.filter((i) => i.itemId === t.id) : [];
+  const planItem = today.find((i) => opts.pid && i.pid === opts.pid) || today.find((i) => !i.warmup) || null;
+  const isPlayed = () => (planItem ? isPlanItemPlayed(planItem) : isPlayedToday(t.id));
   const todayKeys = opts.keys || planItem?.keys || [];
   const prog = planItem?.prog || opts.prog || null; // a tune's progression (warm-ups)
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
@@ -86,7 +90,7 @@ export function openExercise(id, opts = {}) {
   const body = () => {
     const s = itemStats().get(t.id);
     const entries = state.log.filter((e) => e.itemId === t.id).sort((a, b) => b.date.localeCompare(a.date));
-    const played = isPlayedToday(t.id);
+    const played = isPlayed();
     const all = entriesFor(t.id);
     const takes = all.filter((e) => e.media?.length); // recordings, up top by the notation
     const notes = all.filter((e) => !e.media?.length);
@@ -394,7 +398,7 @@ ${t.fromTune ? '' : `
       return;
     }
     $('#x-log', sheet).onclick = () => {
-      if (isPlayedToday(t.id)) unmarkPlayed(t.id);
+      if (isPlayed()) unmarkPlayed(t.id, planItem);
       else {
         markPlayed(t.id, planItem || { keys: todayKeys });
         autoStart();

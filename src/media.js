@@ -21,8 +21,9 @@ export function canRecord() {
 
 // Instrument-friendly capture: the phone's voice processing (echo cancellation, noise
 // suppression, automatic gain) smears sustained notes and pumps the volume, so turn it off.
-export function constraints(kind, facingMode = 'user') {
-  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+// mic: a microphone's deviceId, or null for the phone's default.
+export function constraints(kind, facingMode = 'user', mic = null) {
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, ...(mic ? { deviceId: { exact: mic } } : {}) };
   if (kind === 'audio') return { audio };
   return { audio, video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
 }

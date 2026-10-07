@@ -128,3 +128,25 @@ test('record from a card in today’s set: the take goes with that exercise @nar
   await page.screenshot({ path: test.info().outputPath('card.png') });
   await ui.expectNoSideScroll();
 });
+
+test('record while the metronome plays (Safari only allows the mic in a play-and-record session)', async ({ page, ui }) => {
+  await page.addInitScript(() => {
+    // Like Safari: an audio session, and no mic while it's set to playback only.
+    const session = { type: 'auto', log: [] };
+    Object.defineProperty(navigator, 'audioSession', { value: new Proxy(session, { set: (o, k, v) => { o[k] = v; if (k === 'type') o.log.push(v); return true; } }) });
+    const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (c) => (session.type === 'playback'
+      ? Promise.reject(new DOMException('Not allowed in a playback session', 'NotAllowedError')) : gum(c));
+  });
+  await ui.start();
+  await page.click('#today-metro');
+  await page.click('#m-go');
+  await ui.backdrop();
+  await page.click('#today-rec');
+  await record(page, 800);
+  await expect(page.locator('.rec-stage.review audio')).toHaveCount(1);
+  await page.click('#rec-discard');
+  // Back to playback for the metronome alone once the recorder closes; still clicking.
+  expect(await page.evaluate(() => navigator.audioSession.log)).toEqual(['playback', 'play-and-record', 'playback']);
+  await expect(page.locator('.metro-pill:not([hidden])')).toBeVisible();
+});

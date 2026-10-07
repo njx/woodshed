@@ -63,23 +63,39 @@ export function todaysEntry(itemId) {
 export function isPlayedToday(itemId) {
   return !!todaysEntry(itemId);
 }
+
+// An exercise can be in today's set more than once (a warm-up before two tunes), so each plan
+// item has an id (pid) and its log entry records it. A plan item's entry: the one logged from it,
+// else one logged for the same item outside the set (from its details, or before pids).
+export function planEntry(it) {
+  const today = dateStr();
+  const mine = store.state.log.filter((e) => e.itemId === it.itemId && e.date === today);
+  const inPlan = (pid) => store.state.plan?.items.some((i) => i.pid === pid);
+  return mine.find((e) => it.pid && e.pid === it.pid) || mine.find((e) => !e.pid || !inPlan(e.pid)) || null;
+}
+const entryFor = (itemId, planItem) => (planItem?.pid ? planEntry({ ...planItem, itemId }) : todaysEntry(itemId));
+export const isPlanItemPlayed = (it) => !!planEntry(it);
+
 export function markPlayed(itemId, planItem) {
-  if (isPlayedToday(itemId)) return;
+  if (entryFor(itemId, planItem)) return;
   const t = itemById(itemId);
+  // Played again today (before another tune): scheduled from where it was this morning.
+  const earlier = todaysEntry(itemId);
   const entry = {
     id: uid(), date: dateStr(), itemId, at: Date.now(),
+    ...(planItem?.pid ? { pid: planItem.pid } : {}),
     key: planItem?.key ?? null, alt: !!planItem?.alt, shift: planItem?.shift ?? null,
     ...(planItem?.keys?.length ? { keys: [...planItem.keys] } : {}),
     ...(planItem?.types?.length ? { types: [...planItem.types] } : {}),
     ...(planItem?.prog ? { progName: planItem.prog.name } : {}),
-    rating: 'ok', prev: { ivl: t.ivl, due: t.due },
+    rating: 'ok', prev: earlier ? { ...earlier.prev } : { ivl: t.ivl, due: t.due },
     ...(t.tempo ? { bpm: t.tempo } : {}),
   };
   store.state.log.push(entry);
   schedule(t, entry.rating, entry.prev);
 }
-export function rate(itemId, rating) {
-  const e = todaysEntry(itemId);
+export function rate(itemId, rating, planItem = null) {
+  const e = entryFor(itemId, planItem);
   const t = itemById(itemId);
   if (!e || !t) return;
   e.rating = rating;
@@ -93,7 +109,7 @@ export function deleteItem(id) {
   s.items = s.items.filter((x) => x.id !== id);
   s.log = s.log.filter((e) => e.itemId !== id);
   if (s.plan) {
-    s.plan.items = s.plan.items.filter((i) => i.itemId !== id);
+    s.plan.items = s.plan.items.filter((i) => i.itemId !== id && i.warmup !== id);
     s.plan.skipped = (s.plan.skipped || []).filter((x) => x !== id);
     s.plan.focusSkipped = (s.plan.focusSkipped || []).filter((x) => x !== id);
   }
@@ -101,12 +117,16 @@ export function deleteItem(id) {
   return { sessions };
 }
 
-export function unmarkPlayed(itemId) {
-  const e = todaysEntry(itemId);
+export function unmarkPlayed(itemId, planItem = null) {
+  const e = entryFor(itemId, planItem);
   if (!e) return;
-  const t = itemById(itemId);
-  if (t && e.prev) { t.ivl = e.prev.ivl; t.due = e.prev.due; }
   store.state.log = store.state.log.filter((x) => x !== e);
+  const t = itemById(itemId);
+  if (!t || !e.prev) return;
+  // Still played earlier today: scheduled by that; otherwise back to how it was.
+  const other = todaysEntry(itemId);
+  if (other) schedule(t, other.rating, other.prev);
+  else { t.ivl = e.prev.ivl; t.due = e.prev.due; }
 }
 
 // ---------- Familiarity ----------

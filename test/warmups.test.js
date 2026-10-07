@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { store, seedState, migrate } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
-import { warmupsFor, warmupTune } from '../src/warmups.js';
-import { buildPlan, addWarmups } from '../src/plan.js';
-import { markPlayed } from '../src/practice.js';
+import { warmupsFor, prepFor } from '../src/warmups.js';
+import { buildPlan, addWarmups, ensurePlan } from '../src/plan.js';
+import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday } from '../src/practice.js';
 import { chooseTypes } from '../src/theory.js';
 import { freezeToday } from './helpers.js';
 import { progressions } from '../src/chords.js';
@@ -33,7 +33,7 @@ describe('charts for tunes', () => {
     solar.chart = { key: 0, meter: '4/4', sections: [{ label: 'A', repeats: 0, bars: [{ chords: [{ root: 0, q: 'maj7' }], alts: [] }], endings: [] }] };
     for (const t of old.items) if (t.name !== 'Solar') delete t.chart;
     const s = migrate(old);
-    expect(s.version).toBe(6);
+    expect(s.version).toBe(7);
     expect(s.items.find((t) => t.name === 'Autumn Leaves').chart.sections.length).toBeGreaterThan(0);
     expect(s.items.find((t) => t.name === 'Solar').chart.sections[0].bars).toHaveLength(1);
   });
@@ -66,26 +66,59 @@ describe('warm-ups for a tune', () => {
     const inE = warmupsFor(t, { key: 16 }); // E minor: down a minor 3rd
     expect(inE[0].keys[0]).toBe(4); // Em6
   });
-  it('pick the tune to warm up for: focus first, then one being learned', () => {
-    const items = [
-      { itemId: byName('Solar').id, bucket: 'hone' },
-      { itemId: byName('Autumn Leaves').id, bucket: 'learn' },
-    ];
-    expect(warmupTune(items).t.name).toBe('Autumn Leaves');
-    items.push({ itemId: byName('Blue Bossa').id, bucket: 'focus' });
-    expect(warmupTune(items).t.name).toBe('Blue Bossa');
+  it('before a tune: arpeggios (or scales) on its chords, then its progression', () => {
+    const t = byName('Autumn Leaves');
+    const name = (x) => store.state.items.find((i) => i.id === x.itemId).name;
+    expect(prepFor(t, { key: 19 }).map(name)).toEqual(['Seventh-chord arpeggios', 'Through the changes']);
+    expect(prepFor(t, { key: 19, prefer: 'scale' }).map(name)).toEqual(['Scales: major and minors', 'Through the changes']);
+    expect(prepFor(byName('Killer Joe'))).toEqual([]); // no chart
   });
 });
 
 describe('exercises across a day', () => {
-  it('"from today’s tunes" fills the exercise slots with warm-ups', () => {
-    store.state.settings.exerciseFocus = 'tunes';
-    byName('Autumn Leaves').focus = true;
+  it('"from tunes": general exercises up top, then each tune with its warm-ups just before it', () => {
+    expect(store.state.settings.exerciseFocus).toBe('tunes'); // the default
     buildPlan(true);
-    const ex = store.state.plan.items.filter((i) => i.bucket === 'exercise');
-    expect(ex).toHaveLength(2);
-    expect(ex.every((i) => i.warmup === byName('Autumn Leaves').id)).toBe(true);
-    expect(store.state.plan.warmupFor).toBe(byName('Autumn Leaves').id);
+    const items = store.state.plan.items;
+    const item = (it) => byName(store.state.items.find((x) => x.id === it.itemId).name);
+    const general = items.filter((i) => item(i).type === 'exercise' && !i.warmup);
+    expect(general).toHaveLength(2);
+    expect(items.slice(0, 2)).toEqual(general);
+    // Every warm-up comes right before its tune (setup, then the progression), a pair per tune.
+    for (const [i, it] of items.entries()) {
+      if (!it.warmup) continue;
+      const tuneAt = items.findIndex((x, j) => j > i && !x.warmup);
+      expect(items[tuneAt].itemId).toBe(it.warmup);
+    }
+    const tunes = items.filter((i) => item(i).type === 'tune' && chartFor(item(i)));
+    for (const t of tunes) expect(items.filter((i) => i.warmup === t.itemId).length).toBeGreaterThan(0);
+    expect(items.filter((i) => i.warmup).length).toBeLessThanOrEqual(tunes.length * 2);
+    // Arpeggios and scales take turns.
+    const setups = items.filter((i) => i.warmup && i.types).map((i) => item(i).vary.kind);
+    expect(setups.slice(0, 2)).toEqual(['chord', 'scale']);
+    expect(new Set(items.map((i) => i.pid)).size).toBe(items.length);
+  });
+  it('the same exercise before two tunes is played (and unmarked) on its own each time', () => {
+    buildPlan(true);
+    const changes = byName('Through the changes');
+    const [a, b] = store.state.plan.items.filter((i) => i.itemId === changes.id);
+    markPlayed(changes.id, a);
+    expect(isPlanItemPlayed(a)).toBe(true);
+    expect(isPlanItemPlayed(b)).toBe(false);
+    markPlayed(changes.id, b);
+    expect(store.state.log.filter((e) => e.itemId === changes.id)).toHaveLength(2);
+    unmarkPlayed(changes.id, a);
+    expect(isPlanItemPlayed(a)).toBe(false);
+    expect(isPlanItemPlayed(b)).toBe(true);
+    expect(isPlayedToday(changes.id)).toBe(true);
+  });
+  it('a set made with another setting is redone for this one', () => {
+    store.state.settings.exerciseFocus = 'own';
+    buildPlan(true);
+    expect(store.state.plan.items.some((i) => i.warmup)).toBe(false);
+    store.state.settings.exerciseFocus = 'tunes';
+    ensurePlan();
+    expect(store.state.plan.items.some((i) => i.warmup)).toBe(true);
   });
   it('"key of the day" gives weak-key exercises the same keys', () => {
     store.state.settings.exerciseFocus = 'day';
@@ -97,20 +130,13 @@ describe('exercises across a day', () => {
       if (['weak', 'random'].includes(t.keyMode)) expect(dayKeys).toEqual(expect.arrayContaining(it.keys));
     }
   });
-  it('adds warm-ups for a tune on request, replacing exercises not played yet', () => {
+  it('adds warm-ups for a tune on request, just before it', () => {
+    store.state.settings.exerciseFocus = 'own';
     buildPlan(true);
-    const n = addWarmups(byName('Autumn Leaves'));
-    expect(n).toBe(4);
-    const warm = store.state.plan.items.filter((i) => i.warmup);
-    expect(warm).toHaveLength(4);
-    expect(new Set(store.state.plan.items.map((i) => i.itemId)).size).toBe(store.state.plan.items.length);
-  });
-  it('doesn’t replace an exercise already played today', () => {
-    buildPlan(true);
-    const arps = byName('Seventh-chord arpeggios');
-    markPlayed(arps.id, { keys: [0] });
-    const w = warmupsFor(byName('Autumn Leaves'), { key: 19 });
-    expect(w.some((x) => x.itemId === arps.id)).toBe(false);
+    const t = byName('Autumn Leaves');
+    expect(addWarmups(t)).toBe(4);
+    expect(addWarmups(t)).toBe(4); // again: in place of the first ones
+    expect(store.state.plan.items.filter((i) => i.warmup === t.id)).toHaveLength(4);
   });
 });
 
@@ -136,8 +162,14 @@ describe('progression warm-ups', () => {
   });
   it('“Through the changes” only comes up as a warm-up', () => {
     store.state.settings.exercises = 8;
-    buildPlan(true);
     const changes = byName('Through the changes');
+    for (const mode of ['own', 'tunes']) {
+      store.state.settings.exerciseFocus = mode;
+      buildPlan();
+      expect(store.state.plan.items.filter((i) => i.itemId === changes.id).every((i) => i.warmup)).toBe(true);
+    }
+    store.state.settings.exerciseFocus = 'own';
+    buildPlan();
     expect(store.state.plan.items.some((i) => i.itemId === changes.id)).toBe(false);
   });
 });

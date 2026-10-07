@@ -46,16 +46,21 @@ weeks), and rough ones less. The Progress tab charts it around the circle of fif
 
 Settings → *Exercises on a day*:
 
-- **Each its own** (the default): every exercise picks its own keys and types.
+- **Before tunes** (the default): your exercises (the *Exercises* count in the daily mix) come
+  first, as general ones. Then each tune with a chord chart has two **warm-ups** just before it, in
+  the key you're playing it in today: scales or arpeggios on its main chords (taking turns from
+  tune to tune: e.g. Gm6, Aø7, D7 arpeggios for Autumn Leaves, or dorian on a m7 and altered on a
+  7♭13), then **Through the changes** — one of its progressions (say iii–VI7–ii–V7–I or iiø–V7♭9–i)
+  arpeggiated a bar per chord, in the key it leads to. So a set reads: exercises, then warm-ups →
+  tune, warm-ups → tune… The same exercise can come up before several tunes, each set to that tune
+  and ticked off on its own. Swipe a warm-up left to take it out; a tune swapped in (or added with
+  *One more tune*, or made a focus tune) gets its own.
 - **Key of the day**: one or two keys (weak keys come up more) for every exercise that picks keys
   by weak keys or at random, so a day has a centre. Shown under *Today's set*.
-- **From tunes**: the exercises are **warm-ups** for one of today's tunes (a focus tune first, then
-  one you're learning), in its chords and in the key you're playing it in today: **Through the
-  changes** (its main progression — say iii–VI7–ii–V7–I or iiø–V7♭9–i — arpeggiated a bar per
-  chord, in the key it leads to), arpeggios on its main chords (e.g. Gm6, Am7♭5, D7 for Autumn Leaves), a ii–V–I pattern into its major keys, and
-  scales that go with its chords (dorian on a m7, altered on a 7♭13…).
+- **Each its own**: every exercise picks its own keys and types.
 
-Any tune's details also have **Warm up for this tune**, which adds its warm-ups to today.
+Any tune's details also have **Warm up for this tune**, which adds a longer set of warm-ups (its
+progression, arpeggios, scales and a ii–V–I pattern) just before it in today's set.
 
 Scale and chord types are picked by how little you've played them on that exercise *and* across all
 exercises, the way keys already were.
@@ -224,6 +229,10 @@ diary note: audio plays right from the list, and the note shows players for each
 - Audio is recorded with the phone's voice processing turned off (echo cancellation, noise
   suppression, automatic gain), which otherwise mangles the sound of an instrument.
 - Closing the recorder mid-take keeps what you recorded; Discard is the only way to throw it away.
+- The metronome keeps playing while you record (on iPhone the app switches its audio session to
+  play-and-record while the recorder is open). With earbuds in, the click stays in your ears; the
+  recorder offers a **Mic** choice when there's more than one, and starts with the phone's own mic
+  (better for an instrument than an earbud's), remembering what you pick.
 - Recordings are stored on the device (in IndexedDB) and are **not** part of the JSON backup —
   they're too big. Save the ones you want to keep. Settings shows how much space they use.
 - iOS may ask for microphone/camera permission again after the app has been closed for a while.

@@ -109,17 +109,18 @@ test('exercises on a day: key of the day, or warm-ups for today’s tunes @narro
   await ui.tab('settings');
   await page.click('#ex-focus [data-v="tunes"]');
   await ui.tab('today');
-  await expect(page.locator('.day-note')).toContainText('warm up for');
-  // A focus tune gets them first.
+  await expect(page.locator('.day-note')).toContainText('warm-ups from its chords, just before it');
+  // A tune made a focus tune gets its warm-ups too, just before it.
   await openTune(page, ui, 'Autumn Leaves');
   await page.click('.focus-toggle');
   await ui.backdrop();
-  await ui.tab('settings');
-  await page.click('#ex-focus [data-v="own"]');
-  await page.click('#ex-focus [data-v="tunes"]');
   await ui.tab('today');
-  await expect(page.locator('.day-note')).toContainText('warm up for Autumn Leaves');
-  await expect(page.locator('.card .bucket', { hasText: 'Warm-up' }).first()).toBeVisible();
+  const names = await page.$$eval('.card', (cs) => cs.map((c) => `${c.querySelector('.style').textContent}|${c.querySelector('h2').textContent}`));
+  const at = names.findIndex((n) => n.endsWith('|Autumn Leaves'));
+  expect(names.slice(at - 2, at)).toEqual([
+    expect.stringMatching(/^for Autumn Leaves\|(Seventh-chord arpeggios|Scales: major and minors)$/),
+    'for Autumn Leaves|Through the changes',
+  ]);
   await ui.expectNoSideScroll();
 });
 

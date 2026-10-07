@@ -979,3 +979,5 @@ textarea.mono { font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .rec-chip svg { color: var(--danger); }
 .rec-chip.empty svg { color: var(--ink-3); }
 .card-sub .rec-chip + .tempo-chip { margin-left: 0; }
+.rec-mic { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 14px; color: var(--ink-3); }
+.rec-mic select { flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; border-radius: 12px; background: var(--surface-2); color: var(--ink); font-size: 16px; border: 0; }
