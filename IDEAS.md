@@ -65,6 +65,20 @@ sessions), L (a big piece, or needs a native app).
 - **Sync between devices** (L). Everything lives on one phone; syncing would need a server or a
   sync service (or storing a backup in the connected Dropbox — M).
 
+## A native app (parked)
+
+Moving to a native iPhone app (or a native shell around this one, e.g. Capacitor) would get past
+limits the web app keeps running into:
+- **Stereo recording** with the iPhone's built-in mics (Safari only gives web apps one channel), and
+  full control of which mic records and where sound plays (phone mic + metronome in earbuds).
+- **Audio that keeps going in the background**: the metronome, tuner and recorder stop when the app
+  is hidden or the phone locks; a native audio session can keep them running.
+- **Launching other apps** (Quartet's URL scheme), the Files app, and share sheets more reliably.
+- **Keeping the screen on** without workarounds, and notifications (practice reminders).
+- **Storage** that iOS won't clear, and iCloud backup/sync instead of manual export.
+The logic (plans, theory, charts, warm-ups) is plain JS with no DOM, so it could carry over to a
+native shell largely as is; the UI and audio/recording layers are what would change.
+
 ## Code health (from the review)
 
 - **App updates while it's open** (S–M). A new deploy can break the notation player or assistant
