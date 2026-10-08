@@ -83,6 +83,7 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; touch-action: manipulation; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+[hidden] { display: none !important; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 .view {
@@ -1067,15 +1068,15 @@ html { overflow-anchor: none; }
 .today-metro.live.beat { background: var(--accent); color: #fff; }
 .today-metro.live.beat.accent { background: var(--danger); }
 .today-tuner.live.good { background: var(--good); color: #fff; box-shadow: 0 0 0 3px var(--good-soft); }
-/* Sharp: an arc over the top half; flat: under the bottom half. Red, or orange when close. */
-.today-tuner::after {
-  content: ''; position: absolute; inset: -5px; border-radius: 50%;
-  border: 3.5px solid transparent; transform: rotate(-45deg); pointer-events: none;
-}
-.today-tuner.sharp::after { border-top-color: var(--danger); border-right-color: var(--danger); }
-.today-tuner.flat::after { border-bottom-color: var(--danger); border-left-color: var(--danger); }
-.today-tuner.sharp.near::after { border-top-color: var(--accent); border-right-color: var(--accent); }
-.today-tuner.flat.near::after { border-bottom-color: var(--accent); border-left-color: var(--accent); }
+/* Sharp: the top half filled; flat: the bottom half. Red, or orange when close. */
+.today-tuner { --off: var(--danger); }
+.today-tuner.near { --off: var(--accent); }
+.today-tuner.live.sharp { background: linear-gradient(var(--off) 50%, var(--ink) 50%); color: #fff; }
+.today-tuner.live.flat { background: linear-gradient(var(--ink) 50%, var(--off) 50%); color: #fff; }
+.today-tuner .hd-live { position: relative; text-shadow: 0 0 3px rgba(0, 0, 0, .55); }
 @media (max-width: 359px) { .hd-tool { width: 34px; height: 34px; } .hd-tools { gap: 3px; } }
 /* On Today the circles show the metronome and tuner, so their pills aren't needed there. */
 body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"]) .tuner-pill { display: none; }
+.add-today { margin-top: 10px; }
+.in-today { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--good); }
+.in-today svg { width: 16px; height: 16px; }

@@ -5,7 +5,7 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { syncFocus, refreshTypes } from '../plan.js';
+import { syncFocus, refreshTypes, addToToday, inToday } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
@@ -104,6 +104,9 @@ export function openExercise(id, opts = {}) {
         <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
         <input type="checkbox" id="x-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
+      ${isNew || t.focus ? '' : inToday(t)
+        ? `<p class="in-today">${ICON.check}In today’s set</p>`
+        : `<button class="ghost-btn add-today" id="x-today">${ICON.plus}<span>Add to today’s set</span></button>`}
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? '<button class="link-btn" id="x-to-pattern">Edit pattern</button>'
         : t.abc ? '<button class="link-btn" id="x-edit-abc">Edit</button>' : ''}</div>
@@ -201,8 +204,18 @@ ${t.fromTune ? '' : `
 
   const outerBack = opts.back;
   let leaving = false;
+  let added = false;
+  // A new exercise is added once it has a name: with the button, or by closing the sheet.
+  const addNew = () => {
+    if (added || !t.name.trim()) return false;
+    added = true;
+    t.name = t.name.trim();
+    withUndo(`Added ${t.name}`, () => state.items.push(t));
+    return true;
+  };
   const sheet = openSheet(body(), () => {
     stopFn?.();
+    if (isNew && !leaving) addNew();
     if (!isNew) render();
     if (!leaving) outerBack?.();
   });
@@ -387,16 +400,13 @@ ${t.fromTune ? '' : `
     const sug = $('.suggest [data-level]', sheet);
     if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
     $('#x-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
+    const addBtn = $('#x-today', sheet);
+    if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
 
     if (isNew) {
       $('#x-save', sheet).onclick = () => {
         if (!t.name.trim()) { nameEl.focus(); return toast('Give the exercise a name'); }
-        t.name = t.name.trim();
-        state.items.push(t);
-        save();
-        closeSheet();
-        render();
-        toast(`Added ${t.name}`);
+        closeSheet(); // adds it
       };
       return;
     }
@@ -452,8 +462,8 @@ export function openNotationEditor(t, back) {
   let accidental = '';
   let octave = 4;
   let typing = false;
-  let saved = false;
   let stopFn = null;
+  const original = { abc: t.abc || '', meter: t.meter || '4/4' };
   let tune = null;
 
   const sheet = openSheet(`
@@ -491,18 +501,26 @@ export function openNotationEditor(t, back) {
       ${playbackOptionsHtml()}
     </div>
     <p class="fine">Write it in C — it’s transposed into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up.</p>
-    <button class="primary-btn" id="ne-save">Save notation</button>
+    <button class="primary-btn" id="ne-save">Done</button>
+    <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
   `, () => {
     stopFn?.();
     stopPlayback();
-    if (saved) save();
     back?.();
   });
 
   const area = $('#ne-abc', sheet);
   const preview = $('#ne-preview', sheet);
   let drawTimer = null;
+  // Every change is saved as it's made (Undo changes puts back what it was when opened).
+  const keep = () => {
+    t.abc = body.trim();
+    t.meter = meter;
+    save();
+    $('#ne-revert', sheet).hidden = t.abc === original.abc.trim() && t.meter === original.meter;
+  };
   const draw = () => {
+    keep();
     clearTimeout(drawTimer);
     drawTimer = setTimeout(async () => {
       tune = await renderNotation(preview, body, { meter, tempo: t.tempo || 100 }).catch(() => null);
@@ -589,12 +607,14 @@ export function openNotationEditor(t, back) {
       toast('Couldn’t play audio on this device');
     }
   };
-  $('#ne-save', sheet).onclick = () => {
-    t.abc = body.trim();
-    t.meter = meter;
-    saved = true;
-    closeSheet();
-    toast('Notation saved');
+  $('#ne-save', sheet).onclick = () => closeSheet();
+  $('#ne-revert', sheet).onclick = () => {
+    body = original.abc;
+    meter = original.meter;
+    area.value = body;
+    $('#ne-meter', sheet).value = meter;
+    draw();
+    toast('Back to how it was');
   };
 
   showMods();

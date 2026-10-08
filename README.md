@@ -127,6 +127,11 @@ history. After you rate a session:
 Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
 you actually played. Nudging the metronome while you practice updates today's session too.
 
+Everything saves as you go: details, notes, notation (with **Undo changes** to go back to how it
+was when you opened the editor) and chord charts (each edit is kept once it reads as a chart). A
+new tune or exercise is added when you close it, once it has a name (with Undo). An exercise's or
+tune's details have **Add to today's set**.
+
 ## Chord charts
 
 Each tune's details show its chord chart, by section with endings, written for your instrument and in
@@ -156,8 +161,8 @@ reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algori
 which finds the fundamental even when overtones are louder, as they often are on sax.
 
 **Mini tuner** (in the tuner's top corner) keeps it listening while you go through today's set: the
-Tuner circle at the top of Today shows the note — green when in tune, with an arc over the top
-when you're sharp or under the bottom when you're flat (orange within 15 cents, red beyond), and on other tabs a small
+Tuner circle at the top of Today shows the note — green when in tune; when you're sharp its top half
+fills, when you're flat its bottom half (orange within 15 cents, red beyond), and on other tabs a small
 pill shows the note and a dot that sits on the centre line when you're in tune. Tap either for the
 full tuner; the pill's × stops it.
 

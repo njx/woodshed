@@ -132,3 +132,19 @@ test('“Through the changes” opened on its own explains where its chords come
   await expect(page.locator('.sheet')).toContainText('takes its chords from a tune');
   await expect(page.locator('#x-notation')).toHaveCount(0);
 });
+
+test('chart edits save as you type; Undo changes puts it back', async ({ page, ui }) => {
+  await ui.start();
+  await openTune(page, ui, 'Autumn Leaves');
+  await page.click('#chart-edit');
+  const text = page.locator('#ce-text');
+  await text.fill((await text.inputValue()).replace(/^A: (\w+)/, 'A: Cm9'));
+  await expect.poll(async () => (await ui.saved()).state.items.find((t) => t.name === 'Autumn Leaves').chartEdited).toBe(true);
+  await ui.backdrop(); // closing keeps it
+  await expect(page.locator('.chart .bar').first()).toHaveText(/m9/);
+  await page.click('#chart-edit');
+  await page.fill('#ce-text', 'A: Cm7 | Xyz');
+  await expect(page.locator('#ce-msg')).toContainText('Xyz');
+  await page.click('#ce-revert');
+  await expect(page.locator('.chart .bar').first()).toHaveText(/m9/); // as it was when opened
+});

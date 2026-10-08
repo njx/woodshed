@@ -152,3 +152,55 @@ test.describe('offline before a sound was ever used', () => {
     await expect(page.locator('#x-play span')).toHaveText('Stop');
   });
 });
+
+test('notation saves as you write it; Undo changes puts it back', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Bebop dominant scale' }).click();
+  const before = (await ui.saved()).state.items.find((t) => t.name === 'Bebop dominant scale').abc;
+  await page.click('#x-edit-abc');
+  await expect(page.locator('#ne-revert')).toBeHidden(); // nothing changed yet
+  const abc = async () => (await ui.saved()).state.items.find((t) => t.name === 'Bebop dominant scale').abc;
+  await page.click('#ne-pad [data-ins=" | "]');
+  await page.click('#ne-pad [data-note="G"]');
+  await expect.poll(abc).not.toBe(before); // saved already
+  // Undo changes: back to how it was when the editor opened.
+  await page.click('#ne-revert');
+  await expect.poll(abc).toBe(before);
+  await expect(page.locator('#ne-revert')).toBeHidden();
+  // An edit, then closing without anything else: kept.
+  await page.click('#ne-pad [data-note="A"]');
+  await ui.backdrop();
+  await expect.poll(abc).toMatch(/A$/);
+});
+
+test('add an exercise or tune to today’s set from its details', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Chromatic scale' }).click();
+  await page.click('#x-today');
+  await expect(page.locator('#toast')).toContainText('Added Chromatic scale to today’s set');
+  await expect(page.locator('.in-today')).toHaveText('In today’s set');
+  await ui.backdrop();
+  await ui.tab('today');
+  await expect(page.locator('.card h2', { hasText: 'Chromatic scale' })).toHaveCount(1);
+});
+
+test('a new tune is added when its sheet closes, if it has a name', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  const count = await page.locator('#tune-list .row').count();
+  await page.click('#add');
+  await page.fill('#f-name', 'Moanin’');
+  await ui.backdrop();
+  await expect(page.locator('#toast')).toContainText('Added Moanin’');
+  await expect(page.locator('#tune-list .row')).toHaveCount(count + 1);
+  await page.click('#toast button'); // Undo
+  await expect(page.locator('#tune-list .row')).toHaveCount(count);
+  // Without a name, nothing is added.
+  await page.click('#add');
+  await ui.backdrop();
+  await expect(page.locator('#tune-list .row')).toHaveCount(count);
+});

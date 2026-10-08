@@ -6,7 +6,7 @@ import { isMinor } from '../keys.js';
 import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
 import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
 import { addWarmups } from '../plan.js';
-import { $, ICON, render, toast, openSheet, kn } from './shell.js';
+import { $, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
 
 // The chord chart in a tune's details: shown in the key it's played in today (or its usual
 // key), written for the instrument; another key can be picked. Editable.
@@ -94,38 +94,59 @@ export async function openChartEditor(t, { key = 0, back } = {}) {
   const shift = existing ? chartShift(existing, key, view()) : TRANSPOSITIONS[view()].offset;
   const written = (((key % 12) + TRANSPOSITIONS[view()].offset) % 12) + (minor ? 12 : 0);
   const text = existing ? chartToText(existing, { shift, sharps: usesSharps(written) }) : 'A: ';
-  let saved = false;
+  const original = { chart: t.chart ? structuredClone(t.chart) : null, edited: !!t.chartEdited };
+  let pending = null; // the last edit, if it didn't read as a chart
   const sheet = openSheet(`
     <p class="eyebrow">Chords · ${esc(t.name)} · in ${esc(kn(key))}</p>
     <label class="field">
       <textarea id="ce-text" rows="10" spellcheck="false" autocapitalize="off" autocomplete="off" class="mono">${esc(text)}</textarea>
     </label>
-    <p class="fine" id="ce-msg">One section per line, like <code>A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %</code>. Bars are separated by <code>|</code>, chords in a bar by spaces; <code>%</code> means the chord carries on. Endings: <code>A 1.:</code> and <code>A 2.:</code>.</p>
-    <button class="primary-btn" id="ce-save">Save chart</button>
+    <p class="fine" id="ce-msg" data-help="1">One section per line, like <code>A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %</code>. Bars are separated by <code>|</code>, chords in a bar by spaces; <code>%</code> means the chord carries on. Endings: <code>A 1.:</code> and <code>A 2.:</code>.</p>
+    <button class="primary-btn" id="ce-save">Done</button>
+    <button class="link-btn" id="ce-revert" hidden>Undo changes</button>
     ${t.chartEdited && seedChart(t) ? '<button class="ghost-btn" id="ce-reset">Go back to the original chart</button>' : ''}
-  `, () => { if (!saved) back?.(); });
-  $('#ce-save', sheet).onclick = () => {
-    const meter = existing?.meter || '4/4';
-    const r = chartFromText($('#ce-text', sheet).value, { key: base, meter, shift });
-    if (r.error) {
-      $('#ce-msg', sheet).textContent = r.error;
-      $('#ce-msg', sheet).classList.add('error');
-      return;
-    }
+  `, () => {
+    if (pending) toast(`Your last change to the chart wasn’t kept: ${pending}`);
+    back?.();
+  });
+  const msg = $('#ce-msg', sheet);
+  const help = msg.innerHTML;
+  // Each edit is saved once the text reads as a chart; until then the last good one stays.
+  let timer = null;
+  const keep = () => {
+    const r = chartFromText($('#ce-text', sheet).value, { key: base, meter: existing?.meter || '4/4', shift });
+    pending = r.error || null;
+    msg.classList.toggle('error', !!r.error);
+    if (r.error) { msg.textContent = r.error; return; }
+    msg.innerHTML = help;
     t.chart = r.chart;
     t.chartEdited = true;
     save();
-    saved = true;
-    toast('Chart saved');
-    back?.();
+  };
+  $('#ce-text', sheet).oninput = () => {
+    $('#ce-revert', sheet).hidden = false;
+    clearTimeout(timer);
+    timer = setTimeout(keep, 400);
+  };
+  // Done: stays open to show what's wrong if the text doesn't read as a chart.
+  $('#ce-save', sheet).onclick = () => { clearTimeout(timer); keep(); if (!pending) closeSheet(); };
+  $('#ce-revert', sheet).onclick = () => {
+    clearTimeout(timer);
+    t.chart = original.chart ? structuredClone(original.chart) : null;
+    t.chartEdited = original.edited;
+    pending = null;
+    save();
+    closeSheet();
+    toast('Chart back to how it was');
   };
   const reset = $('#ce-reset', sheet);
   if (reset) reset.onclick = () => {
+    clearTimeout(timer);
     t.chart = seedChart(t);
     t.chartEdited = false;
+    pending = null;
     save();
-    saved = true;
+    closeSheet();
     toast('Back to the original chart');
-    back?.();
   };
 }

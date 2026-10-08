@@ -6,7 +6,7 @@ import { esc, uid } from '../util.js';
 import {
   itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
 } from '../practice.js';
-import { syncFocus } from '../plan.js';
+import { syncFocus, addToToday, inToday } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
 import { entriesFor } from '../diary.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -80,6 +80,9 @@ export function openItem(id, opts) {
         <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
         <input type="checkbox" id="f-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
+      ${isNew || t.focus ? '' : inToday(t)
+        ? `<p class="in-today">${ICON.check}In today’s set</p>`
+        : `<button class="ghost-btn add-today" id="f-today">${ICON.plus}<span>Add to today’s set</span></button>`}
       ${isNew ? '' : '<div id="chart-box" class="chart-box"></div>'}
       ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
       ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
@@ -123,7 +126,16 @@ export function openItem(id, opts) {
     `;
   };
 
-  const sheet = openSheet(body(), () => { if (!isNew) render(); });
+  let added = false;
+  // A new tune is added once it has a name: with the button, or by closing the sheet.
+  const sheet = openSheet(body(), () => {
+    if (isNew && !added && t.name.trim()) {
+      added = true;
+      t.name = t.name.trim();
+      ui.query = '';
+      withUndo(`Added ${t.name}`, () => state.items.push(t));
+    } else if (!isNew) render();
+  });
   const commit = () => { if (!isNew) save(); };
   const refresh = () => {
     const y = $('.sheet-body', sheet).scrollTop;
@@ -206,16 +218,12 @@ export function openItem(id, opts) {
         commit();
       };
     });
+    const addBtn = $('#f-today', sheet);
+    if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
     if (isNew) {
       $('#save-new', sheet).onclick = () => {
         if (!t.name.trim()) { $('#f-name', sheet).focus(); return toast('Give the tune a name'); }
-        t.name = t.name.trim();
-        state.items.push(t);
-        save();
-        closeSheet();
-        ui.query = '';
-        render();
-        toast(`Added ${t.name}`);
+        closeSheet(); // adds it
       };
     } else {
       $('#log-today', sheet).onclick = () => {

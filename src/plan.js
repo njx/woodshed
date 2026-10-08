@@ -124,6 +124,25 @@ export function applyExerciseFocus(plan = store.state.plan) {
   orderPlan(plan);
 }
 
+// Puts a tune or exercise into today's set (from its details). False if it's already there.
+// In "Before tunes", a tune gets its warm-ups.
+export function addToToday(t) {
+  ensurePlan();
+  const plan = store.state.plan;
+  if (inToday(t)) return false;
+  plan.items.push(makePlanItem(t, itemStats(), t.focus ? 'focus' : bucketOf(t)));
+  plan.skipped = (plan.skipped || []).filter((id) => id !== t.id);
+  if (t.type === 'tune' && (store.state.settings.exerciseFocus || 'own') === 'tunes') applyExerciseFocus(plan);
+  else orderPlan(plan);
+  save();
+  return true;
+}
+// Whether it's in today's set in its own right (not only as a warm-up).
+export const inToday = (t) => {
+  const plan = store.state.plan;
+  return !!plan && plan.date === dateStr() && plan.items.some((i) => i.itemId === t.id && !i.warmup);
+};
+
 // Swaps the warm-up at index i of today's set for another (see altWarmup). False if there's none.
 export function swapWarmup(i, plan = store.state.plan) {
   const it = plan.items[i];
