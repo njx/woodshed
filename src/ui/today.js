@@ -124,10 +124,17 @@ function liveTools() {
     if (tn) {
       const last = ts.running ? tuner.last : null;
       const note = last && performance.now() - last.at < HOLD_MS ? last : null;
+      const off = note ? Math.abs(note.cents) : 0;
+      const name = note ? writtenName(note.midi, store.state.settings.view) : '';
       tn.classList.toggle('live', ts.running);
-      tn.classList.toggle('good', !!note && Math.abs(note.cents) <= 5);
-      tn.classList.toggle('near', !!note && Math.abs(note.cents) > 5 && Math.abs(note.cents) <= 15);
-      $('.hd-live', tn).textContent = ts.running ? (note ? writtenName(note.midi, store.state.settings.view) : '–') : '';
+      tn.classList.toggle('good', !!note && off <= 5);
+      // Off pitch: an arc on the top half if sharp, the bottom half if flat; orange when close.
+      tn.classList.toggle('sharp', !!note && off > 5 && note.cents > 0);
+      tn.classList.toggle('flat', !!note && off > 5 && note.cents < 0);
+      tn.classList.toggle('near', !!note && off > 5 && off <= 15);
+      $('.hd-live', tn).textContent = ts.running ? name || '–' : '';
+      tn.setAttribute('aria-label', !ts.running ? 'Tuner' : !note ? 'Tuner, listening'
+        : off <= 5 ? `Tuner: ${name}, in tune` : `Tuner: ${name}, ${Math.round(off)} cents ${note.cents > 0 ? 'sharp' : 'flat'}`);
     }
     if ((ms.running || ts.running) && (m || tn)) liveRaf = requestAnimationFrame(tick);
   };

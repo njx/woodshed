@@ -1066,9 +1066,16 @@ html { overflow-anchor: none; }
 .hd-tool.live .hd-live { display: block; }
 .today-metro.live.beat { background: var(--accent); color: #fff; }
 .today-metro.live.beat.accent { background: var(--danger); }
-.today-tuner.live { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-3) 40%, transparent); }
-.today-tuner.live.near { box-shadow: 0 0 0 3px var(--accent); }
 .today-tuner.live.good { background: var(--good); color: #fff; box-shadow: 0 0 0 3px var(--good-soft); }
+/* Sharp: an arc over the top half; flat: under the bottom half. Red, or orange when close. */
+.today-tuner::after {
+  content: ''; position: absolute; inset: -5px; border-radius: 50%;
+  border: 3.5px solid transparent; transform: rotate(-45deg); pointer-events: none;
+}
+.today-tuner.sharp::after { border-top-color: var(--danger); border-right-color: var(--danger); }
+.today-tuner.flat::after { border-bottom-color: var(--danger); border-left-color: var(--danger); }
+.today-tuner.sharp.near::after { border-top-color: var(--accent); border-right-color: var(--accent); }
+.today-tuner.flat.near::after { border-bottom-color: var(--accent); border-left-color: var(--accent); }
 @media (max-width: 359px) { .hd-tool { width: 34px; height: 34px; } .hd-tools { gap: 3px; } }
 /* On Today the circles show the metronome and tuner, so their pills aren't needed there. */
 body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"]) .tuner-pill { display: none; }

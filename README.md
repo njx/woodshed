@@ -156,7 +156,8 @@ reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algori
 which finds the fundamental even when overtones are louder, as they often are on sax.
 
 **Mini tuner** (in the tuner's top corner) keeps it listening while you go through today's set: the
-Tuner circle at the top of Today shows the note (green when in tune), and on other tabs a small
+Tuner circle at the top of Today shows the note — green when in tune, with an arc over the top
+when you're sharp or under the bottom when you're flat (orange within 15 cents, red beyond), and on other tabs a small
 pill shows the note and a dot that sits on the centre line when you're in tune. Tap either for the
 full tuner; the pill's × stops it.
 

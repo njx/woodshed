@@ -82,3 +82,21 @@ test('the metronome’s circle shows the tempo while it runs', async ({ page, ui
   }));
   expect(flashed).toBe(true);
 });
+
+test('the tuner circle shows sharp (an arc on top) and flat (underneath)', async ({ page, ui }) => {
+  await ui.start({ instruments: ['bb'] });
+  await page.click('#today-tuner');
+  await page.click('#t-mini');
+  const circle = page.locator('#today-tuner');
+  // The fake mic: B♭ 8 cents sharp, then a D sagging to 25 cents flat.
+  const shot = async (cls, name) => {
+    await expect(circle).toHaveClass(new RegExp(`\\b${cls}\\b`), { timeout: 10000 });
+    const b = await circle.boundingBox();
+    await page.screenshot({ path: test.info().outputPath(`${name}.png`), clip: { x: b.x - 14, y: b.y - 14, width: b.width + 28, height: b.height + 28 } });
+    return circle.getAttribute('aria-label');
+  };
+  expect(await shot('sharp', 'sharp')).toMatch(/cents sharp$/);
+  expect(await shot('flat', 'flat')).toMatch(/cents flat$/);
+  await page.click('#today-tuner'); // the full tuner; closing it stops listening
+  await ui.backdrop();
+});
