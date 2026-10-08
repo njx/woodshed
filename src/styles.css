@@ -316,8 +316,13 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
   box-shadow: 0 -8px 30px rgba(0, 0, 0, .2);
 }
 #sheet-root.open .sheet { transform: translateY(0); }
-.sheet-grab { padding: 10px 0 6px; display: grid; place-items: center; touch-action: none; cursor: grab; }
-.sheet-grab span { width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
+.sheet-grab { position: relative; flex: none; height: 34px; display: grid; place-items: center; touch-action: none; cursor: grab; }
+.sheet-grab span { width: 44px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--ink-3) 45%, transparent); }
+.sheet-x {
+  position: absolute; right: 10px; top: 6px; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface-2); color: var(--ink-2);
+}
+.sheet-x svg { width: 15px; height: 15px; }
 .sheet-body { overflow-y: auto; padding: 4px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; }
 .title-input {
   display: block; resize: none; overflow: hidden;

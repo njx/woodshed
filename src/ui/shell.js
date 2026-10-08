@@ -136,26 +136,94 @@ export function openSheet(html, onClose) {
   root.innerHTML = `
     <div class="sheet-backdrop"></div>
     <section class="sheet" role="dialog" aria-modal="true">
-      <div class="sheet-grab"><span></span></div>
+      <div class="sheet-grab"><span></span><button class="sheet-x" aria-label="Close">${ICON.skip}</button></div>
       <div class="sheet-body">${html}</div>
     </section>`;
   const sheet = $('.sheet', root);
   requestAnimationFrame(() => root.classList.add('open'));
   $('.sheet-backdrop', root).onclick = closeSheet;
+  $('.sheet-x', root).onclick = closeSheet;
   sheetClose = onClose;
-
-  // Drag the grab handle down to dismiss.
-  const grab = $('.sheet-grab', root);
-  let sy = null;
-  grab.addEventListener('pointerdown', (e) => { sy = e.clientY; grab.setPointerCapture(e.pointerId); sheet.style.transition = 'none'; });
-  grab.addEventListener('pointermove', (e) => { if (sy != null) sheet.style.transform = `translateY(${Math.max(0, e.clientY - sy)}px)`; });
-  grab.addEventListener('pointerup', (e) => {
-    sheet.style.transition = '';
-    if (sy != null && e.clientY - sy > 80) closeSheet();
-    else sheet.style.transform = '';
-    sy = null;
-  });
+  dragToDismiss(root, sheet);
   return sheet;
+}
+
+// Pull a sheet down to close it: by its handle, or from anywhere once it's scrolled to the top
+// (not from a text field, slider or sideways swipe). Far enough, or a quick flick, closes it;
+// otherwise it springs back. Touch uses touch events (so the page can't take the gesture over
+// half way); a mouse can drag the handle.
+function dragToDismiss(root, sheet) {
+  const grab = $('.sheet-grab', sheet);
+  const body = $('.sheet-body', sheet);
+  const backdrop = $('.sheet-backdrop', root);
+  let start = null; // { x, y, fromGrab, top }
+  let dragging = false;
+  let samples = []; // recent [t, y], for the flick speed
+
+  const begin = (x, y, target) => {
+    if (target.closest('.sheet-x')) return;
+    const fromGrab = grab.contains(target);
+    if (!fromGrab && target.closest('input, textarea, select, canvas, [contenteditable], .no-sheet-drag')) return;
+    start = { x, y, fromGrab, top: body.scrollTop };
+    dragging = false;
+    samples = [[performance.now(), y]];
+  };
+  // Returns true while the sheet follows the finger.
+  const move = (x, y) => {
+    if (!start) return false;
+    const dy = y - start.y, dx = x - start.x;
+    if (!dragging) {
+      if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return false;
+      // Downward, mostly vertical, and from the handle or with the content at its top.
+      if (dy > 0 && Math.abs(dy) > Math.abs(dx) * 1.2 && (start.fromGrab || (start.top <= 0 && body.scrollTop <= 0))) {
+        dragging = true;
+        sheet.style.transition = 'none';
+        backdrop.style.transition = 'none';
+      } else {
+        start = null;
+        return false;
+      }
+    }
+    const d = Math.max(0, dy);
+    sheet.style.transform = `translateY(${d}px)`;
+    backdrop.style.opacity = String(Math.max(0.15, 1 - d / Math.max(300, sheet.offsetHeight)));
+    samples.push([performance.now(), y]);
+    if (samples.length > 6) samples.shift();
+    return true;
+  };
+  const end = (y, cancelled = false) => {
+    if (!start) return;
+    const was = dragging;
+    const dy = y - start.y;
+    start = null;
+    dragging = false;
+    if (!was) return;
+    sheet.style.transition = '';
+    backdrop.style.transition = '';
+    backdrop.style.opacity = '';
+    const [t0, y0] = samples[0];
+    const speed = (y - y0) / Math.max(1, performance.now() - t0); // px per ms
+    if (!cancelled && (dy > Math.min(140, sheet.offsetHeight * 0.3) || (speed > 0.5 && dy > 30))) closeSheet();
+    else sheet.style.transform = '';
+  };
+
+  sheet.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY, e.target);
+  }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    if (move(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); // the sheet moves, not the page
+  }, { passive: false });
+  sheet.addEventListener('touchend', (e) => end(e.changedTouches[0].clientY));
+  sheet.addEventListener('touchcancel', (e) => end(e.changedTouches[0]?.clientY ?? 0, true));
+
+  grab.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse') return; // touch is handled above
+    begin(e.clientX, e.clientY, e.target);
+    if (start) grab.setPointerCapture(e.pointerId); // not when it's the × (its click would be lost)
+  });
+  grab.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') move(e.clientX, e.clientY); });
+  grab.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') end(e.clientY); });
+  grab.addEventListener('pointercancel', (e) => { if (e.pointerType === 'mouse') end(e.clientY, true); });
 }
 export function closeSheet() {
   const root = $('#sheet-root');
