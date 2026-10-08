@@ -52,7 +52,7 @@ test('the first open of a day greets you with Start practice @narrow', async ({ 
   await page.reload();
   const greet = page.locator('.greet');
   await expect(greet).toBeVisible();
-  await expect(greet.locator('.greet-plan')).toContainText('Today’s set: 2 exercises and 5 tunesWarm-ups from the chords before 5 of them');
+  await expect(greet.locator('.greet-plan')).toContainText('Today’s set: 2 exercises and 4 tunesWarm-ups from the chords before 4 of them');
   await page.waitForTimeout(300); // fading in
   await page.screenshot({ path: test.info().outputPath('greet.png') });
   await greet.locator('#greet-start').click();

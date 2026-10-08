@@ -142,13 +142,22 @@ export function dropOrphanWarmups(plan = store.state.plan) {
   plan.items = plan.items.filter((it) => !it.warmup || tunes.has(it.warmup) || isPlanItemPlayed(it));
 }
 
-// The order of today's set: exercises, then tunes (focus first); in "From tunes", each tune's
-// warm-ups go just before it. Warm-ups for a tune that isn't in the set go with the exercises.
+// The order of today's set: exercises, then tunes, focus ones first; the rest mixed up (each tune
+// has a random `mix` for the day, so the order holds) or by group (hone, learn, new), as set.
+// In "Before tunes", each tune's warm-ups go just before it. Warm-ups for a tune that isn't in the
+// set go with the exercises.
 export function orderPlan(plan = store.state.plan) {
-  const tunesMode = (store.state.settings.exerciseFocus || 'own') === 'tunes';
+  const { exerciseFocus, tuneOrder } = store.state.settings;
+  const tunesMode = (exerciseFocus || 'own') === 'tunes';
   const isTune = (it) => itemById(it.itemId)?.type === 'tune';
   const ownTune = (it) => it.warmup && plan.items.some((x) => !x.warmup && x.itemId === it.warmup);
-  const rank = (it) => (tunesMode && !isTune(it) ? -1 : BUCKET_ORDER[it.bucket] ?? 9);
+  for (const it of plan.items) if (typeof it.mix !== 'number') it.mix = Math.random();
+  const mixed = (tuneOrder || 'mixed') === 'mixed';
+  const rank = (it) => {
+    if (tunesMode && !isTune(it)) return -1;
+    if (mixed && isTune(it) && it.bucket !== 'focus') return 2 + it.mix; // after focus and exercises
+    return BUCKET_ORDER[it.bucket] ?? 9;
+  };
   const main = plan.items.filter((it) => !ownTune(it));
   main.sort((a, b) => rank(a) - rank(b));
   plan.items = main.flatMap((it) => [...plan.items.filter((w) => ownTune(w) && w.warmup === it.itemId), it]);

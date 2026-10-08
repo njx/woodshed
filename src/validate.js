@@ -142,6 +142,7 @@ function plan(p, ids) {
     ...(it.prog != null ? { prog: prog(it.prog) } : {}),
     shift: int(it.shift, -11, 11),
     alt: !!it.alt,
+    ...(num(it.mix, 0, 1) != null ? { mix: it.mix } : {}),
   }));
   p.skipped = (Array.isArray(p.skipped) ? p.skipped : []).filter(isId);
   if (p.dayKeys != null) p.dayKeys = keyList(p.dayKeys, 11);
@@ -162,6 +163,7 @@ function settings(s) {
   s.priority = str(s.priority, 20);
   s.newKeys = oneOf(s.newKeys, ['mastered', 'proficient', 'never'], DEFAULT_SETTINGS.newKeys);
   s.a4 = int(s.a4, 430, 450) ?? 440;
+  s.tuneOrder = oneOf(s.tuneOrder, ['mixed', 'group'], DEFAULT_SETTINGS.tuneOrder);
   s.exerciseFocus = oneOf(s.exerciseFocus, ['own', 'day', 'tunes'], DEFAULT_SETTINGS.exerciseFocus);
   s.sound = oneOf(s.sound, Object.keys(SOUNDS), DEFAULT_SETTINGS.sound);
   s.swing = oneOf(s.swing, Object.keys(SWING), DEFAULT_SETTINGS.swing);

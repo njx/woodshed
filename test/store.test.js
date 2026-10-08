@@ -31,7 +31,7 @@ describe('migration', () => {
     expect(s.log[0]).toMatchObject({ itemId: 'a' });
     expect(s.log[0].tuneId).toBeUndefined();
     expect(s.plan.items[0]).toMatchObject({ itemId: 'a', bucket: 'hone' });
-    expect(s.settings).toMatchObject({ view: 'bb', listen: 'apple', hone: 2 });
+    expect(s.settings).toMatchObject({ view: 'bb', listen: 'apple', hone: 1 }); // v8: one hone tune
   });
 
   it('adds starter exercises to version 2 data once', () => {

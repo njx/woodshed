@@ -9,7 +9,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
-// Schema (version 7):
+// Schema (version 8):
 //   items:    practice items, all with { id, type, name, priority 1–4, level null|0–3, notes,
 //             focus, ivl, due, levelSetAt }, plus by type:
 //             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart?,
@@ -22,7 +22,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   log:      { id, date, itemId, pid? (the plan item it was played from), at, key, keys?, types?, alt, shift, rating, bpm?, prev: { ivl, due } }
 //             (exercises log every key practiced in keys; bpm is the tempo it was played at)
 //   plan:     today's set { date, items: [{ pid, itemId, bucket, key, keys?, types?, alt, shift,
-//             warmup?, prog? }] (pid: the plan item's own id, as an exercise can be in a set more
+//             warmup?, prog?, mix? }] (mix: its random place among the day's tunes; pid: the plan item's own id, as an exercise can be in a set more
 //             than once; warmup: the tune it's before; prog: a progression for a fromTune
 //             exercise, see warmups.js), mode (the exercise setting it was made with), prepped
 //             (tunes given warm-ups), dayKeys?, skipped, focusSkipped }
@@ -31,7 +31,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -129,6 +129,11 @@ export function migrate(s) {
     // v7: "From tunes" (warm-ups before each tune) becomes the default way exercises fit a day.
     if (s.settings && (s.settings.exerciseFocus ?? 'own') === 'own') s.settings.exerciseFocus = 'tunes';
     s.version = 7;
+  }
+  if (s.version < 8) {
+    // v8: one hone tune a day by default (was two).
+    if (s.settings?.hone === 2) s.settings.hone = 1;
+    s.version = 8;
   }
   return normalize(s);
 }

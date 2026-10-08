@@ -195,6 +195,11 @@ which don't cover it. The Anthropic console has the official numbers.
 - **A practice day runs until 4am,** so a late session that crosses midnight counts as one day: the
   set, ratings, tempos and diary notes all stay with the evening you started.
 
+- **The daily mix** (Settings → Daily mix): by default 2 exercises and 4 tunes — 1 to hone
+  (proficient or mastered), 2 you're learning, 1 new — plus any focus tunes. The tunes come in a
+  **mixed-up order** each day (focus tunes first), or **by group** (hone, learn, new) if you prefer;
+  either way you can play them in any order.
+
 - **Spaced repetition.** Every tune has a review interval. Playing it pushes the next review
   further out: "OK" stretches the interval by about 1.6×, "Solid" by 2.5×, and "Rough" brings it
   back tomorrow. Starting intervals depend on familiarity (Familiar 2 days, Proficient 4,

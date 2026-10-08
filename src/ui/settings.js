@@ -2,7 +2,7 @@ import { store, save, flush, seedState, migrate } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import { esc, clone } from '../util.js';
-import { buildPlan, refreshExercises } from '../plan.js';
+import { buildPlan, refreshExercises, orderPlan } from '../plan.js';
 import { loadSeedCharts } from '../charts.js';
 import { mediaStats, fmtSize } from '../media.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
@@ -47,6 +47,8 @@ export function renderSettings(root) {
       ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
       ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
       ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
+      <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
+        ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']])}</div>
       <p class="fine">Focus tunes come on top of this mix, every day. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
     </section>
@@ -130,6 +132,8 @@ export function renderSettings(root) {
       if (!b) return;
       s[sg.dataset.setting] = b.dataset.v;
       $$('button', sg).forEach((x) => x.classList.toggle('on', x === b));
+      // The tune order applies to today's set straight away.
+      if (sg.dataset.setting === 'tuneOrder' && store.state.plan?.date === dateStr()) orderPlan(store.state.plan);
       save();
     };
   });

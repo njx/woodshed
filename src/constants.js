@@ -74,7 +74,7 @@ export const CYCLE_OF_FOURTHS = [0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7];
 
 export const DEFAULT_SETTINGS = {
   exercises: 2,
-  hone: 2,
+  hone: 1,
   learn: 2,
   fresh: 1,
   priority: 'some',
@@ -86,4 +86,5 @@ export const DEFAULT_SETTINGS = {
   sound: 'piano', // notation playback (see sounds.js)
   swing: 'straight', // notation playback feel
   exerciseFocus: 'tunes', // own | day | tunes (see plan.js)
+  tuneOrder: 'mixed', // mixed | group: today's tunes in a random order, or hone → learn → new
 };

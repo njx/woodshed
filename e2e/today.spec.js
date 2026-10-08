@@ -6,14 +6,14 @@ test('first run picks instruments and builds a set @narrow', async ({ page, ui }
   await page.click('.welcome .chip[data-ins="bb"]');
   await page.click('#ins-done');
   await expect(page.locator('.welcome')).toHaveCount(0);
-  // Two exercises up top, then the tunes (2 hone, 2 learn, 1 new), each after its warm-ups.
-  await expect(page.locator('.card:not(.b-exercise)')).toHaveCount(5);
+  // Two exercises up top, then the tunes (1 hone, 2 learn, 1 new, mixed up), each after its warm-ups.
+  await expect(page.locator('.card:not(.b-exercise)')).toHaveCount(4);
   const cards = await page.$$eval('.card', (cs) => cs.map((c) => ({
     bucket: c.querySelector('.bucket').textContent, style: c.querySelector('.style').textContent, name: c.querySelector('h2').textContent,
   })));
   expect(cards.slice(0, 2).map((c) => c.bucket)).toEqual(['Exercise', 'Exercise']);
   const warm = cards.filter((c) => c.bucket === 'Warm-up');
-  expect(warm.length).toBeGreaterThanOrEqual(5);
+  expect(warm.length).toBeGreaterThanOrEqual(4);
   for (const [i, c] of cards.entries()) {
     if (c.bucket !== 'Warm-up') continue;
     const tune = cards.slice(i + 1).find((x) => x.bucket !== 'Warm-up');
@@ -149,4 +149,15 @@ test('picks up data from the first version of the app', async ({ page }) => {
   await page.locator('.card h2', { hasText: 'Solar' }).click();
   await expect(page.locator('#f-notes')).toHaveValue('watch the bridge');
   await expect(page.locator('#f-focus')).toBeChecked();
+});
+
+test('tune order: mixed by default, or by group from Settings (applies to today)', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('settings');
+  await expect(page.locator('.seg[data-setting="tuneOrder"] .on')).toHaveText('Mixed');
+  await page.click('.seg[data-setting="tuneOrder"] [data-v="group"]');
+  await ui.tab('today');
+  const buckets = await page.$$eval('.card:not(.b-exercise) .bucket', (b) => b.map((x) => x.textContent));
+  const rank = { Focus: 0, Hone: 1, Learn: 2, New: 3 };
+  expect(buckets.map((b) => rank[b])).toEqual([...buckets.map((b) => rank[b])].sort());
 });

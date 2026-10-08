@@ -16,19 +16,33 @@ const library = () => [
 const buckets = (plan) => plan.items.map((i) => i.bucket);
 
 describe('daily set', () => {
-  it('follows the hone / learn / new mix with no repeats', () => {
-    setState(library());
+  it('follows the hone / learn / new mix with no repeats (one hone, two learn, one new by default)', () => {
+    setState(library(), { settings: { tuneOrder: 'group' } });
     buildPlan();
     const plan = store.state.plan;
     expect(plan.date).toBe(TODAY);
-    expect(buckets(plan)).toEqual(['hone', 'hone', 'learn', 'learn', 'fresh']);
-    expect(new Set(plan.items.map((i) => i.itemId)).size).toBe(5);
+    expect(buckets(plan)).toEqual(['hone', 'learn', 'learn', 'fresh']);
+    expect(new Set(plan.items.map((i) => i.itemId)).size).toBe(4);
+  });
+
+  it('mixes the tunes up by default, in an order that holds for the day', () => {
+    const seen = new Set();
+    for (let n = 0; n < 12; n++) {
+      setState(library(), { settings: { hone: 2 } });
+      buildPlan();
+      seen.add(buckets(store.state.plan).join());
+    }
+    expect(seen.size).toBeGreaterThan(1); // not always hone first
+    const order = store.state.plan.items.map((i) => i.itemId);
+    ensurePlan();
+    syncFocus();
+    expect(store.state.plan.items.map((i) => i.itemId)).toEqual(order);
   });
 
   it('fills from other groups when one runs out', () => {
     setState([tune({ level: 2 }), ...Array.from({ length: 5 }, () => tune({ level: 0 }))]);
     buildPlan();
-    expect(store.state.plan.items).toHaveLength(5);
+    expect(store.state.plan.items).toHaveLength(4);
   });
 
   it('adds focus items on top of the mix, unless skipped today', () => {
@@ -36,8 +50,8 @@ describe('daily set', () => {
     items[15].focus = true;
     setState(items);
     buildPlan();
-    expect(buckets(store.state.plan)[0]).toBe('focus');
-    expect(store.state.plan.items).toHaveLength(6);
+    expect(buckets(store.state.plan)[0]).toBe('focus'); // focus first, even mixed
+    expect(store.state.plan.items).toHaveLength(5);
 
     store.state.plan.focusSkipped.push(items[15].id);
     store.state.plan.items.shift();
@@ -52,14 +66,14 @@ describe('daily set', () => {
     markPlayed(played);
     buildPlan(true);
     expect(store.state.plan.items.map((i) => i.itemId)).toContain(played);
-    expect(store.state.plan.items).toHaveLength(5);
+    expect(store.state.plan.items).toHaveLength(4);
   });
 
   it('starts a new set on a new day', () => {
     setState(library(), { plan: { date: '2026-10-05', items: [], skipped: [], focusSkipped: [] } });
     ensurePlan();
     expect(store.state.plan.date).toBe(TODAY);
-    expect(store.state.plan.items).toHaveLength(5);
+    expect(store.state.plan.items).toHaveLength(4);
   });
 
   it('prefers overdue tunes over ones just reviewed', () => {

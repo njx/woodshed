@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { store, seedState, migrate } from '../src/store.js';
+import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { warmupsFor, prepFor, altWarmup } from '../src/warmups.js';
 import { buildPlan, addWarmups, ensurePlan, dropOrphanWarmups } from '../src/plan.js';
@@ -34,7 +34,7 @@ describe('charts for tunes', () => {
     solar.chart = { key: 0, meter: '4/4', sections: [{ label: 'A', repeats: 0, bars: [{ chords: [{ root: 0, q: 'maj7' }], alts: [] }], endings: [] }] };
     for (const t of old.items) if (t.name !== 'Solar') delete t.chart;
     const s = migrate(old);
-    expect(s.version).toBe(7);
+    expect(s.version).toBe(SCHEMA_VERSION);
     expect(s.items.find((t) => t.name === 'Autumn Leaves').chart.sections.length).toBeGreaterThan(0);
     expect(s.items.find((t) => t.name === 'Solar').chart.sections[0].bars).toHaveLength(1);
   });
