@@ -186,10 +186,10 @@ async function shareText(text) {
 
 // ---------- Note editor ----------
 
-// Dictation, where the browser has speech recognition — but not on iPhone/iPad, where it can freeze
-// a home-screen app (and the keyboard's own mic button does the same job reliably).
-const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const Recognition = isIOS ? null : globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+// Dictation, where the browser has speech recognition. (On iPhone, the first time asks for speech
+// recognition permission, and that can leave it stuck: see the watchdog below.)
+const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+const START_WAIT_MS = 6000;
 
 // id null = new note. opts.itemId links a new note to a tune; opts.flag preselects a flag;
 // opts.back reopens whatever sheet the note was opened from.
@@ -323,7 +323,8 @@ export function openNote(id, opts = {}) {
   if (mic) mic.onclick = () => {
     if (rec) return stopListening();
     rec = new Recognition();
-    rec.continuous = false; // a phrase at a time: continuous mode is unreliable in some browsers
+    const mine = rec;
+    rec.continuous = true;
     rec.interimResults = false;
     rec.lang = navigator.language || 'en-US';
     rec.onresult = (ev) => {
@@ -334,7 +335,16 @@ export function openNote(id, opts = {}) {
       stopListening();
       if (ev.error !== 'aborted') toast('Dictation isn’t available — try the mic on your keyboard');
     };
-    rec.onend = () => { if (rec) stopListening(); };
+    rec.onend = () => { if (rec === mine) stopListening(); };
+    // If it hasn't started listening in a while (e.g. stuck after a permission prompt), give up
+    // rather than leave the note waiting: it usually works the next time.
+    let started = false;
+    rec.onaudiostart = rec.onstart = () => { started = true; };
+    setTimeout(() => {
+      if (rec !== mine || started) return;
+      stopListening();
+      toast('Dictation didn’t start — try again, or use the mic on your keyboard');
+    }, START_WAIT_MS);
     try {
       rec.start();
       mic.classList.add('on');

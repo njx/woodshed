@@ -215,8 +215,9 @@ which don't cover it. The Anthropic console has the official numbers.
 ## Diary
 
 The **Diary** tab keeps notes about your practice, typed or dictated: the editor's mic button uses
-the browser's speech recognition where it's available (not on iPhone/iPad, where it can freeze a
-home-screen app — use the keyboard's mic there), and the keyboard's mic works everywhere. A
+the browser's speech recognition where it's available (on iPhone the first use asks for permission
+to use speech recognition, which can get stuck — if dictation doesn't start within a few seconds
+it gives up, and it works the next time), and the keyboard's mic works everywhere. A
 note can be about a specific tune, and then it also shows in that tune's details. Each day in the
 diary also lists what you played.
 
