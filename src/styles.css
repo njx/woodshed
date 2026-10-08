@@ -738,9 +738,9 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .keypad { display: grid; gap: 6px; margin-top: 10px; user-select: none; -webkit-user-select: none; }
 .kp-row { display: grid; gap: 5px; }
 .kp-row.durations { grid-template-columns: repeat(7, 1fr); }
-.kp-row.mods { grid-template-columns: repeat(4, 1fr) 1.4fr 1fr; align-items: center; }
+.kp-row.mods { grid-template-columns: repeat(4, 1fr) 1.4fr 1fr 1.3fr; align-items: center; }
 .kp-row.notes { grid-template-columns: repeat(7, 1fr); }
-.kp-row.tools { grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; }
+.kp-row.tools { grid-template-columns: 1.2fr repeat(6, 1fr); }
 .keypad button {
   min-height: 44px; border-radius: 10px; background: var(--surface); box-shadow: 0 1px 0 var(--line);
   font-size: 15px; font-weight: 600; color: var(--ink);
@@ -1080,3 +1080,18 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .add-today { margin-top: 10px; }
 .in-today { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--good); }
 .in-today svg { width: 16px; height: 16px; }
+
+/* Notation full screen: black on white, sideways; turned for you when the phone is upright. */
+.notation-full { position: fixed; inset: 0; z-index: 60; background: #fff; color: #111; overflow: hidden; }
+.nf-page { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; padding: 12px max(16px, env(safe-area-inset-left)) 12px max(16px, env(safe-area-inset-right)); box-sizing: border-box; }
+.notation-full.turned .nf-page { transform-origin: 0 0; transform: translateX(100vw) rotate(90deg); }
+.nf-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; font-size: 15px; }
+.nf-head b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-btns { display: flex; gap: 8px; flex: none; }
+.nf-btns button { width: 40px; height: 40px; border-radius: 50%; background: #eee; color: #111; font-size: 16px; }
+.nf-notation { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; background: #fff !important; }
+.nt-wrap { position: relative; }
+.x-full {
+  position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 8px;
+  display: grid; place-items: center; background: rgba(0, 0, 0, .06); color: #333; font-size: 17px;
+}

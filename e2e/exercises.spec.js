@@ -204,3 +204,60 @@ test('a new tune is added when its sheet closes, if it has a name', async ({ pag
   await ui.backdrop();
   await expect(page.locator('#tune-list .row')).toHaveCount(count);
 });
+
+test('notation editor: arrows step through notes; Chord adds a symbol over the next note', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Bebop dominant scale' }).click();
+  await page.click('#x-edit-abc');
+  const area = page.locator('#ne-abc');
+  await expect(area).toHaveValue('c B _B A G F E D | C8 |');
+  const caret = () => area.evaluate((a) => a.selectionStart);
+  await area.evaluate((a) => a.setSelectionRange(0, 0));
+  await page.click('#ne-pad [data-move="1"]');
+  expect(await caret()).toBe(1); // after c
+  await page.click('#ne-pad [data-move="1"]');
+  expect(await caret()).toBe(3); // after B
+  await page.click('#ne-pad [data-move="-1"]');
+  expect(await caret()).toBe(1);
+  page.once('dialog', (d) => d.accept('G7'));
+  await page.click('#ne-pad [data-chord]');
+  await expect(area).toHaveValue('c"G7" B _B A G F E D | C8 |');
+  await expect(page.locator('#ne-preview .abcjs-chord')).toHaveText(['G7']);
+  await page.click('#ne-pad [data-back]'); // the symbol goes in one go
+  await expect(area).toHaveValue('c B _B A G F E D | C8 |');
+});
+
+test('notation full screen, turned sideways on a phone held upright, plays, and closes @narrow', async ({ page, ui }) => {
+  await page.addInitScript(() => {
+    const session = { type: 'auto', log: [] };
+    Object.defineProperty(navigator, 'audioSession', { value: new Proxy(session, { set: (o, k, v) => { o[k] = v; if (k === 'type') o.log.push(v); return true; } }) });
+  });
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Seventh-chord arpeggios' }).click();
+  await page.click('#x-full');
+  const full = page.locator('.notation-full');
+  await expect(full).toHaveClass(/\bturned\b/);
+  await expect(full.locator('.abcjs-chord').first()).toBeVisible(); // with its chord symbol
+  await full.locator('.nf-play').click();
+  // Plays through the silent switch, like the metronome.
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.log)).toContain('playback');
+  await full.locator('.nf-close').click();
+  await expect(full).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('auto');
+});
+
+test('add a tune to today’s set from its details', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.fill('#q', 'Killer Joe');
+  await page.locator('#tune-list .row').first().click();
+  await page.click('#f-today');
+  await expect(page.locator('.in-today')).toHaveText('In today’s set');
+  await ui.backdrop();
+  await ui.tab('today');
+  await expect(page.locator('.card h2', { hasText: 'Killer Joe' })).toHaveCount(1);
+});

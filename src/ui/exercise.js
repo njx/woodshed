@@ -11,7 +11,7 @@ import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc } from '../theory.js';
 import { canRecord } from '../media.js';
-import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor } from './notation.js';
+import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
@@ -119,7 +119,10 @@ export function openExercise(id, opts = {}) {
           }).join('')}</div>
           ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${stripTypes().map((id) => `
             <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary.kind, id).short)}</button>`).join('')}</div>` : ''}
-          <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
+          <div class="nt-wrap">
+            <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
+            <button class="x-full" id="x-full" aria-label="Full screen" title="Full screen">⤢</button>
+          </div>
           <div class="play-row">
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
             ${playbackOptionsHtml()}
@@ -303,6 +306,35 @@ ${t.fromTune ? '' : `
 
     bindPlaybackOptions(sheet, stopPlaying);
 
+    // Full screen, sideways, in the key (and type) shown.
+    const full = $('#x-full', sheet);
+    if (full) full.onclick = () => {
+      stopPlaying();
+      const abc = notationFor(t, previewType, prog);
+      if (!abc) return;
+      const shift = writtenShift(previewRoot, view());
+      const what = prog ? `${prog.name} in ${rootName(previewRoot)}` : exerciseKeysText([previewRoot], t, previewType ? [previewType] : null);
+      let fullTune = null;
+      openFullNotation({
+        title: `${t.name} · ${what}`,
+        draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, meter: t.meter, tempo: t.tempo || 100, wide: true }).catch(() => null); },
+        play: async (onEnded) => {
+          if (!fullTune) return null;
+          try {
+            return await playNotation(fullTune, {
+              transpose: shift + soundingShift(view()),
+              ...playbackFor(t.meter),
+              onEnded,
+              onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
+            });
+          } catch {
+            toast('Couldn’t play audio on this device');
+            return null;
+          }
+        },
+      });
+    };
+
     const editAbc = $('#x-edit-abc', sheet) || $('#x-add-abc', sheet);
     if (editAbc) editAbc.onclick = () => {
       // For a new exercise (a lick, say) the notation is the point: add it, then write it.
@@ -485,6 +517,7 @@ export function openNotationEditor(t, back) {
         <button data-oct="-1" aria-label="Octave down">8vb</button>
         <span class="oct" id="ne-oct"></span>
         <button data-oct="1" aria-label="Octave up">8va</button>
+        <button data-chord aria-label="Chord symbol">Chord</button>
       </div>
       <div class="kp-row notes">${['C', 'D', 'E', 'F', 'G', 'A', 'B'].map((n) => `<button data-note="${n}">${n}</button>`).join('')}</div>
       <div class="kp-row tools">
@@ -492,6 +525,8 @@ export function openNotationEditor(t, back) {
         <button data-tie aria-label="Tie">Tie</button>
         <button data-ins=" " aria-label="Space (breaks beaming)">␣</button>
         <button data-ins=" | " aria-label="Bar line">|</button>
+        <button data-move="-1" aria-label="Previous note">◀</button>
+        <button data-move="1" aria-label="Next note">▶</button>
         <button data-back aria-label="Delete">⌫</button>
       </div>
     </div>
@@ -500,7 +535,7 @@ export function openNotationEditor(t, back) {
       <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
       ${playbackOptionsHtml()}
     </div>
-    <p class="fine">Write it in C — it’s transposed into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up.</p>
+    <p class="fine">Write it in C — it’s transposed into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up. <b>Chord</b> adds a chord symbol over the next note (<code>"Dm7"</code>).</p>
     <button class="primary-btn" id="ne-save">Done</button>
     <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
   `, () => {
@@ -547,13 +582,25 @@ export function openNotationEditor(t, back) {
   const backspace = () => {
     const pos = area.selectionStart ?? body.length;
     const before = body.slice(0, pos);
-    const m = /(\(3|[_^=]*[A-Ga-gz][,']*\d*\/?\d*-?|\s*\|\s*|\s+|.)$/.exec(before);
+    const m = /("[^"]*"|\(3|[_^=]*[A-Ga-gz][,']*\d*\/?\d*-?|\s*\|\s*|\s+|.)$/.exec(before);
     if (!m) return;
     body = before.slice(0, before.length - m[0].length) + body.slice(pos);
     area.value = body;
     const p = before.length - m[0].length;
     area.setSelectionRange(p, p);
     draw();
+  };
+
+  // Move the cursor a note (or bar line, or triplet mark) at a time, skipping spaces.
+  const TOKEN = /\(3|(?:"[^"]*"\s*)?[_^=]*[A-Ga-gz][,']*\d*\/?\d*-?|\|/g; // a chord symbol goes with its note
+  const step = (dir) => {
+    const pos = area.selectionStart ?? body.length;
+    const stops = [0];
+    for (const m of body.matchAll(TOKEN)) stops.push(m.index + m[0].length);
+    stops.push(body.length);
+    const to = dir > 0 ? stops.find((p) => p > pos) ?? body.length : [...stops].reverse().find((p) => p < pos) ?? 0;
+    area.focus();
+    area.setSelectionRange(to, to);
   };
 
   $('#ne-pad', sheet).onclick = (e) => {
@@ -573,6 +620,12 @@ export function openNotationEditor(t, back) {
     else if (b.hasAttribute('data-tie')) insert('-');
     else if (b.dataset.ins) insert(b.dataset.ins);
     else if (b.hasAttribute('data-back')) backspace();
+    else if (b.dataset.move) step(Number(b.dataset.move));
+    else if (b.hasAttribute('data-chord')) {
+      // Over the next note; written in C like the notes, and transposed with them.
+      const sym = (prompt('Chord symbol, as written in C (like Dm7, G7, Cmaj7):') || '').replace(/["\s]/g, '');
+      if (sym) insert(`"${sym}"`);
+    }
     showMods();
   };
   // Keep the keypad from stealing the cursor position.

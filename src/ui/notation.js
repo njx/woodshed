@@ -2,6 +2,7 @@ import { buildAbc, barPerLine } from '../abc.js';
 import { SOUNDS, SWING, sampleNotes, nearestSample, swingTime } from '../sounds.js';
 import { store, save } from '../store.js';
 import { esc } from '../util.js';
+import { holdAudio } from '../audiosession.js';
 
 // abcjs is large, so it's only loaded when notation is first shown.
 let abcjsPromise = null;
@@ -9,9 +10,10 @@ const loadAbcjs = () => (abcjsPromise ||= import('abcjs').then((m) => m.default 
 
 // Draws notation (written in C) shifted up `shift` semitones, one bar per line. Returns the abcjs
 // tune object. The narrow staff width makes notes bigger once scaled to the screen.
-export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo = 100 } = {}) {
+// wide: more bars to a line (full screen, sideways).
+export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo = 100, wide = false } = {}) {
   const ABCJS = await loadAbcjs();
-  const [tune] = ABCJS.renderAbc(el, buildAbc(barPerLine(body), { meter, tempo }), {
+  const [tune] = ABCJS.renderAbc(el, buildAbc(barPerLine(body, wide ? 2 : 1), { meter, tempo }), {
     visualTranspose: shift,
     responsive: 'resize',
     add_classes: true,
@@ -19,9 +21,58 @@ export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo
     paddingbottom: 0,
     paddingleft: 0,
     paddingright: 0,
-    staffwidth: 330,
+    staffwidth: wide ? 520 : 330, // scaled up to the width: bigger notes sideways
+    jazzchords: true, // chord symbols set as in a lead sheet
   });
   return tune;
+}
+
+// Notation full screen, sideways: on a phone held upright the page is turned for you (turn the
+// phone to read it); held sideways it just fills the screen. draw(el) renders into the page
+// (wide); play() starts playback and returns a stop function, or null.
+export function openFullNotation({ title, draw, play }) {
+  const el = document.createElement('div');
+  el.className = 'notation-full';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-label', title);
+  el.innerHTML = `
+    <div class="nf-page">
+      <div class="nf-head"><b>${esc(title)}</b>
+        <span class="nf-btns">${play ? '<button class="nf-play" aria-label="Play">▶</button>' : ''}<button class="nf-close" aria-label="Close">✕</button></span></div>
+      <div class="notation nf-notation"></div>
+    </div>`;
+  document.body.appendChild(el);
+  const page = el.querySelector('.nf-page');
+  const box = el.querySelector('.nf-notation');
+  let stop = null;
+  const layout = () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    const upright = h > w;
+    el.classList.toggle('turned', upright);
+    page.style.width = `${upright ? h : w}px`;
+    page.style.height = `${upright ? w : h}px`;
+    draw(box);
+  };
+  const close = () => {
+    stop?.();
+    window.removeEventListener('resize', layout);
+    document.removeEventListener('keydown', onKey);
+    el.remove();
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  window.addEventListener('resize', layout);
+  document.addEventListener('keydown', onKey);
+  el.querySelector('.nf-close').onclick = close;
+  const playBtn = el.querySelector('.nf-play');
+  if (playBtn) playBtn.onclick = async () => {
+    if (stop) { stop(); stop = null; playBtn.textContent = '▶'; return; }
+    playBtn.textContent = '■';
+    stop = await play(() => { stop = null; playBtn.textContent = '▶'; });
+    if (!stop) playBtn.textContent = '▶';
+  };
+  layout();
+  return close;
 }
 
 // One thing plays at a time.
@@ -57,7 +108,10 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
   const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!Ctx) throw new Error('no audio');
   const ctx = new Ctx();
-  await ctx.resume?.();
+  // Play through the iPhone's silent switch, like the metronome (otherwise it's silent with the
+  // ringer off).
+  const releaseAudio = holdAudio('playback');
+  try { await ctx.resume?.(); } catch { /* resumes on its own, or not at all */ }
   let voice = SOUNDS[sound] ? sound : 'synth';
   let samples = null;
   if (voice !== 'synth') {
@@ -69,7 +123,14 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
       voice = 'synth';
     }
   }
-  const audio = tune.setUpAudio({ midiTranspose: transpose });
+  let audio;
+  try {
+    audio = tune.setUpAudio({ midiTranspose: transpose, chordsOff: true }); // the line itself, not comping
+  } catch (err) {
+    releaseAudio();
+    ctx.close?.().catch(() => {});
+    throw err;
+  }
   const secPerBeat = 60 / (tempo || audio.tempo || 100);
   const ratio = SWING[swing]?.ratio ?? 0.5;
   // abcjs times are in whole notes; a beat is a quarter note.
@@ -136,6 +197,7 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
     clearTimeout(timer);
     for (const o of sources) { try { o.stop(); } catch {} }
     ctx.close?.().catch(() => {});
+    releaseAudio();
     if (current?.stop === stop) current = null;
   };
   const timer = setTimeout(() => { stop(); onEnded?.(); }, totalSec * 1000);

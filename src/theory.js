@@ -153,8 +153,9 @@ function writeAbc(notes, meter = '4/4') {
     accidentals[id] = note.acc;
     const units = last ? perBar - used : 1;
     // A space ends a beam (ABC beams notes written together).
-    if (bar && (used % group === 0 || units > 1)) bar += ' ';
-    bar += `${mark}${name(note)}${units > 1 ? units : ''}`;
+    if (bar && (used % group === 0 || units > 1 || note.chord)) bar += ' ';
+    // A chord symbol goes over the note it starts on.
+    bar += `${note.chord ? `"${note.chord}"` : ''}${mark}${name(note)}${units > 1 ? units : ''}`;
     used += units;
     if (used >= perBar) {
       bars.push(bar);
@@ -175,10 +176,18 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
   const ninth = t.notes.at(-1)[2] === 1;
   const numbers = shapeNumbers(shape, len, kind, pattern, { ninth });
   if (!numbers.length) return '';
-  return writeAbc(numbers.map((v) => {
+  return writeAbc(numbers.map((v, i) => {
     const [letter, acc, up] = t.notes[(v - 1) % len];
-    return { letter, acc, octave: 4 + up + Math.floor((v - 1) / len) };
+    // Chord types are labelled, so the symbol shows (transposed) over each key's arpeggio.
+    return { letter, acc, octave: 4 + up + Math.floor((v - 1) / len), ...(kind === 'chord' && i === 0 ? { chord: chordSymbol(0, id) } : {}) };
   }), meter);
+}
+
+// A chord symbol for notation (written in C, transposed with it): the root a degree above C, as
+// ABC wants it (B♭ is "Bb"), and the type's short name.
+export function chordSymbol(degree, family) {
+  const [letter, acc] = DEGREE_ROOT[((degree % 12) + 12) % 12];
+  return `${letter}${acc < 0 ? 'b' : acc > 0 ? '#' : ''}${CHORDS[family]?.short ?? ''}`;
 }
 
 // ---------- Progressions ----------
@@ -216,7 +225,7 @@ export function progressionAbc(chords, { meter = '4/4' } = {}) {
     for (let i = 0; i < perBar; i++) {
       const v = seq[i % seq.length];
       const n = spellOn(t.notes[(v - 1) % len], d);
-      notes.push({ ...n, octave: n.octave + low + Math.floor((v - 1) / len) });
+      notes.push({ ...n, octave: n.octave + low + Math.floor((v - 1) / len), ...(i === 0 ? { chord: chordSymbol(d, family) } : {}) });
     }
   }
   if (!notes.length) return '';

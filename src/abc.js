@@ -48,7 +48,9 @@ export function restToken(duration = 'eighth', dotted = false) {
 const BAR_END = /(\|\]|\|\||:\||\|)(?![:\]|])/g;
 const notesIn = (bar) => (bar.replace(/"[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\]/g, '').match(/[A-Ga-g]/g) || []).length;
 
-export function barPerLine(body) {
+// perLine: how many bars with several notes go on a line (1 on a phone held upright; more when
+// there's room, as in full screen).
+export function barPerLine(body, perLine = 1) {
   return body.split('\n').map((line) => {
     const bars = [];
     let last = 0;
@@ -61,9 +63,9 @@ export function barPerLine(body) {
     let cur = null; // { bars, full }
     for (const bar of bars) {
       const full = notesIn(bar) > 2;
-      if (!cur || (full && cur.full) || cur.bars.length >= 4) lines.push((cur = { bars: [], full: false }));
+      if (!cur || (full && cur.full >= perLine) || cur.bars.length >= 4 * perLine) lines.push((cur = { bars: [], full: 0 }));
       cur.bars.push(bar);
-      cur.full ||= full;
+      if (full) cur.full++;
     }
     return lines.map((l) => l.bars.join(' ')).join('\n');
   }).join('\n');

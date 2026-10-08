@@ -127,6 +127,12 @@ history. After you rate a session:
 Accepting a suggestion changes the working tempo for next time; today's session keeps the tempo
 you actually played. Nudging the metronome while you practice updates today's session too.
 
+Notation: tap ⤢ on any exercise's notation for **full screen**, sideways and bigger (on a phone
+held upright the page is turned for you; turn the phone to read it), with Play. Chord arpeggios and
+the *Through the changes* warm-ups show **chord symbols** over the notes, in the key shown. In the
+notation editor, ◀ ▶ step the cursor a note at a time, and **Chord** adds a chord symbol (written
+in C like the notes, transposed with them). Notation plays through the iPhone's silent switch.
+
 Everything saves as you go: details, notes, notation (with **Undo changes** to go back to how it
 was when you opened the editor) and chord charts (each edit is kept once it reads as a chart). A
 new tune or exercise is added when you close it, once it has a name (with Undo). An exercise's or

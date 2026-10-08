@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateAbc, shapeNumbers, parsePattern, chooseTypes, variantName, SCALES, CHORDS, VARY } from '../src/theory.js';
+import { generateAbc, shapeNumbers, parsePattern, chooseTypes, variantName, SCALES, CHORDS, VARY, progressionAbc, chordSymbol } from '../src/theory.js';
 
 describe('scales and chords', () => {
   it('every type is spelled in order, from C up', () => {
@@ -35,13 +35,13 @@ describe('generated notation', () => {
 
   it('fills the last bar with the final note, and beams eighths by the beat', () => {
     expect(generateAbc('scale', 'major')).toBe('CDEF GABc | BAGF ED C2 |');
-    expect(generateAbc('chord', 'm7')).toBe('C_EG_B cBGE | C8 |');
+    expect(generateAbc('chord', 'm7')).toBe('"Cm7"C_EG_B cBGE | C8 |');
     expect(generateAbc('scale', 'major', { meter: '3/4' })).toBe('CD EF GA | Bc BA GF | ED C4 |');
   });
 
   it('spells a diminished 7th with a double flat', () => {
     // Within a bar an accidental carries through, so the way back down needs none.
-    expect(generateAbc('chord', 'dim7')).toBe('C_E_G__B cBGE | C8 |');
+    expect(generateAbc('chord', 'dim7')).toBe('"C°7"C_E_G__B cBGE | C8 |');
   });
 
   it('shapes adapt to the number of notes', () => {
@@ -49,7 +49,7 @@ describe('generated notation', () => {
     expect(shapeNumbers('thirds', 7, 'scale')).toEqual([1, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6, 8, 7, 9, 8]);
     expect(shapeNumbers('p1235', 7, 'scale').slice(0, 8)).toEqual([1, 2, 3, 5, 2, 3, 4, 6]);
     expect(shapeNumbers('inversions', 4, 'chord')).toEqual([1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 7, 9]);
-    expect(generateAbc('chord', 'maj7', { shape: 'inversions' })).toBe("CEGB EGBc | GBce Bceg | c'8 |");
+    expect(generateAbc('chord', 'maj7', { shape: 'inversions' })).toBe("\"Cmaj7\"CEGB EGBc | GBce Bceg | c'8 |");
   });
 
   it('reads custom patterns', () => {
@@ -102,7 +102,16 @@ describe('patterns as numbers', () => {
 
 describe('chords with a 9th', () => {
   it('spell the 9th an octave up, and go up to it and back', () => {
-    expect(generateAbc('chord', 'dom7b9')).toBe('CEG_B _dBGE | C8 |');
-    expect(generateAbc('chord', 'dom7s9')).toBe('CEG_B ^dBGE | C8 |');
+    expect(generateAbc('chord', 'dom7b9')).toBe('"C7♭9"CEG_B _dBGE | C8 |');
+    expect(generateAbc('chord', 'dom7s9')).toBe('"C7♯9"CEG_B ^dBGE | C8 |');
   });
 }); 
+
+describe('chord symbols in notation', () => {
+  it('name each bar of a progression, and a chord type’s arpeggio', () => {
+    const abc = progressionAbc([{ d: 2, family: 'm7' }, { d: 7, family: 'dom7b9' }, { d: 0, family: 'maj7' }]);
+    expect(abc.match(/"[^"]+"/g)).toEqual(['"Dm7"', '"G7♭9"', '"Cmaj7"']);
+    expect(chordSymbol(10, 'm7b5')).toBe('Bbø7');
+    expect(chordSymbol(6, 'dom7')).toBe('F#7');
+  });
+});

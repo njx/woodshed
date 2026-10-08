@@ -43,6 +43,11 @@ sessions), L (a big piece, or needs a native app).
 - **Compact warm-ups** (S). Show a tune's warm-ups as smaller cards grouped under it, so a day
   with many tunes stays scannable.
 
+- **Comping under notation** (S). Notation with chord symbols could play a simple comp under the
+  line (the notation library can, it's turned off for now), as a mini backing track.
+- **Warm-ups, take two** (?). They work, but don't feel quite right yet — to think through what a
+  good warm-up for a tune is (which chunk, which device, how long), before changing them.
+
 ## Listening and slowing down
 
 - **YouTube loop / slow-downer** (M). Play a recording's YouTube video inside the app with A–B
