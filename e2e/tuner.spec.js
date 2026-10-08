@@ -70,5 +70,15 @@ test('the metronome’s circle shows the tempo while it runs', async ({ page, ui
   await ui.backdrop();
   await expect(page.locator('#today-metro .hd-live')).toHaveText(/^\d+$/);
   await expect(page.locator('.metro-pill')).toBeHidden();
-  await expect(page.locator('#today-metro')).toHaveClass(/\bbeat\b/); // it flashes on the beat
+  // It flashes on the beat (briefly: watch it for a couple of seconds).
+  const flashed = await page.evaluate(() => new Promise((resolve) => {
+    const end = performance.now() + 2500;
+    const look = () => {
+      if (document.getElementById('today-metro')?.classList.contains('beat')) return resolve(true);
+      if (performance.now() > end) return resolve(false);
+      requestAnimationFrame(look);
+    };
+    look();
+  }));
+  expect(flashed).toBe(true);
 });
