@@ -42,8 +42,10 @@ For each exercise you choose:
 toward its key, recent sessions count more (a session counts half as much after about three
 weeks), and rough ones less. The Progress tab charts it around the circle of fifths.
 
-Today's header and its tools (Ask, Note, Record, Metronome, Tuner) stay on screen as you scroll;
-the header shrinks to the title, keys and progress.
+Today's header stays on screen as you scroll (shrinking to the title and progress), with the tools
+as circles at its top right: Ask, Note, Record, Metronome and Tuner. While the metronome runs its
+circle shows the tempo and flashes on the beat; while the tuner listens (**Mini tuner** in the
+tuner), its circle shows the note, green when in tune. On other tabs they show as small pills.
 
 Swiping a card: right marks it played; a short swipe left shows **Swap** and **Remove** (out of
 today's set; a focus item only has Remove), and a long one removes it.
@@ -153,9 +155,10 @@ written for the transposition you're viewing (B♭, E♭, F), with concert pitch
 reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.js`),
 which finds the fundamental even when overtones are louder, as they often are on sax.
 
-**Mini tuner** (in the tuner's top corner) keeps it listening in a small pill on every screen —
-the note, and a dot that sits on the centre line when you're in tune — so you can go through
-today's set while you check your pitch. Tap the pill for the full tuner; × stops it.
+**Mini tuner** (in the tuner's top corner) keeps it listening while you go through today's set: the
+Tuner circle at the top of Today shows the note (green when in tune), and on other tabs a small
+pill shows the note and a dot that sits on the centre line when you're in tune. Tap either for the
+full tuner; the pill's × stops it.
 
 ## Assistant
 
@@ -212,7 +215,8 @@ which don't cover it. The Anthropic console has the official numbers.
 ## Diary
 
 The **Diary** tab keeps notes about your practice, typed or dictated: the editor's mic button uses
-the browser's speech recognition where it's available, and the keyboard's mic works everywhere. A
+the browser's speech recognition where it's available (not on iPhone/iPad, where it can freeze a
+home-screen app — use the keyboard's mic there), and the keyboard's mic works everywhere. A
 note can be about a specific tune, and then it also shows in that tune's details. Each day in the
 diary also lists what you played.
 

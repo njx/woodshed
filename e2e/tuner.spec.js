@@ -33,29 +33,42 @@ test('concert view shows octaves', async ({ page, ui }) => {
   await expect(page.locator('#t-note')).toHaveText(/^(B♭3|D4)$/, { timeout: 10_000 });
 });
 
-test('the mini tuner stays on screen while you go through the set, and stops with × @narrow', async ({ page, ui }) => {
+test('the mini tuner: its circle on Today shows the note; a pill elsewhere; × stops it @narrow', async ({ page, ui }) => {
   await ui.start({ instruments: ['bb'] });
   await page.click('#today-tuner');
   await page.click('#t-mini');
-  const pill = page.locator('.tuner-pill');
-  await expect(pill).toBeVisible();
   await expect(page.locator('.sheet')).toHaveCount(0);
-  // It keeps listening: a written C (concert B♭) or E (concert D) from the fake mic.
-  await expect(pill.locator('.tp-note')).toHaveText(/^[CE]$/, { timeout: 10000 });
+  // On Today, the tuner's circle keeps listening: a written C (concert B♭) or E (concert D).
+  const circle = page.locator('#today-tuner');
+  await expect(circle).toHaveClass(/\blive\b/);
+  await expect(circle.locator('.hd-live')).toHaveText(/^[CE]$/, { timeout: 10000 });
+  await expect(page.locator('.tuner-pill')).toBeHidden();
   await page.mouse.wheel(0, 900);
   await page.waitForTimeout(300);
+  await expect(circle).toBeInViewport(); // the header stays
   await page.screenshot({ path: test.info().outputPath('mini.png') });
-  // The header and the tools stay put, above the tab bar; the pill sits above the tools.
-  await expect(page.locator('.today-top h1')).toBeInViewport();
-  const tools = await page.locator('.today-tools').boundingBox();
-  const p = await pill.boundingBox();
-  expect(p.y + p.height).toBeLessThanOrEqual(tools.y);
-  // Tap for the full tuner (still listening); close it to stop.
+  // Elsewhere, a pill.
+  await ui.tab('progress');
+  const pill = page.locator('.tuner-pill');
+  await expect(pill.locator('.tp-note')).toHaveText(/^[CE]$/, { timeout: 10000 });
+  // Tap for the full tuner (still listening); Mini again, then × stops it.
   await pill.locator('.tp-open').click();
   await expect(page.locator('#t-dial')).toBeVisible();
   await expect(pill).toBeHidden();
   await page.click('#t-mini');
   await pill.locator('.tp-stop').click();
   await expect(pill).toBeHidden();
+  await ui.tab('today');
+  await expect(circle).not.toHaveClass(/\blive\b/);
   await ui.expectNoSideScroll();
+});
+
+test('the metronome’s circle shows the tempo while it runs', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-metro');
+  await page.click('#m-go');
+  await ui.backdrop();
+  await expect(page.locator('#today-metro .hd-live')).toHaveText(/^\d+$/);
+  await expect(page.locator('.metro-pill')).toBeHidden();
+  await expect(page.locator('#today-metro')).toHaveClass(/\bbeat\b/); // it flashes on the beat
 });

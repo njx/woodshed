@@ -19,6 +19,9 @@ import { exerciseKeysText, rootName, takeLabel } from './exercise.js';
 import { entriesFor } from '../diary.js';
 import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { openTuner } from './tuner.js';
+import { metronome } from '../metronome.js';
+import { tuner } from '../tuning.js';
+import { writtenName } from '../pitch.js';
 import { tempoSuggestion } from '../tempo.js';
 import { openAssistant } from './assistant.js';
 import { CATEGORIES } from '../constants.js';
@@ -38,15 +41,18 @@ export function renderToday(root) {
 
   root.innerHTML = `
     <header class="top today-top">
-      <div>
-        <p class="eyebrow eyebrow-row"><span>${esc(niceDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>${transposeToggle()}</p>
-        <h1>Today’s set</h1>
-        ${dayNote()}
+      <div class="tt-row">
+        <p class="eyebrow tt-date">${esc(niceDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</p>
+        ${toolsHtml()}
       </div>
-      <div class="top-actions">
-        ${progressRing(done, items.length)}
-        <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)">${ICON.shuffle}</button>
+      <div class="tt-row">
+        <h1 class="tt-title">Today’s set</h1>
+        <div class="top-actions">
+          ${progressRing(done, items.length)}
+          <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)">${ICON.shuffle}</button>
+        </div>
       </div>
+      <div class="tt-sub eyebrow-row">${transposeToggle()}${dayNote()}</div>
     </header>
     ${timerHtml()}
     ${state.settings.instrumentsChosen ? '' : welcomeHtml()}
@@ -54,17 +60,10 @@ export function renderToday(root) {
     ${items.length ? '' : '<p class="empty">No tunes yet. Add some on the Tunes tab.</p>'}
     <ul class="cards">${state.plan.items.map((it, i) => cardHtml(it, i, stats)).join('')}</ul>
     <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
-    <div class="today-tools">
-      <button id="today-ask">${ICON.ask}<span>Ask</span></button>
-      <button id="today-note">${ICON.note}<span>Note</span></button>
-      ${canRecord() ? `<button id="today-rec">${ICON.rec}<span>Record</span></button>` : ''}
-      <button id="today-metro">${ICON.metro}<span>Metronome</span></button>
-      <button id="today-tuner">${ICON.tuner}<span>Tuner</span></button>
-    </div>
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
       <ul class="list">${extras.map((t) => rowHtml(t, stats)).join('')}</ul>` : ''}
-    <p class="hint">Swipe a card right when you’ve played it, left for a different one. Tap for details.</p>
+    <p class="hint">Swipe a card right when you’ve played it, left to swap or remove it. Tap for details.</p>
   `;
 
   bindTransposeToggle(root);
@@ -85,10 +84,57 @@ export function renderToday(root) {
   $('#today-ask').onclick = () => openAssistant();
   const rec = $('#today-rec', root);
   if (rec) rec.onclick = () => openRecorder();
+  liveTools();
   bindNotes(root);
   $$('.list .row', root).forEach((row) => (row.onclick = () => openItem(row.dataset.id)));
   $$('.card', root).forEach((card) => bindCard(card));
 }
+
+// The tools, as circles at the top right. The metronome's and tuner's show them running: the
+// tempo, flashing on the beat; the note, green when in tune.
+function toolsHtml() {
+  const tool = (id, icon, label, live = false) => `<button class="hd-tool${live ? ` ${id}` : ''}" id="${id}" aria-label="${label}">
+    <span class="hd-icon">${icon}</span>${live ? '<b class="hd-live" aria-hidden="true"></b>' : ''}</button>`;
+  return `<div class="hd-tools" role="toolbar" aria-label="Tools">
+    ${tool('today-ask', ICON.ask, 'Ask the assistant')}
+    ${tool('today-note', ICON.note, 'New note')}
+    ${canRecord() ? tool('today-rec', ICON.rec, 'Record') : ''}
+    ${tool('today-metro', ICON.metro, 'Metronome', true)}
+    ${tool('today-tuner', ICON.tuner, 'Tuner', true)}
+  </div>`;
+}
+
+const HOLD_MS = 600; // the tuner keeps showing a note this long after the sound stops
+let liveRaf = null;
+function liveTools() {
+  cancelAnimationFrame(liveRaf);
+  const tick = () => {
+    const ms = metronome.state;
+    const ts = tuner.state;
+    const m = document.getElementById('today-metro');
+    if (m) {
+      const c = ms.running ? metronome.lastClick() : null;
+      m.classList.toggle('live', ms.running);
+      m.classList.toggle('beat', !!c && c.since < 0.1);
+      m.classList.toggle('accent', !!c && c.since < 0.1 && c.beat === 0 && ms.beats > 1);
+      $('.hd-live', m).textContent = ms.running ? ms.bpm : '';
+      m.setAttribute('aria-label', ms.running ? `Metronome, ${ms.bpm} bpm` : 'Metronome');
+    }
+    const tn = document.getElementById('today-tuner');
+    if (tn) {
+      const last = ts.running ? tuner.last : null;
+      const note = last && performance.now() - last.at < HOLD_MS ? last : null;
+      tn.classList.toggle('live', ts.running);
+      tn.classList.toggle('good', !!note && Math.abs(note.cents) <= 5);
+      tn.classList.toggle('near', !!note && Math.abs(note.cents) > 5 && Math.abs(note.cents) <= 15);
+      $('.hd-live', tn).textContent = ts.running ? (note ? writtenName(note.midi, store.state.settings.view) : '–') : '';
+    }
+    if ((ms.running || ts.running) && (m || tn)) liveRaf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+metronome.subscribe(() => liveTools());
+tuner.subscribe(() => liveTools());
 
 // After tunes come or go: warm-ups for a tune that's gone go with it, and in "Before tunes" a tune
 // added (or swapped in) gets its own.

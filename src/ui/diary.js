@@ -186,7 +186,10 @@ async function shareText(text) {
 
 // ---------- Note editor ----------
 
-const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+// Dictation, where the browser has speech recognition — but not on iPhone/iPad, where it can freeze
+// a home-screen app (and the keyboard's own mic button does the same job reliably).
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const Recognition = isIOS ? null : globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 
 // id null = new note. opts.itemId links a new note to a tune; opts.flag preselects a flag;
 // opts.back reopens whatever sheet the note was opened from.
@@ -311,15 +314,16 @@ export function openNote(id, opts = {}) {
   // Dictation, where the browser supports speech recognition.
   let rec = null;
   function stopListening() {
-    rec?.stop();
+    const r0 = rec;
     rec = null;
+    try { r0?.abort(); } catch { /* already over */ }
     $('#n-mic', sheet)?.classList.remove('on');
   }
   const mic = $('#n-mic', sheet);
   if (mic) mic.onclick = () => {
     if (rec) return stopListening();
     rec = new Recognition();
-    rec.continuous = true;
+    rec.continuous = false; // a phrase at a time: continuous mode is unreliable in some browsers
     rec.interimResults = false;
     rec.lang = navigator.language || 'en-US';
     rec.onresult = (ev) => {

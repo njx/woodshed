@@ -148,7 +148,7 @@ test('record while the metronome plays (Safari only allows the mic in a play-and
   await page.click('#rec-discard');
   // Back to playback for the metronome alone once the recorder closes; still clicking.
   expect(await page.evaluate(() => navigator.audioSession.log)).toEqual(['playback', 'play-and-record', 'playback']);
-  await expect(page.locator('.metro-pill:not([hidden])')).toBeVisible();
+  await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
 });
 
 test('a recording can be deleted from the list it’s in, with undo', async ({ page, ui }) => {

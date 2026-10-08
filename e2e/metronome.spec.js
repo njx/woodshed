@@ -1,6 +1,6 @@
 import { test, expect } from './app.js';
 
-test('metronome runs, shows a pill while away, and stops @narrow', async ({ page, ui }) => {
+test('metronome runs, shows in its circle on Today and a pill elsewhere, and stops @narrow', async ({ page, ui }) => {
   await ui.start();
   await page.click('#today-metro');
   await page.click('[data-step="5"]');
@@ -11,6 +11,8 @@ test('metronome runs, shows a pill while away, and stops @narrow', async ({ page
   await expect(page.locator('#m-dots i.on')).toHaveCount(1); // the beat lights up
   await ui.expectNoSideScroll();
   await ui.backdrop();
+  await expect(page.locator('#today-metro .hd-live')).toHaveText('105');
+  await ui.tab('diary');
   await expect(page.locator('.metro-pill:not([hidden]) b')).toHaveText('105');
   await page.click('.mp-stop');
   await expect(page.locator('.metro-pill')).toBeHidden();
