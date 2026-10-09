@@ -40,9 +40,12 @@ export function openRecorder(opts = {}) {
   const releaseAwake = keepAwake();
   // Created during the tap that opened the recorder, so iOS lets it run (for the level meter).
   const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
-  const audioCtx = AudioCtx ? new AudioCtx() : null;
+  let audioCtx = AudioCtx ? new AudioCtx() : null;
   audioCtx?.resume?.();
   let analyser = null;
+  let monoAnalyser = null; // after the mono step: to check sound comes through it
+  let heard = { mic: false, mono: false }; // sound seen on the mic, and on the mono path
+  let quietSince = 0; // recording with no sound coming in since (ms)
   let monoStream = null; // the stream recorded: see startStream
   let micSource = null; // the mic in Web Audio (for the meter and the mono track)
 
@@ -116,7 +119,8 @@ export function openRecorder(opts = {}) {
           <button class="rec-btn ${recording ? 'stop' : ''}" id="rec-go" ${state === 'starting' ? 'disabled' : ''}
             aria-label="${recording ? 'Stop recording' : 'Start recording'}"><span></span></button>
           <span class="rec-hint">${recording ? 'Recording' : 'Tap to record'}</span>
-        </div>`;
+        </div>
+        <p class="fine rec-quiet" id="rec-quiet" hidden>No sound is coming in from ${esc(mics.find((m) => m.id === currentMic())?.label || 'the microphone')}${mics.length > 1 ? ' — try another Mic above' : ''}.</p>`;
       const preview = $('#rec-preview', box);
       if (preview && stream) preview.srcObject = stream;
     }
@@ -142,6 +146,7 @@ export function openRecorder(opts = {}) {
     const mic = $('#rec-mic', box);
     if (mic) mic.onchange = () => {
       settings.recordMic = mic.value;
+      settings.recordMicLabel = mics.find((m) => m.id === mic.value)?.label || null;
       save();
       startStream();
     };
@@ -188,17 +193,31 @@ export function openRecorder(opts = {}) {
     stream = s;
     // With headphones in, the phone may switch to their mic; the phone's own is usually better for
     // an instrument (and lets the metronome play in the earbuds). Mic names show once allowed.
+    // The mic is remembered by name too: iOS can give mics new ids (e.g. after asking for
+    // permission again), and the old id would quietly fall back to the earbuds' mic.
     if (!mics.length) {
       mics = await listMics();
-      const builtIn = mics.find((m) => /iphone|ipad|built-?in|internal/i.test(m.label));
-      if (!settings.recordMic && builtIn && mics.length > 1 && builtIn.id !== trackMic(s) && gen === streamGen && !closed) {
-        settings.recordMic = builtIn.id;
+      const want = settings.recordMicLabel
+        ? mics.find((m) => m.label === settings.recordMicLabel)
+        : mics.find((m) => /iphone|ipad|built-?in|internal/i.test(m.label)); // first time: the phone's own
+      if (want && mics.length > 1 && want.id !== trackMic(s) && gen === streamGen && !closed) {
+        settings.recordMic = want.id;
+        settings.recordMicLabel = want.label;
         save();
         return startStream();
       }
     }
     if (gen !== streamGen || closed) return s.getTracks().forEach((tr) => tr.stop());
     monoStream = null;
+    heard = { mic: false, mono: false };
+    // Earbuds can switch the audio to another rate when their mic comes on; an audio engine
+    // left at the old one hears silence. Start it again to match.
+    const rate = stream.getAudioTracks()[0]?.getSettings?.().sampleRate;
+    if (audioCtx && rate && audioCtx.sampleRate !== rate) {
+      audioCtx.close?.().catch(() => {});
+      audioCtx = new AudioCtx();
+      audioCtx.resume?.().catch(() => {});
+    }
     if (audioCtx) {
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
@@ -215,6 +234,9 @@ export function openRecorder(opts = {}) {
         const dest = audioCtx.createMediaStreamDestination();
         dest.channelCount = 1;
         source.connect(mono).connect(dest);
+        monoAnalyser = audioCtx.createAnalyser();
+        monoAnalyser.fftSize = 1024;
+        mono.connect(monoAnalyser);
         monoStream = new MediaStream([...stream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
       } catch (err) {
         console.warn('Recording the mic as it comes', err);
@@ -227,8 +249,11 @@ export function openRecorder(opts = {}) {
 
   function startRecording() {
     const mimeType = pickMime(kind);
-    // Through Web Audio only while it's running (a suspended one would record silence).
-    const source = monoStream && audioCtx?.state === 'running' ? monoStream : stream;
+    // Through Web Audio (mono) only while it's running and, if the mic has been heard, passing
+    // the sound on; otherwise the mic as it comes (better two channels than silence).
+    const monoWorks = audioCtx?.state === 'running' && (!heard.mic || heard.mono);
+    const source = monoStream && monoWorks ? monoStream : stream;
+    quietSince = 0;
     try {
       recorder = new MediaRecorder(source, {
         ...(mimeType ? { mimeType } : {}),
@@ -271,6 +296,21 @@ export function openRecorder(opts = {}) {
       analyser.getFloatTimeDomainData(buf);
       let peak = 0;
       for (const v of buf) peak = Math.max(peak, Math.abs(v));
+      if (peak > 0.02) heard.mic = true;
+      if (monoAnalyser) {
+        monoAnalyser.getFloatTimeDomainData(buf);
+        if (buf.some((v) => Math.abs(v) > 0.005)) heard.mono = true;
+        analyser.getFloatTimeDomainData(buf); // back to the mic's, for drawing below
+      }
+      // Recording with nothing coming in for a few seconds: say so (and which mic it is).
+      const hint = $('#rec-quiet', box);
+      if (state === 'recording' && peak < 0.003) {
+        quietSince ||= performance.now();
+        if (hint && performance.now() - quietSince > 3000) hint.hidden = false;
+      } else {
+        quietSince = 0;
+        if (hint) hint.hidden = true;
+      }
       levels.push(Math.min(1, Math.sqrt(peak)));
       if (levels.length > 75) levels.shift();
       const ctx = canvas.getContext('2d');

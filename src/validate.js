@@ -169,6 +169,7 @@ function settings(s) {
   s.swing = oneOf(s.swing, Object.keys(SWING), DEFAULT_SETTINGS.swing);
   s.recordKind = oneOf(s.recordKind, ['audio', 'video'], 'audio');
   s.recordMic = typeof s.recordMic === 'string' && s.recordMic.length < 300 ? s.recordMic : null;
+  s.recordMicLabel = typeof s.recordMicLabel === 'string' && s.recordMicLabel.length < 200 ? s.recordMicLabel : null;
   if (s.metroBpm != null) s.metroBpm = int(Math.round(s.metroBpm), 10, 400) ?? 100;
   if (s.metroBeats != null) s.metroBeats = int(s.metroBeats, 1, 12) ?? 4;
   return s;

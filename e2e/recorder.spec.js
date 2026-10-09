@@ -223,3 +223,48 @@ test('deleting the recording on a note you wrote keeps the note', async ({ page,
   await page.click('#toast button'); // Undo
   await expect(note.locator('.clip-pill')).toHaveCount(1);
 });
+
+test('the chosen mic is found again by name when the phone gives it a new id', async ({ page, ui }) => {
+  await page.addInitScript(() => {
+    // Two mics, with ids the phone has changed since the choice was made ('old-phone').
+    const mics = [{ deviceId: 'airpods', kind: 'audioinput', label: 'AirPods Pro' }, { deviceId: 'new-phone', kind: 'audioinput', label: 'iPhone Microphone' }];
+    navigator.mediaDevices.enumerateDevices = async () => mics;
+    const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    window.asked = [];
+    navigator.mediaDevices.getUserMedia = async (c) => {
+      const want = c.audio?.deviceId?.exact;
+      window.asked.push(want || 'default');
+      if (want && !mics.some((m) => m.deviceId === want)) throw new DOMException('No such mic', 'OverconstrainedError');
+      const s = await gum({ audio: true });
+      const tr = s.getAudioTracks()[0];
+      const settings = tr.getSettings.bind(tr);
+      tr.getSettings = () => ({ ...settings(), deviceId: want || 'airpods' }); // earbuds by default
+      return s;
+    };
+  });
+  await ui.start();
+  await expect.poll(async () => (await ui.saved()).state.settings.instrumentsChosen).toBe(true);
+  await ui.editSaved((s) => { s.settings.recordMic = 'old-phone'; s.settings.recordMicLabel = 'iPhone Microphone'; });
+  await page.reload();
+  await page.click('#today-rec');
+  await expect(page.locator('#rec-mic')).toHaveValue('new-phone');
+  expect(await page.evaluate(() => window.asked)).toEqual(['old-phone', 'default', 'new-phone']);
+  await expect.poll(async () => (await ui.saved()).state.settings.recordMic).toBe('new-phone');
+});
+
+test('recording with no sound coming in says so', async ({ page, ui }) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const ctx = new AudioContext();
+      const dest = ctx.createMediaStreamDestination(); // nothing playing into it: silence
+      return dest.stream;
+    };
+  });
+  await ui.start();
+  await page.click('#today-rec');
+  await expect(page.locator('#rec-go')).toBeEnabled();
+  await page.click('#rec-go');
+  await expect(page.locator('#rec-quiet')).toBeVisible({ timeout: 6000 });
+  await expect(page.locator('#rec-quiet')).toContainText('No sound is coming in');
+  await page.click('#rec-go');
+});
