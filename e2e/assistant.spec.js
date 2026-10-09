@@ -78,7 +78,7 @@ test('the assistant changes today’s set, shows the cost, and can undo', async 
   // What was sent: model, fallbacks, tools, the user's key, the app state first.
   const q = api.requests[0];
   expect(q.body).toMatchObject({ model: 'claude-opus-5-5', fallbacks: 'default', output_config: { effort: 'medium' }, stream: true });
-  expect(q.body.tools).toHaveLength(14);
+  expect(q.body.tools).toHaveLength(15);
   expect(q.body.tools.every((t) => t.eager_input_streaming)).toBe(true);
   expect(q.headers['x-api-key']).toBe('sk-ant-test-1234');
   expect(q.headers['anthropic-beta']).toContain('server-side-fallback');

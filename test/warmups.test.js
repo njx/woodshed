@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { warmupsFor, prepFor, altWarmup } from '../src/warmups.js';
-import { buildPlan, addWarmups, ensurePlan, dropOrphanWarmups } from '../src/plan.js';
+import { buildPlan, addWarmups, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
 import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
@@ -232,5 +232,35 @@ describe('from the review', () => {
     plan.items = plan.items.filter((i) => i.itemId !== t.id || i.warmup);
     dropOrphanWarmups(plan);
     expect(plan.items.filter((i) => i.warmup === t.id)).toEqual([played]);
+  });
+});
+
+describe('changing today’s instance', () => {
+  it('an exercise’s keys and types, before and after it’s played', () => {
+    store.state.settings.exerciseFocus = 'own';
+    buildPlan(true);
+    const arps = byName('Seventh-chord arpeggios');
+    addToToday(arps); // (if it isn't there already)
+    const it = todayItem(arps);
+    setTodayKeys(it, [0, 5], ['maj7', 'm7']);
+    markPlayed(it.itemId, it);
+    expect(store.state.log.at(-1)).toMatchObject({ keys: [0, 5], types: ['maj7', 'm7'] });
+    setTodayKeys(it, [0, 5, 10], ['maj7', 'm7', 'dom7']); // played in one more key
+    expect(store.state.log.at(-1)).toMatchObject({ keys: [0, 5, 10], types: ['maj7', 'm7', 'dom7'] });
+    expect(it.keys).toEqual([0, 5, 10]);
+  });
+  it('a tune’s key: logged too, and its warm-ups move to the new key', () => {
+    buildPlan(true);
+    const t = byName('Autumn Leaves');
+    addToToday(t);
+    const it = todayItem(t);
+    setTodayKey(it, 19); // G minor
+    const before = store.state.plan.items.find((i) => i.warmup === t.id && i.prog);
+    setTodayKey(it, 16); // E minor: down a minor 3rd
+    const after = store.state.plan.items.find((i) => i.warmup === t.id && i.prog);
+    expect(after.keys[0]).toBe((before.keys[0] + 9) % 12);
+    markPlayed(t.id, it);
+    setTodayKey(it, 21);
+    expect(store.state.log.at(-1)).toMatchObject({ key: 21, alt: !t.keys.includes(21) });
   });
 });

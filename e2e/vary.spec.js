@@ -90,3 +90,44 @@ test('today’s card names the scale or chord for each key, and the log keeps it
   await expect(page.locator('.history-list li').first()).toContainText(chip.replace(/^In /, ''));
   await ui.expectNoSideScroll();
 });
+
+test('change today’s keys and types for an exercise, even after playing it @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await openExercise(page, ui, 'Seventh-chord arpeggios');
+  await page.click('#x-today'); // into today's set
+  await ui.backdrop();
+  await ui.tab('today');
+  const card = page.locator('.card', { hasText: 'Seventh-chord arpeggios' }).filter({ hasNot: page.locator('.bucket', { hasText: 'Warm-up' }) });
+  await card.locator('.check').click(); // played
+  await card.locator('h2').click();
+  const on = page.locator('.today-keys button.on');
+  const n = await on.count();
+  // Played in one more key: tap it, and pick its chord type.
+  await page.locator('.today-keys button:not(.on)').first().click();
+  await expect(on).toHaveCount(n + 1);
+  await expect(page.locator('.today-types li')).toHaveCount(n + 1);
+  await page.locator('.today-types select').last().selectOption('dim7');
+  await expect.poll(async () => {
+    const e = (await ui.saved()).state.log.at(-1);
+    return [e.keys.length, e.types.at(-1)];
+  }).toEqual([n + 1, 'dim7']);
+  await ui.expectNoSideScroll();
+  await ui.backdrop();
+  await expect(card.locator('.keychip')).toContainText('°7'); // the card shows it
+});
+
+test('change the key a tune is played in today', async ({ page, ui }) => {
+  await ui.start();
+  const card = page.locator('.card:not(.b-exercise)').first();
+  const id = await card.getAttribute('data-item-id');
+  await card.locator('h2').click();
+  const sel = page.locator('#f-todaykey');
+  const value = await sel.inputValue();
+  const option = sel.locator(`option:not([value="${value}"]):not([value=""])`).first();
+  const other = await option.getAttribute('value');
+  const name = (await option.textContent()).split(' · ')[0];
+  await sel.selectOption(other);
+  await expect.poll(async () => String((await ui.saved()).state.plan.items.find((i) => i.itemId === id && !i.warmup).key)).toBe(other);
+  await ui.backdrop();
+  await expect(card.locator('.keychip')).toContainText(name);
+});

@@ -3,7 +3,7 @@ import { BUCKETS, BUCKET_ORDER, PRIORITY_WEIGHTS, SHIFTS } from './constants.js'
 import { dateStr } from './dates.js';
 import { isMinor } from './keys.js';
 import { weightedPick, randomOf, uid } from './util.js';
-import { itemStats, overdue, itemById, isPlayedToday, isPlanItemPlayed } from './practice.js';
+import { itemStats, overdue, itemById, isPlayedToday, isPlanItemPlayed, planEntry } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 import { chooseTypes } from './theory.js';
 import { warmupsFor, prepFor, altWarmup } from './warmups.js';
@@ -142,6 +142,51 @@ export const inToday = (t) => {
   const plan = store.state.plan;
   return !!plan && plan.date === dateStr() && plan.items.some((i) => i.itemId === t.id && !i.warmup);
 };
+
+// ---------- Changing today's instance of an item ----------
+// What varies from day to day (an exercise's keys and types, a tune's key) can be changed for
+// today; if it's been played already, the logged session changes with it. Not for warm-ups,
+// whose keys and chords come from their tune.
+
+// The item's own place in today's set (not a warm-up), if any.
+export function todayItem(t) {
+  const plan = store.state.plan;
+  return plan?.date === dateStr() ? plan.items.find((i) => i.itemId === t.id && !i.warmup) || null : null;
+}
+
+// An exercise's keys today (roots 0–11, in order), with a type for each if it varies them.
+export function setTodayKeys(it, keys, types = null) {
+  it.keys = [...keys];
+  if (types) it.types = [...types];
+  else delete it.types;
+  const e = planEntry(it);
+  if (e) {
+    if (keys.length) e.keys = [...keys];
+    else delete e.keys;
+    if (types?.length) e.types = [...types];
+    else delete e.types;
+  }
+  save();
+}
+
+// A tune's key today (0–23). Its unplayed warm-ups are made again in the new key.
+export function setTodayKey(it, key) {
+  const t = itemById(it.itemId);
+  it.key = key;
+  it.alt = key != null && !!t?.keys?.length && !t.keys.includes(key);
+  it.shift = null;
+  const e = planEntry(it);
+  if (e) { e.key = key; e.alt = it.alt; e.shift = null; }
+  const plan = store.state.plan;
+  if (t && plan.items.some((i) => i.warmup === it.itemId && !isPlanItemPlayed(i))) {
+    if ((store.state.settings.exerciseFocus || 'own') === 'tunes') {
+      plan.items = plan.items.filter((i) => i.warmup !== it.itemId || isPlanItemPlayed(i));
+      plan.prepped = (plan.prepped || []).filter((id) => id !== it.itemId);
+      applyExerciseFocus(plan);
+    } else addWarmups(t); // the ones asked for, made again (in place of the unplayed ones)
+  }
+  save();
+}
 
 // Swaps the warm-up at index i of today's set for another (see altWarmup). False if there's none.
 export function swapWarmup(i, plan = store.state.plan) {

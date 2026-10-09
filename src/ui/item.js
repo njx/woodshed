@@ -6,7 +6,7 @@ import { esc, uid } from '../util.js';
 import {
   itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
 } from '../practice.js';
-import { syncFocus, addToToday, inToday } from '../plan.js';
+import { syncFocus, addToToday, inToday, todayItem, setTodayKey } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
 import { entriesFor } from '../diary.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -83,6 +83,7 @@ export function openItem(id, opts) {
       ${isNew || t.focus ? '' : inToday(t)
         ? `<p class="in-today">${ICON.check}In today’s set</p>`
         : `<button class="ghost-btn add-today" id="f-today">${ICON.plus}<span>Add to today’s set</span></button>`}
+      ${isNew ? '' : todayKeyHtml()}
       ${isNew ? '' : '<div id="chart-box" class="chart-box"></div>'}
       ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
       ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
@@ -125,6 +126,22 @@ export function openItem(id, opts) {
         <button class="danger-btn" id="delete">Delete tune</button>`}
     `;
   };
+
+  // Today's key, changeable (the chart and its warm-ups follow).
+  function todayKeyHtml() {
+    const it = todayItem(t);
+    if (!it) return '';
+    const minor = (it.key ?? t.keys?.[0] ?? 0) >= 12;
+    const keys = [...Array(12).keys()].map((r) => r + (minor ? 12 : 0));
+    return `
+      <div class="setting today-key">
+        <div><b>Today in</b><span>${it.key != null && t.keys.includes(it.key) ? 'One of its usual keys' : 'A new key for it'}</span></div>
+        <select id="f-todaykey" aria-label="Today’s key">
+          ${it.key == null ? '<option value="" selected>—</option>' : ''}
+          ${keys.map((k) => `<option value="${k}" ${k === it.key ? 'selected' : ''}>${esc(kn(k))}${t.keys.includes(k) ? ' · usual' : ''}</option>`).join('')}
+        </select>
+      </div>`;
+  }
 
   let added = false;
   // A new tune is added once it has a name: with the button, or by closing the sheet.
@@ -218,6 +235,12 @@ export function openItem(id, opts) {
         commit();
       };
     });
+    const keySel = $('#f-todaykey', sheet);
+    if (keySel) keySel.onchange = () => {
+      if (keySel.value === '') return;
+      setTodayKey(todayItem(t), Number(keySel.value));
+      refresh();
+    };
     const addBtn = $('#f-today', sheet);
     if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
     if (isNew) {

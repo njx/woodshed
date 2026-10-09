@@ -5,11 +5,11 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { syncFocus, refreshTypes, addToToday, inToday } from '../plan.js';
+import { syncFocus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
-import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc } from '../theory.js';
+import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -75,7 +75,7 @@ export function openExercise(id, opts = {}) {
   // itself here, not with a tune's keys) — so it doesn't count for every copy.
   const logItem = () => planItem || today.find((i) => !isPlanItemPlayed(i)) || today[0] || null;
   const isPlayed = () => (logItem() ? isPlanItemPlayed(logItem()) : isPlayedToday(t.id));
-  const todayKeys = opts.keys || planItem?.keys || [];
+  let todayKeys = opts.keys || planItem?.keys || []; // changes if today's keys are edited
   const prog = planItem?.prog || opts.prog || null; // a tune's progression (warm-ups)
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
   const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
@@ -131,6 +131,7 @@ export function openExercise(id, opts = {}) {
             : t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
+      ${todayHtml()}
 
       ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
       ${isNew || !canRecord() ? '' : `
@@ -204,6 +205,26 @@ ${t.fromTune ? '' : `
         <button class="danger-btn" id="x-delete">Delete exercise</button>`}
     `;
   };
+
+  // Today's keys (and types) for this exercise, changeable: not for a warm-up (its come from its
+  // tune), or one without keys.
+  const editable = () => !!planItem && !planItem.warmup && !t.fromTune && t.keyMode !== 'none';
+  function todayHtml() {
+    if (!editable()) return '';
+    const keys = planItem.keys || [];
+    const types = t.vary ? planItem.types || [] : [];
+    const played = isPlanItemPlayed(planItem);
+    return `
+      <div class="field-label row-label"><span>Today’s keys</span></div>
+      <div class="today-keys" role="group" aria-label="Today’s keys">${[...Array(12).keys()].map((w) => {
+        const k = writtenToConcert(w, view());
+        return `<button class="${keys.includes(k) ? 'on' : ''}" data-tk="${k}" aria-pressed="${keys.includes(k)}">${esc(rootName(k))}</button>`;
+      }).join('')}</div>
+      ${t.vary && keys.length ? `<ul class="today-types">${keys.map((k, i) => `
+        <li><b>${esc(rootName(k))}</b><select data-tt="${i}" aria-label="${esc(VARY[t.vary.kind].label)} in ${esc(rootName(k))}">${Object.entries(VARY[t.vary.kind].types).map(([id, x]) => `
+          <option value="${id}" ${types[i] === id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></li>`).join('')}</ul>` : ''}
+      <p class="fine">Tap keys to play ${t.vary ? 'it in (and pick the type for each)' : 'it in'} today${played ? ' — the session you logged changes too' : ''}.</p>`;
+  }
 
   const outerBack = opts.back;
   let leaving = false;
@@ -305,6 +326,35 @@ ${t.fromTune ? '' : `
     };
 
     bindPlaybackOptions(sheet, stopPlaying);
+
+    // Today's keys and types.
+    $$('[data-tk]', sheet).forEach((b) => (b.onclick = () => {
+      const k = Number(b.dataset.tk);
+      const keys = [...(planItem.keys || [])];
+      const types = t.vary ? [...(planItem.types || [])] : null;
+      const i = keys.indexOf(k);
+      if (i >= 0) {
+        if (keys.length === 1) return toast('Keep at least one key');
+        keys.splice(i, 1);
+        types?.splice(i, 1);
+      } else {
+        keys.push(k);
+        // A new key gets a type the usual way: one played least.
+        if (types) types.push(chooseTypes(t.vary, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] ?? t.vary.types[0]);
+      }
+      setTodayKeys(planItem, keys, types);
+      todayKeys = planItem.keys;
+      if (t.vary && todayKeys.includes(previewRoot)) previewType = typeFor(previewRoot);
+      refresh();
+    }));
+    $$('[data-tt]', sheet).forEach((sel) => (sel.onchange = () => {
+      const i = Number(sel.dataset.tt);
+      const types = [...(planItem.types || [])];
+      types[i] = sel.value;
+      setTodayKeys(planItem, planItem.keys, types);
+      if (planItem.keys[i] === previewRoot) previewType = sel.value;
+      refresh();
+    }));
 
     // Full screen, sideways, in the key (and type) shown.
     const full = $('#x-full', sheet);

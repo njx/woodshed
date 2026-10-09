@@ -222,4 +222,19 @@ describe('chords and warm-ups', () => {
     const list = today.items || today;
     expect(list.some((i) => i.warm_up_for === 'Autumn Leaves')).toBe(true);
   });
+
+  it('changes today’s keys for an exercise already played (the log follows), keeping types it had', () => {
+    setState([{ id: 'x', type: 'exercise', name: 'Scales', keyMode: 'weak', keysPerSession: 2, vary: { kind: 'scale', types: ['major', 'dorian'], shape: 'updown' } }]);
+    store.state.settings.view = 'c';
+    buildPlan(true);
+    store.state.plan.items = [];
+    runTool('add_to_today', { items: [{ item_id: 'x', keys: ['F', 'Bb'], types: ['dorian', 'major'] }] });
+    markPlayed('x', store.state.plan.items[0]);
+    const r = runTool('change_today', { item_id: 'x', keys: ['F', 'Bb', 'Eb'], types: null });
+    expect(r.today.keys).toEqual(['F', 'B♭', 'E♭']);
+    const e = store.state.log.at(-1);
+    expect(e.keys).toEqual([5, 10, 3]);
+    expect(e.types.slice(0, 2)).toEqual(['dorian', 'major']);
+    expect(e.types).toHaveLength(3);
+  });
 });

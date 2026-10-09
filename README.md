@@ -133,6 +133,12 @@ the *Through the changes* warm-ups show **chord symbols** over the notes, in the
 notation editor, ◀ ▶ step the cursor a note at a time, and **Chord** adds a chord symbol (written
 in C like the notes, transposed with them). Notation plays through the iPhone's silent switch.
 
+**Today's instance can be changed**, before or after you've played it (what you logged changes
+too): an exercise's details opened from today's set have **Today's keys** — tap keys to add or
+drop them — and, for exercises that vary, the scale or chord type in each; a tune's details have
+**Today in** for its key (its warm-ups move to the new key). Not for warm-ups, which follow their
+tune. The assistant can do the same ("I also played it in B").
+
 Everything saves as you go: details, notes, notation (with **Undo changes** to go back to how it
 was when you opened the editor) and chord charts (each edit is kept once it reads as a chart). A
 new tune or exercise is added when you close it, once it has a name (with Undo). An exercise's or

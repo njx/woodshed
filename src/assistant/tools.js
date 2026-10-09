@@ -5,10 +5,10 @@ import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlanItemPlayed, planEntry, setLevel, deleteItem } from '../practice.js';
-import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups, dropOrphanWarmups } from '../plan.js';
+import { ensurePlan, makePlanItem, syncFocus, refreshTypes, addWarmups, dropOrphanWarmups, todayItem, setTodayKeys, setTodayKey, typeCounts } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
-import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern } from '../theory.js';
+import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern, chooseTypes } from '../theory.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
 import { setTempo, clampBpm } from '../tempo.js';
 import { addEntry, openTodos, entriesFor } from '../diary.js';
@@ -375,6 +375,41 @@ export const TOOLS = [
       syncFocus();
       save();
       return { added, notes };
+    },
+  },
+  {
+    name: 'change_today',
+    description: "Change something in today's set — before or after it's been played (if played, the logged session changes too, e.g. \"I also did it in B\"). For an exercise: the keys it's played in today (all of them, in order) and, for exercises that vary the scale or chord type, the type for each key (type ids as in create_exercise; leave null to keep the types of keys already there and have the app pick for new ones). For a tune: the one key it's played in today. Not for warm-ups.",
+    input_schema: obj({
+      item_id: { type: 'string' },
+      keys: { type: 'array', items: { type: 'string' } },
+      types: nullable({ type: 'array', items: { type: 'string' } }),
+    }),
+    write: true,
+    run: ({ item_id, keys, types }) => {
+      const t = findItem(item_id);
+      ensurePlan();
+      const it = todayItem(t);
+      if (!it) return { error: `${t.name} isn't in today's set (add it with add_to_today).` };
+      if (t.type === 'tune') {
+        const k = concertKey(keys?.[0]);
+        if (k == null) return { error: 'Give the key, like "F" or "Gm".' };
+        setTodayKey(it, k);
+      } else {
+        const roots = [...new Set((keys || []).map(concertKey).filter((k) => k != null).map((k) => k % 12))];
+        if (!roots.length) return { error: 'Give at least one key, like "Eb".' };
+        let typeList = null;
+        if (t.vary) {
+          const known = Object.keys(VARY[t.vary.kind].types);
+          const was = Object.fromEntries((it.keys || []).map((k, i) => [k, it.types?.[i]]));
+          typeList = roots.map((k, i) => (known.includes(types?.[i]) ? types[i]
+            : was[k] || chooseTypes(t.vary, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] || t.vary.types[0]));
+        }
+        setTodayKeys(it, roots, typeList);
+      }
+      changes.push(`Changed today's ${t.name}`);
+      save();
+      return { today: planSummary().find((x) => x.item_id === t.id && !x.warm_up_for) };
     },
   },
   {
