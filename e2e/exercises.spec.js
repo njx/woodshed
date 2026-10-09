@@ -129,6 +129,20 @@ test('a lick’s chords: guessed from its chord symbols, or typed; then it comes
   await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'ii–V–I, 1-2-3-5').harmony).toBeUndefined();
 });
 
+test('a lick can be shown only as written, in C, to transpose in your head', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'ii–V–I, 1-2-3-5' }).click();
+  await expect(page.locator('.key-strip')).toBeVisible();
+  await page.check('#x-as-written');
+  await expect(page.locator('.key-strip')).toHaveCount(0);
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'ii–V–I, 1-2-3-5').asWritten).toBe(true);
+  await page.uncheck('#x-as-written');
+  await expect(page.locator('.key-strip')).toBeVisible();
+});
+
 test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
   const fetched = [];
   page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });

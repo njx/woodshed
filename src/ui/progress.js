@@ -1,7 +1,7 @@
 import { store } from '../store.js';
 import { dateStr, daysBetween, addDays, parseDate, niceDate } from '../dates.js';
 import { esc } from '../util.js';
-import { itemStats, itemById, isDue } from '../practice.js';
+import { itemById } from '../practice.js';
 import { $, $$, ui, saveUi, render, pips, levelLabel } from './shell.js';
 import { keyFamiliarity, keySessions } from '../keystats.js';
 import { writtenToConcert } from '../keys.js';
@@ -11,7 +11,6 @@ import { practicedByDay, fmtDuration } from '../practicetime.js';
 export function renderProgress(root) {
   const state = store.state;
   const today = dateStr();
-  const stats = itemStats();
   const perDay = new Map();
   for (const e of state.log) perDay.set(e.date, (perDay.get(e.date) || 0) + 1);
 
@@ -27,7 +26,9 @@ export function renderProgress(root) {
   // Big numbers for tiles: "45 min", "2.5 h".
   const tileTime = (ms) => (ms < 3600000 ? `${Math.round(ms / 60000)} min` : `${(ms / 3600000).toFixed(1).replace(/\.0$/, '')} h`);
   const tunes = state.items.filter((t) => t.type === 'tune');
-  const dueCount = tunes.filter((t) => isDue(t, stats)).length;
+  // Average time on the days timed in the last 30.
+  const timedDays = [...time].filter(([d, ms]) => ms > 0 && daysBetween(d, today) < 30).length;
+  const avgDay = timedDays ? timeSince(30) / timedDays : 0;
 
   // Heatmap: 17 weeks, columns are weeks (Sun–Sat), latest week on the right.
   const WEEKS = 17;
@@ -65,8 +66,8 @@ export function renderProgress(root) {
       <div class="tile"><b>${week.size}</b><span>tunes this week</span></div>
       ${time.size ? `
       <div class="tile"><b>${tileTime(timeSince(7))}</b><span>practiced<br>in last 7 days</span></div>
-      <div class="tile"><b>${tileTime(timeSince(30))}</b><span>practiced<br>in last 30 days</span></div>` : ''}
-      <button class="tile link" id="due-tile"><b>${dueCount}</b><span>tunes due<br>for review →</span></button>
+      <div class="tile"><b>${tileTime(timeSince(30))}</b><span>practiced<br>in last 30 days</span></div>
+      <div class="tile"><b>${tileTime(avgDay)}</b><span>a day on average<br>(days practiced)</span></div>` : ''}
     </div>
 
     <section class="panel">
@@ -108,7 +109,6 @@ export function renderProgress(root) {
     </section>
   `;
 
-  $('#due-tile').onclick = () => { ui.tab = 'tunes'; ui.library = 'tunes'; ui.filter = 'due'; saveUi(); render(); };
   $$('.keybar', root).forEach((b) => (b.onclick = () => {
     const k = Number(b.dataset.key);
     $$('.keybar', root).forEach((x) => x.classList.toggle('sel', x === b));

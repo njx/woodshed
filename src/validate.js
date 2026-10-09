@@ -42,6 +42,8 @@ function item(t, ids) {
     t.fromTune = !!t.fromTune;
     if (t.harmony != null) t.harmony = str(t.harmony, 200) || undefined; // chords it goes with (see warmups.js)
     if (t.harmony === undefined) delete t.harmony;
+    if (t.asWritten) t.asWritten = true; // notation shown only in C (see ui/exercise.js)
+    else delete t.asWritten;
   } else {
     t.keys = keyList(t.keys, 23);
     t.style = str(t.style || 'Standard', 60);

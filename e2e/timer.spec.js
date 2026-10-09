@@ -14,6 +14,8 @@ test('practice timer: start, end with undo, and it shows on Progress', async ({ 
   await expect.poll(async () => (await ui.saved()).state.timing).not.toBe(null);
   await ui.tab('progress');
   await expect(page.locator('.tile', { hasText: 'in last 7 days' })).toContainText('0 min');
+  await expect(page.locator('.tile', { hasText: 'a day on average' })).toContainText('min');
+  await expect(page.locator('.tile', { hasText: 'due' })).toHaveCount(0);
   await expect(page.locator('.sessions li').first()).toContainText('<1 min');
 });
 

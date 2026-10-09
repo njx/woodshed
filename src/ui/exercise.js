@@ -92,7 +92,10 @@ export function openExercise(id, opts = {}) {
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
   const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
   const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
-  let previewRoot = todayKeys[0] ?? 0;
+  // A written exercise can be shown only as written, in C, to transpose in your head.
+  const asWritten = () => !!t.asWritten && !t.vary && !prog && !!t.abc;
+  const writtenC = () => writtenToConcert(0, view());
+  let previewRoot = asWritten() ? writtenC() : todayKeys[0] ?? 0;
   // The scale or chord type shown: today's for the key shown, or the first one turned on.
   const typeFor = (root) => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
   let previewType = typeFor(previewRoot);
@@ -127,10 +130,10 @@ export function openExercise(id, opts = {}) {
       ${t.fromTune && !prog ? '<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: open a tune’s details and tap <b>Warm up for this tune</b>, or choose <b>From tunes</b> in Settings.</p>' : ''}
       ${t.vary || t.abc || prog ? `
         <div class="notation-card">
-          <div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
+          ${asWritten() ? '' : `<div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
             const r = writtenToConcert(w, view());
             return `<button class="${r === previewRoot ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root="${r}">${esc(rootName(r))}</button>`;
-          }).join('')}</div>
+          }).join('')}</div>`}
           ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${stripTypes().map((id) => `
             <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary.kind, id).short)}</button>`).join('')}</div>` : ''}
           <div class="nt-wrap">
@@ -141,9 +144,12 @@ export function openExercise(id, opts = {}) {
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
             ${playbackOptionsHtml()}
           </div>
+          ${!t.vary && !prog && t.abc ? `<label class="as-written"><input type="checkbox" id="x-as-written" ${t.asWritten ? 'checked' : ''}>
+            <span>Only as written, in C — transpose it in your head</span></label>` : ''}
           ${planItem?.over ? `<p class="fine">${esc(overText())}</p>`
             : prog ? `<p class="fine">Today: ${esc(prog.name)} in ${esc(rootName(previewRoot))} — ${esc(progressionChords(prog, previewRoot))}</p>`
             : t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
+            : todayKeys.length && asWritten() ? `<p class="fine">Today: ${esc(todayKeys.map((k) => rootName(k)).join(', '))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
       ${todayHtml()}
@@ -358,6 +364,15 @@ ${t.fromTune ? '' : `
     };
 
     bindPlaybackOptions(sheet, stopPlaying);
+    const aw = $('#x-as-written', sheet);
+    if (aw) aw.onchange = () => {
+      stopPlaying();
+      if (aw.checked) t.asWritten = true;
+      else delete t.asWritten;
+      previewRoot = asWritten() ? writtenC() : todayKeys[0] ?? 0;
+      commit();
+      refresh();
+    };
 
     // Today's keys and types.
     $$('[data-tk]', sheet).forEach((b) => (b.onclick = () => {

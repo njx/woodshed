@@ -77,6 +77,9 @@ iii–VI, then all of it (its notation is cut to those chords). A lick's chords 
 symbols in its notation, or are typed in its details under **Chords it goes with** (in C, like
 the notes).
 
+A written exercise's notation can be shown **Only as written, in C** (a box under it): the key strip
+goes, and you transpose into today's keys in your head.
+
 Add as many as you like; **Swap** gives the next one in its place, and changing the tune's key
 moves them. The same exercise can come up before several tunes, each set to that tune and ticked
 off on its own.
@@ -115,7 +118,7 @@ the phone sleeps, the timer has stopped at the moment the app was last seen; **C
 puts the time away back in, or **Start again** starts a new session. Sessions count toward the
 practice day they started on (which runs until 4am).
 
-Progress shows practice time for the last 7 and 30 days, and per day in *Recent sessions* and the
+Progress shows practice time for the last 7 and 30 days, the average on the days you practiced, and per day in *Recent sessions* and the
 heatmap. The assistant sees it too.
 
 ## Metronome and tempo

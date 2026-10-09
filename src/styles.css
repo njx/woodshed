@@ -723,6 +723,8 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .play-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .play-row .pill-btn svg, .ne-opts .pill-btn svg { fill: currentColor; stroke: none; width: 14px; height: 14px; }
 .play-row .pill-btn.on { background: var(--exercise); color: #fff; }
+.as-written { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+.as-written input { width: 18px; height: 18px; accent-color: var(--exercise); margin: 0; }
 .tempo { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
 .tempo input { width: 64px; height: 36px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 16px; }
 
