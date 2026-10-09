@@ -6,7 +6,7 @@ import { weightedPick, randomOf, uid } from './util.js';
 import { itemStats, overdue, itemById, isPlayedToday, isPlanItemPlayed, planEntry } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 import { chooseTypes } from './theory.js';
-import { warmupsFor, prepFor, altWarmup } from './warmups.js';
+import { nextWarmups, altWarmup } from './warmups.js';
 
 export function bucketOf(t) {
   if (t.type === 'exercise') return 'exercise';
@@ -92,7 +92,7 @@ export function typeCounts(log = store.state.log) {
 // ---------- How exercises relate to each other on a day (Settings → Exercises) ----------
 //   own:   each exercise picks its own keys (and types);
 //   day:   one or two keys of the day for all exercises that choose by weak keys or at random;
-//   tunes: the exercise slots are warm-ups for one of today's tunes, in its chords.
+// (Warm-ups for tunes are added by hand: addWarmups.)
 
 export function applyExerciseFocus(plan = store.state.plan) {
   const mode = store.state.settings.exerciseFocus || 'own';
@@ -104,36 +104,19 @@ export function applyExerciseFocus(plan = store.state.plan) {
       it.keys = plan.dayKeys.slice(0, Math.max(1, Math.min(t.keysPerSession || 1, plan.dayKeys.length)));
       if (t.vary) it.types = chooseTypes(t.vary, it.keys.length, itemStats().get(t.id)?.types || [], Math.random, typeCounts());
     }
-  } else if (mode === 'tunes') {
-    // Before each tune with a chord chart: scales or arpeggios on its chords, then one of its
-    // progressions; the regular exercises stay up top. Tunes already given warm-ups today
-    // (plan.prepped) keep theirs, or don't get them back if they were swapped out.
-    plan.prepped ||= [];
-    const tunes = plan.items.filter((it) => !it.warmup && itemById(it.itemId)?.type === 'tune');
-    // Unplayed warm-ups for tunes no longer in the set go.
-    plan.items = plan.items.filter((it) => !it.warmup || isPlanItemPlayed(it) || tunes.some((x) => x.itemId === it.warmup));
-    let n = plan.items.filter((it) => it.warmup && it.types).length;
-    for (const it of tunes) {
-      if (plan.prepped.includes(it.itemId) || isPlanItemPlayed(it)) continue;
-      plan.prepped.push(it.itemId);
-      // Alternate between arpeggios and scales from tune to tune.
-      plan.items.push(...prepFor(itemById(it.itemId), { key: it.key, prefer: n++ % 2 ? 'scale' : 'chord' }));
-    }
   }
   plan.mode = mode;
   orderPlan(plan);
 }
 
 // Puts a tune or exercise into today's set (from its details). False if it's already there.
-// In "Before tunes", a tune gets its warm-ups.
 export function addToToday(t) {
   ensurePlan();
   const plan = store.state.plan;
   if (inToday(t)) return false;
   plan.items.push(makePlanItem(t, itemStats(), t.focus ? 'focus' : bucketOf(t)));
   plan.skipped = (plan.skipped || []).filter((id) => id !== t.id);
-  if (t.type === 'tune' && (store.state.settings.exerciseFocus || 'own') === 'tunes') applyExerciseFocus(plan);
-  else orderPlan(plan);
+  orderPlan(plan);
   save();
   return true;
 }
@@ -178,12 +161,10 @@ export function setTodayKey(it, key) {
   const e = planEntry(it);
   if (e) { e.key = key; e.alt = it.alt; e.shift = null; }
   const plan = store.state.plan;
-  if (t && plan.items.some((i) => i.warmup === it.itemId && !isPlanItemPlayed(i))) {
-    if ((store.state.settings.exerciseFocus || 'own') === 'tunes') {
-      plan.items = plan.items.filter((i) => i.warmup !== it.itemId || isPlanItemPlayed(i));
-      plan.prepped = (plan.prepped || []).filter((id) => id !== it.itemId);
-      applyExerciseFocus(plan);
-    } else addWarmups(t); // the ones asked for, made again (in place of the unplayed ones)
+  const redo = plan.items.filter((i) => i.warmup === it.itemId && !isPlanItemPlayed(i)).length;
+  if (t && redo) {
+    plan.items = plan.items.filter((i) => i.warmup !== it.itemId || isPlanItemPlayed(i));
+    addWarmups(t, redo); // as many as it had, in the new key
   }
   save();
 }
@@ -211,14 +192,13 @@ export function dropOrphanWarmups(plan = store.state.plan) {
 // In "Before tunes", each tune's warm-ups go just before it. Warm-ups for a tune that isn't in the
 // set go with the exercises.
 export function orderPlan(plan = store.state.plan) {
-  const { exerciseFocus, tuneOrder } = store.state.settings;
-  const tunesMode = (exerciseFocus || 'own') === 'tunes';
+  const { tuneOrder } = store.state.settings;
   const isTune = (it) => itemById(it.itemId)?.type === 'tune';
   const ownTune = (it) => it.warmup && plan.items.some((x) => !x.warmup && x.itemId === it.warmup);
   for (const it of plan.items) if (typeof it.mix !== 'number') it.mix = Math.random();
   const mixed = (tuneOrder || 'mixed') === 'mixed';
   const rank = (it) => {
-    if (tunesMode && !isTune(it)) return -1;
+    if (!isTune(it)) return it.bucket === 'focus' ? -2 : -1; // exercises up top (focus ones first)
     if (mixed && isTune(it) && it.bucket !== 'focus') return 2 + it.mix; // after focus and exercises
     return BUCKET_ORDER[it.bucket] ?? 9;
   };
@@ -238,10 +218,9 @@ export function refreshExercises() {
 
 function repickExercises(plan) {
   const stats = itemStats();
-  const drop = (it) => it.bucket === 'exercise' && !isPlanItemPlayed(it);
+  const drop = (it) => it.bucket === 'exercise' && !it.warmup && !isPlanItemPlayed(it); // warm-ups you added stay
   plan.items = plan.items.filter((it) => !drop(it));
   delete plan.dayKeys;
-  plan.prepped = [...new Set(plan.items.map((it) => it.warmup).filter(Boolean))]; // played ones stay
   const exclude = excludedIds();
   const have = plan.items.filter((it) => it.bucket === 'exercise' && !it.warmup).length;
   for (let i = have; i < (store.state.settings.exercises ?? 0); i++) {
@@ -254,17 +233,17 @@ function repickExercises(plan) {
   save();
 }
 
-// Adds warm-ups for a tune to today's set (from its details), in place of any it has that haven't
-// been played. Returns how many were added.
-export function addWarmups(t) {
+// Adds `n` warm-ups for a tune to today's set, just before it (and the tune, if it isn't there):
+// the next ones nextWarmups suggests. Returns how many were added.
+export function addWarmups(t, n = 1) {
   ensurePlan();
   const plan = store.state.plan;
-  const key = plan.items.find((i) => i.itemId === t.id)?.key ?? null;
-  const warm = warmupsFor(t, { key });
+  if (!plan.items.some((i) => i.itemId === t.id && !i.warmup)) addToToday(t);
+  const key = plan.items.find((i) => i.itemId === t.id && !i.warmup)?.key ?? null;
+  const have = plan.items.filter((i) => i.warmup === t.id);
+  const warm = nextWarmups(t, { key, have, avoid: new Set(plan.items.map((i) => i.itemId)), n });
   if (!warm.length) return 0;
-  // Replaces this tune's earlier warm-ups that haven't been played.
-  plan.items = [...plan.items.filter((i) => i.warmup !== t.id || isPlanItemPlayed(i)), ...warm];
-  plan.prepped = [...new Set([...(plan.prepped || []), t.id])];
+  plan.items.push(...warm);
   plan.skipped = (plan.skipped || []).filter((id) => !warm.some((w) => w.itemId === id));
   orderPlan(plan);
   save();
@@ -305,7 +284,6 @@ export function buildPlan(keepPlayed = false) {
     items,
     skipped: prev ? [...exclude].filter((id) => !items.some((i) => i.itemId === id)) : [],
     focusSkipped: prev?.focusSkipped || [],
-    prepped: prev ? [...new Set(kept.map((it) => it.warmup).filter(Boolean))] : [],
     ...(prev?.dayKeys ? { dayKeys: prev.dayKeys } : {}),
   };
   syncFocus();
@@ -324,16 +302,12 @@ export function syncFocus() {
     if (t.focus) it.bucket = 'focus';
     else if (it.bucket === 'focus') it.bucket = bucketOf(t);
   }
-  let added = false;
   for (const t of store.state.items) {
     if (t.focus && !plan.focusSkipped.includes(t.id) && !plan.items.some((i) => i.itemId === t.id && !i.warmup)) {
       plan.items.push(makePlanItem(t, stats, 'focus'));
-      added = true;
     }
   }
-  // A tune that just became a focus tune gets its warm-ups (once the set has been made).
-  if (added && plan.mode === 'tunes') applyExerciseFocus(plan);
-  else orderPlan(plan);
+  orderPlan(plan);
 }
 
 export function ensurePlan() {

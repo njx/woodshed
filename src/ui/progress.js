@@ -43,7 +43,7 @@ export function renderProgress(root) {
     }
   }
 
-  const levelCounts = [3, 2, 1, 0, null].map((l) => ({ l, n: tunes.filter((t) => (t.level ?? null) === l).length }));
+  const levelCounts = [3, 2, 1, 0].map((l) => ({ l, n: tunes.filter((t) => (t.level ?? 0) === l).length }));
 
   // Keys: how familiar each one is (recent sessions count more), in circle-of-fifths order.
   const fam = keyFamiliarity();

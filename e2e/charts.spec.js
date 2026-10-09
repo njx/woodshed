@@ -64,35 +64,39 @@ test('a tune without a chart can get one', async ({ page, ui }) => {
   await expect(page.locator('.chart-foot .fine')).toHaveText('Your chart');
 });
 
-test('warm up for a tune from its chart', async ({ page, ui }) => {
+test('warm up for a tune from its chart, or with + Warm-up on its card', async ({ page, ui }) => {
   await ui.start();
+  await expect(page.locator('.card .bucket', { hasText: 'Warm-up' })).toHaveCount(0); // none by itself
   await openTune(page, ui, 'Autumn Leaves');
   await expect(page.locator('.chart')).toBeVisible();
   await page.click('#chart-warmup');
-  await expect(page.locator('#toast')).toContainText('warm-ups for Autumn Leaves');
+  await expect(page.locator('#toast')).toContainText('warm-up for Autumn Leaves');
   await ui.backdrop();
   await ui.tab('today');
   const warm = page.locator('.card', { hasText: 'for Autumn Leaves' });
-  await expect(warm).toHaveCount(4);
+  await expect(warm).toHaveCount(1);
   await expect(warm.first().locator('.bucket')).toHaveText('Warm-up');
-  // First, its main progression through the changes: the minor ii–V–i into G.
-  await expect(warm.first().locator('h2')).toHaveText('Through the changes');
-  await expect(warm.first().locator('.keychip')).toContainText('iiø–V7–i in G');
+  // First, the written ii–V–I pattern over the tune's major ii–V–I, in B♭.
+  await expect(warm.first().locator('h2')).toHaveText('ii–V–I, 1-2-3-5');
+  await expect(warm.first().locator('.keychip')).toContainText('ii–V7–I in B♭');
   await warm.first().locator('h2').click();
-  await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText('Aø7 · D7 · Gm6');
+  await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText('over ii–V7–I in B♭');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
-  await expect(page.locator('.sheet #x-vary')).toHaveCount(0); // its chords come from the tune
   await ui.backdrop();
-  // Then arpeggios: the exercise shows today's chords, even ones not turned on for it.
+  // + Warm-up on the tune's card adds the next: arpeggios on its chords, just before the tune.
+  await page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) }).locator('[data-add-warm]').click();
+  await expect(warm).toHaveCount(2);
+  await expect(warm.nth(1).locator('h2')).toHaveText('Seventh-chord arpeggios');
   await expect(warm.nth(1).locator('.keychip')).toContainText(/m6|m7|ø7|7/);
   await warm.nth(1).locator('h2').click();
   await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText(/m6/);
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
 });
 
-test('exercises on a day: key of the day, or warm-ups for today’s tunes @narrow', async ({ page, ui }) => {
+test('exercises on a day: each its own, or key of the day @narrow', async ({ page, ui }) => {
   await ui.start();
   await ui.tab('settings');
+  await expect(page.locator('#ex-focus button')).toHaveCount(2);
   await page.click('#ex-focus [data-v="day"]');
   await ui.tab('today');
   await expect(page.locator('.day-note')).toContainText('of the day');
@@ -105,22 +109,6 @@ test('exercises on a day: key of the day, or warm-ups for today’s tunes @narro
     const ex = state.items.find((x) => x.id === it.itemId);
     if (['weak', 'random'].includes(ex.keyMode)) expect(state.plan.dayKeys).toEqual(expect.arrayContaining(it.keys));
   }
-
-  await ui.tab('settings');
-  await page.click('#ex-focus [data-v="tunes"]');
-  await ui.tab('today');
-  await expect(page.locator('.day-note')).toContainText('warm-ups from its chords, just before it');
-  // A tune made a focus tune gets its warm-ups too, just before it.
-  await openTune(page, ui, 'Autumn Leaves');
-  await page.click('.focus-toggle');
-  await ui.backdrop();
-  await ui.tab('today');
-  const names = await page.$$eval('.card', (cs) => cs.map((c) => `${c.querySelector('.style').textContent}|${c.querySelector('h2').textContent}`));
-  const at = names.findIndex((n) => n.endsWith('|Autumn Leaves'));
-  expect(names.slice(at - 2, at)).toEqual([
-    expect.stringMatching(/^for Autumn Leaves\|(Seventh-chord arpeggios|Scales: major and minors)$/),
-    'for Autumn Leaves|Through the changes',
-  ]);
   await ui.expectNoSideScroll();
 });
 

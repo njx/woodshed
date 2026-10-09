@@ -46,13 +46,17 @@ sessions), L (a big piece, or needs a native app).
     speed-up / slow-down suggestions work per key ("Rough at 120 in D♭ — 115 there?").
   - The exercise's overall rating (for when it's due) comes from its keys: the worst one.
   The log already records each session's keys and tempo, so there's history to start from.
-- **Compact warm-ups** (S). Show a tune's warm-ups as smaller cards grouped under it, so a day
-  with many tunes stays scannable.
-
 - **Comping under notation** (S). Notation with chord symbols could play a simple comp under the
   line (the notation library can, it's turned off for now), as a mini backing track.
-- **Warm-ups, take two** (?). They work, but don't feel quite right yet — to think through what a
-  good warm-up for a tune is (which chunk, which device, how long), before changing them.
+- **Walking bass to play against** (M). Generate a simple bass line for a chord progression — a
+  tune's chart, or a warm-up's progression — and loop it at the working tempo: 1-2-3-5 on each
+  chord to start (with an approach note into the next chord later). Drums are harder; a hi-hat on
+  2 and 4 might be enough.
+- **Licks over related progressions** (M, to think about). A lick could also fit progressions that
+  aren't the same chord kinds: a minor ii–V–i lick over its relative major, a ii–V lick starting a
+  minor 3rd up, and so on. Not every lick works this way — maybe offered only for ones marked so.
+- **Licks written in any key** (S–M, parked). Enter a lick in the key it was learned in (not only
+  in C), so seeing it "as written" makes the transposing even more of a workout.
 
 ## Listening and slowing down
 

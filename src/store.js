@@ -9,7 +9,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
-// Schema (version 9):
+// Schema (version 10):
 //   items:    practice items, all with { id, type, name, priority 1–4, level null|0–3, notes,
 //             focus, ivl, due, levelSetAt }, plus by type:
 //             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart?,
@@ -24,14 +24,15 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   plan:     today's set { date, items: [{ pid, itemId, bucket, key, keys?, types?, alt, shift,
 //             warmup?, prog?, mix? }] (mix: its random place among the day's tunes; pid: the plan item's own id, as an exercise can be in a set more
 //             than once; warmup: the tune it's before; prog: a progression for a fromTune
-//             exercise, see warmups.js), mode (the exercise setting it was made with), prepped
-//             (tunes given warm-ups), dayKeys?, skipped, focusSkipped }
+//             exercise, see warmups.js; over/overKey/parts: what a written one is played over,
+//             see warmups.js; slot), mode (the exercise setting it was made with), dayKeys?,
+//             skipped, focusSkipped }
 //   diary:    practice notes { id, date, at, text, flag, done, itemId?, media? } (see diary.js,
 //             media.js; recorded clips themselves live in IndexedDB's media store)
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -54,7 +55,7 @@ export function seedExercises(since = 0) {
     meter: '4/4',
     notes: x.notes,
     priority: 3,
-    level: null,
+    level: 0,
     ivl: null,
     due: null,
   }));
@@ -70,7 +71,7 @@ export function seedState() {
       seedName: t.name,
       style: t.style,
       priority: t.priority,
-      level: t.level ?? null,
+      level: t.level ?? 0,
       keys: (t.keys || []).map(parseKey).filter((k) => k != null),
       notes: t.notes || '',
       mine: !!t.mine,
@@ -149,6 +150,13 @@ export function migrate(s) {
     ]);
     for (const t of s.items || []) if (t.type === 'exercise' && withChords.has(t.abc)) t.abc = withChords.get(t.abc);
     s.version = 9;
+  }
+  if (s.version < 10) {
+    // v10: warm-ups are added by hand (+ Warm-up on a tune), not before every tune: today's
+    // set is made again without them (see ensurePlan), keeping any already played.
+    const played = new Set((s.log || []).map((e) => e.pid).filter(Boolean));
+    if (s.plan) s.plan.items = (s.plan.items || []).filter((it) => !it.warmup || played.has(it.pid));
+    s.version = 10;
   }
   return normalize(s);
 }

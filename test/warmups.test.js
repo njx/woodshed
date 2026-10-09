@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
-import { warmupsFor, prepFor, altWarmup } from '../src/warmups.js';
+import { nextWarmups, altWarmup, harmonyOf } from '../src/warmups.js';
 import { buildPlan, addWarmups, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
 import { tempoSuggestion } from '../src/tempo.js';
@@ -45,91 +45,99 @@ describe('charts for tunes', () => {
   });
 });
 
+// Warm-ups added before a tune (by hand: addWarmups), and what it's added to the set with.
+const name = (x) => store.state.items.find((i) => i.id === x.itemId).name;
+const lick = (abc, harmony) => {
+  const x = { id: `lick${store.state.items.length}`, type: 'exercise', name: 'A lick', category: 'lick', keyMode: 'fixed', keysPerSession: 1, keys: [], abc, meter: '4/4', ...(harmony ? { harmony } : {}) };
+  store.state.items.push(x);
+  return x;
+};
+
 describe('warm-ups for a tune', () => {
-  it('its main progression, arpeggios on its main chords, scales for its chords, and ii–Vs into its major keys', () => {
+  it('take turns: a pattern over part of a progression, then something on its chords, …', () => {
     const t = byName('Autumn Leaves'); // G minor
-    const w = warmupsFor(t, { key: 19 });
-    const names = w.map((x) => store.state.items.find((i) => i.id === x.itemId).name);
-    expect(names).toEqual(['Through the changes', 'Seventh-chord arpeggios', 'Scales: major and minors', 'ii–V–I, 1-2-3-5']);
-    const [changes, arps, scales, iiV] = w;
-    // The minor ii–V–i into G, keeping the colours (iiø, and the dominant's ♭13 → 7).
-    expect(changes.prog.name).toBe('iiø–V7–i');
-    expect(changes.keys).toEqual([7]);
-    expect(changes.prog.chords.map((c) => c.family)).toEqual(['m7b5', 'dom7', 'm6']);
-    expect(arps.keys[0]).toBe(7); // G
+    const w = nextWarmups(t, { key: 19, n: 4 });
+    expect(w.map(name)).toEqual(['ii–V–I, 1-2-3-5', 'Seventh-chord arpeggios', 'Through the changes', 'Scales: major and minors']);
+    const [pattern, arps, changes] = w;
+    // The written ii–V–I (Dm7 G7 Cmaj7 in C) over Cm7 F7 B♭maj7: played in B♭.
+    expect(pattern).toMatchObject({ keys: [10], over: 'ii–V7–I', overKey: 10, slot: 'changes' });
+    expect(arps).toMatchObject({ slot: 'setup' });
     expect(arps.types[0]).toBe('m6'); // Gm6
-    expect(iiV.keys).toContain(10); // Cm7 F7 → B♭
-    expect(scales.types.length).toBe(scales.keys.length);
+    // The minor ii–V–i into G, keeping the colours.
+    expect(changes.prog.name).toBe('iiø–V7–i');
+    expect(changes.prog.chords.map((c) => c.family)).toEqual(['m7b5', 'dom7', 'm6']);
     expect(w.every((x) => x.warmup === t.id)).toBe(true);
   });
   it('follow the key the tune is played in', () => {
-    const t = byName('Autumn Leaves');
-    const inE = warmupsFor(t, { key: 16 }); // E minor: down a minor 3rd
-    expect(inE[0].keys[0]).toBe(4); // Em6
+    const [pattern] = nextWarmups(byName('Autumn Leaves'), { key: 16 }); // E minor: down a minor 3rd
+    expect(pattern.keys).toEqual([7]);
   });
-  it('before a tune: arpeggios (or scales) on its chords, then its progression', () => {
-    const t = byName('Autumn Leaves');
-    const name = (x) => store.state.items.find((i) => i.id === x.itemId).name;
-    expect(prepFor(t, { key: 19 }).map(name)).toEqual(['Seventh-chord arpeggios', 'Through the changes']);
-    expect(prepFor(t, { key: 19, prefer: 'scale' }).map(name)).toEqual(['Scales: major and minors', 'Through the changes']);
-    expect(prepFor(byName('Killer Joe'))).toEqual([]); // no chart
+  it('a lick runs through a longer progression: a ii–V–I one plays just its ii–V up a step, then all of it', () => {
+    const [w] = nextWarmups(byName('There Will Never Be Another You'), { key: 3 }); // E♭
+    expect(w).toMatchObject({ over: 'iii–VI7–ii–V7–I', overKey: 3, keys: [5, 3], parts: [2, null] }); // F (Gm7 C7), then E♭
   });
-  it('can be swapped: arpeggios for scales, or the tune’s next progression', () => {
+  it('a ii–V lick, from the chord symbols in its notation, goes over iii–VI then ii–V', () => {
+    const x = lick('"Dm7"D F A c "G7"B G F D | C8 |');
+    expect(harmonyOf(x).map((c) => c.family)).toEqual(['m7', 'dom7']);
+    const fits = nextWarmups(byName('There Will Never Be Another You'), { key: 3, n: 12 }).filter((w) => w.itemId === x.id);
+    expect(fits[0]).toMatchObject({ over: 'iii–VI7–ii–V7', keys: [5, 3] });
+    expect(fits[0].parts).toBeUndefined();
+  });
+  it('its chords can be typed instead (in C), over a one-chord one fitting any chord of that kind', () => {
+    const x = lick('C D E F G A B c |', 'C7'); // no chord symbols: typed
+    expect(harmonyOf(x).map((c) => c.family)).toEqual(['dom7']);
+    const fits = nextWarmups(byName('Autumn Leaves'), { key: 19, n: 60 }).filter((w) => w.itemId === x.id);
+    expect(fits.length).toBeGreaterThan(0);
+    expect(fits[0].over).toMatch(/^[DF]7/); // over a dominant: D7♭13 or F7
+  });
+  it('none it already has; and swapping gives the next one in its place', () => {
     const t = byName('There Will Never Be Another You');
-    const [setup, prog] = prepFor(t, { key: 3 });
-    const name = (x) => store.state.items.find((i) => i.id === x.itemId).name;
-    expect(name(altWarmup(t, setup, { key: 3 }))).toBe('Scales: major and minors');
-    const next = altWarmup(t, prog, { key: 3 });
-    expect(`${next.prog.name} in ${next.keys[0]}`).not.toBe(`${prog.prog.name} in ${prog.keys[0]}`);
-    expect(next.warmup).toBe(t.id);
-    expect(next.pid).not.toBe(prog.pid);
+    const [a] = nextWarmups(t, { key: 3 });
+    const [b] = nextWarmups(t, { key: 3, have: [a] });
+    expect(b.slot).toBe('setup'); // it had a lick: now something on its chords
+    const c = altWarmup(t, a, { key: 3 });
+    expect(c).toMatchObject({ slot: 'changes' });
+    expect(`${c.over}${c.keys}`).not.toBe(`${a.over}${a.keys}`);
+    expect(nextWarmups(byName('Killer Joe'))).toEqual([]); // no chart
   });
 });
 
 describe('exercises across a day', () => {
-  it('"from tunes": general exercises up top, then each tune with its warm-ups just before it', () => {
-    expect(store.state.settings.exerciseFocus).toBe('tunes'); // the default
+  it('nothing is added before tunes by itself; general exercises up top', () => {
     buildPlan(true);
     const items = store.state.plan.items;
-    const item = (it) => byName(store.state.items.find((x) => x.id === it.itemId).name);
-    const general = items.filter((i) => item(i).type === 'exercise' && !i.warmup);
-    expect(general).toHaveLength(2);
-    expect(items.slice(0, 2)).toEqual(general);
-    // Every warm-up comes right before its tune (setup, then the progression), a pair per tune.
-    for (const [i, it] of items.entries()) {
-      if (!it.warmup) continue;
-      const tuneAt = items.findIndex((x, j) => j > i && !x.warmup);
-      expect(items[tuneAt].itemId).toBe(it.warmup);
-    }
-    const tunes = items.filter((i) => item(i).type === 'tune' && chartFor(item(i)));
-    for (const t of tunes) expect(items.filter((i) => i.warmup === t.itemId).length).toBeGreaterThan(0);
-    expect(items.filter((i) => i.warmup).length).toBeLessThanOrEqual(tunes.length * 2);
-    // Arpeggios and scales take turns.
-    const setups = items.filter((i) => i.warmup && i.types).map((i) => item(i).vary.kind);
-    expect(setups.slice(0, 2)).toEqual(['chord', 'scale']);
-    expect(new Set(items.map((i) => i.pid)).size).toBe(items.length);
+    expect(items.some((i) => i.warmup)).toBe(false);
+    const first = store.state.items.find((x) => x.id === items[0].itemId);
+    expect(first.type).toBe('exercise');
+  });
+  it('+ Warm-up adds one at a time, just before its tune (putting the tune in the set if need be)', () => {
+    buildPlan(true);
+    const t = byName('Autumn Leaves');
+    expect(addWarmups(t)).toBe(1);
+    expect(addWarmups(t)).toBe(1);
+    const items = store.state.plan.items;
+    const at = items.findIndex((i) => i.itemId === t.id && !i.warmup);
+    expect(items.slice(at - 2, at).map((i) => i.warmup)).toEqual([t.id, t.id]);
+    expect(items.slice(at - 2, at).map((i) => i.slot)).toEqual(['changes', 'setup']);
   });
   it('the same exercise before two tunes is played (and unmarked) on its own each time', () => {
     buildPlan(true);
-    const changes = byName('Through the changes');
-    const [a, b] = store.state.plan.items.filter((i) => i.itemId === changes.id);
-    markPlayed(changes.id, a);
+    const plan = store.state.plan;
+    for (const n of ['Autumn Leaves', 'There Will Never Be Another You']) {
+      addToToday(byName(n));
+      plan.items.push(...nextWarmups(byName(n), { key: todayItem(byName(n)).key }));
+    }
+    const pattern = byName('ii–V–I, 1-2-3-5');
+    const [a, b] = plan.items.filter((i) => i.itemId === pattern.id);
+    markPlayed(pattern.id, a);
     expect(isPlanItemPlayed(a)).toBe(true);
     expect(isPlanItemPlayed(b)).toBe(false);
-    markPlayed(changes.id, b);
-    expect(store.state.log.filter((e) => e.itemId === changes.id)).toHaveLength(2);
-    unmarkPlayed(changes.id, a);
+    markPlayed(pattern.id, b);
+    expect(store.state.log.filter((e) => e.itemId === pattern.id)).toHaveLength(2);
+    unmarkPlayed(pattern.id, a);
     expect(isPlanItemPlayed(a)).toBe(false);
     expect(isPlanItemPlayed(b)).toBe(true);
-    expect(isPlayedToday(changes.id)).toBe(true);
-  });
-  it('a set made with another setting is redone for this one', () => {
-    store.state.settings.exerciseFocus = 'own';
-    buildPlan(true);
-    expect(store.state.plan.items.some((i) => i.warmup)).toBe(false);
-    store.state.settings.exerciseFocus = 'tunes';
-    ensurePlan();
-    expect(store.state.plan.items.some((i) => i.warmup)).toBe(true);
+    expect(isPlayedToday(pattern.id)).toBe(true);
   });
   it('"key of the day" gives weak-key exercises the same keys', () => {
     store.state.settings.exerciseFocus = 'day';
@@ -140,14 +148,6 @@ describe('exercises across a day', () => {
       const t = store.state.items.find((x) => x.id === it.itemId);
       if (['weak', 'random'].includes(t.keyMode)) expect(dayKeys).toEqual(expect.arrayContaining(it.keys));
     }
-  });
-  it('adds warm-ups for a tune on request, just before it', () => {
-    store.state.settings.exerciseFocus = 'own';
-    buildPlan(true);
-    const t = byName('Autumn Leaves');
-    expect(addWarmups(t)).toBe(4);
-    expect(addWarmups(t)).toBe(4); // again: in place of the first ones
-    expect(store.state.plan.items.filter((i) => i.warmup === t.id)).toHaveLength(4);
   });
 });
 
@@ -163,8 +163,7 @@ describe('types by overall weakness', () => {
 describe('progression warm-ups', () => {
   it('keep a tune’s colours, like a ♭9 on the V', () => {
     const t = byName('Alone Together'); // D minor: Em7b5 A7b9 Dm6
-    const [changes] = warmupsFor(t, { key: 14 });
-    expect(changes.prog.name).toBe('iiø–V7–i');
+    const changes = nextWarmups(t, { key: 14, n: 6 }).find((w) => w.prog?.name === 'iiø–V7–i');
     expect(changes.prog.chords.map((c) => c.family)).toEqual(['m7b5', 'dom7b9', 'm6']);
   });
   it('find longer progressions', () => {
@@ -173,53 +172,44 @@ describe('progression warm-ups', () => {
   });
   it('“Through the changes” only comes up as a warm-up', () => {
     store.state.settings.exercises = 8;
-    const changes = byName('Through the changes');
-    for (const mode of ['own', 'tunes']) {
-      store.state.settings.exerciseFocus = mode;
-      buildPlan();
-      expect(store.state.plan.items.filter((i) => i.itemId === changes.id).every((i) => i.warmup)).toBe(true);
-    }
-    store.state.settings.exerciseFocus = 'own';
     buildPlan();
-    expect(store.state.plan.items.some((i) => i.itemId === changes.id)).toBe(false);
+    expect(store.state.plan.items.some((i) => i.itemId === byName('Through the changes').id)).toBe(false);
   });
 });
 
 describe('from the review', () => {
   it('deleting a tune keeps its played warm-ups (and their log entries stay theirs)', () => {
     buildPlan(true);
+    const t = byName('Autumn Leaves');
+    addWarmups(t);
+    addWarmups(t);
+    addWarmups(t);
     const plan = store.state.plan;
     const changes = byName('Through the changes');
-    const [a, b] = plan.items.filter((i) => i.itemId === changes.id);
+    const [a] = plan.items.filter((i) => i.itemId === changes.id);
+    const [b] = plan.items.filter((i) => i.warmup === t.id && i.itemId !== changes.id);
     markPlayed(changes.id, a);
-    deleteItem(a.warmup);
+    deleteItem(t.id);
     expect(isPlanItemPlayed(a)).toBe(true);
     expect(a.warmup).toBeUndefined();
-    expect(isPlanItemPlayed(b)).toBe(false); // not mistaken for played
+    expect(plan.items).not.toContain(b); // unplayed ones go with it
   });
   it('several plays in a day are one session for level and tempo suggestions', () => {
     buildPlan(true);
     const changes = byName('Through the changes');
     changes.level = 0;
     changes.tempo = 100;
-    for (const it of store.state.plan.items.filter((i) => i.itemId === changes.id)) {
-      markPlayed(changes.id, it);
-      rate(changes.id, 'solid', it);
+    for (const n of ['Autumn Leaves', 'Alone Together', 'There Will Never Be Another You']) {
+      const t = byName(n);
+      addToToday(t);
+      const w = nextWarmups(t, { key: todayItem(t).key, n: 6 }).find((x) => x.itemId === changes.id);
+      store.state.plan.items.push(w);
+      markPlayed(changes.id, w);
+      rate(changes.id, 'solid', w);
     }
-    expect(store.state.log.filter((e) => e.itemId === changes.id).length).toBeGreaterThan(2);
+    expect(store.state.log.filter((e) => e.itemId === changes.id).length).toBeGreaterThan(1);
     expect(levelSuggestion(changes)).toBe(null);
     expect(tempoSuggestion(changes)).toBe(null);
-  });
-  it('a set from before the exercise settings keeps the exercises already shown', () => {
-    store.state.settings.exerciseFocus = 'own';
-    buildPlan(true);
-    const plan = store.state.plan;
-    const shown = plan.items.filter((i) => i.bucket === 'exercise').map((i) => i.pid);
-    delete plan.mode;
-    store.state.settings.exerciseFocus = 'tunes';
-    ensurePlan();
-    expect(plan.items.filter((i) => !i.warmup && i.bucket === 'exercise').map((i) => i.pid)).toEqual(shown);
-    expect(plan.items.some((i) => i.warmup)).toBe(true);
   });
   it('warm-ups for a tune that left the set go, unless played', () => {
     store.state.settings.exerciseFocus = 'own';
@@ -255,6 +245,9 @@ describe('changing today’s instance', () => {
     addToToday(t);
     const it = todayItem(t);
     setTodayKey(it, 19); // G minor
+    addWarmups(t);
+    addWarmups(t);
+    addWarmups(t);
     const before = store.state.plan.items.find((i) => i.warmup === t.id && i.prog);
     setTodayKey(it, 16); // E minor: down a minor 3rd
     const after = store.state.plan.items.find((i) => i.warmup === t.id && i.prog);
@@ -268,6 +261,7 @@ describe('changing today’s instance', () => {
 describe('warm-up tempo', () => {
   it('is the tune’s: logged with the session, and not counted for the exercise’s own tempo', () => {
     buildPlan(true);
+    addWarmups(byName('Autumn Leaves'));
     const plan = store.state.plan;
     const w = plan.items.find((i) => i.warmup);
     const tune = store.state.items.find((t) => t.id === w.warmup);

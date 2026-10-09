@@ -67,16 +67,15 @@ export function mountChart(box, t, { back } = {}) {
         <div class="chart">${chartHtml(chart, opts)}</div>
         ${progsHtml(chart, opts)}
         <div class="chart-foot">
-          <button class="pill-btn" id="chart-warmup">${ICON.plus}Warm up for this tune</button>
+          <button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>
           <span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>
         </div>`;
       $('#chart-key', box).onchange = (e) => { key = Number(e.target.value); draw(); };
       $('#chart-edit', box).onclick = () => openChartEditor(t, { key: shown, back });
       $('#chart-warmup', box).onclick = () => {
-        const n = addWarmups(t);
-        if (!n) return toast('No warm-up exercises to add (they may all be played already today)');
+        if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);
         render();
-        toast(`Added ${n} warm-up${n > 1 ? 's' : ''} for ${t.name} to today`);
+        toast(`Added a warm-up for ${t.name} to today’s set`);
       };
     }
     const add = $('#chart-add', box);

@@ -6,7 +6,7 @@ import {
   itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel, tempoSource,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus, swapWarmup, dropOrphanWarmups } from '../plan.js';
+import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, addWarmups } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
   levelLabel, transposeToggle, bindTransposeToggle, suggestionHtml,
@@ -26,6 +26,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { openAssistant } from './assistant.js';
 import { CATEGORIES } from '../constants.js';
 import { canRecord } from '../media.js';
+import { chartFor } from '../charts.js';
 import { greeted } from './greet.js';
 import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 
@@ -147,7 +148,6 @@ tuner.subscribe(() => liveTools());
 // added (or swapped in) gets its own.
 function prepTunes() {
   dropOrphanWarmups(store.state.plan);
-  if (store.state.settings.exerciseFocus === 'tunes') applyExerciseFocus(store.state.plan);
 }
 
 function bindCard(card) {
@@ -213,6 +213,15 @@ function bindCard(card) {
     toast(`${t.name} is now ${LEVELS[t.level].label}`);
   };
   bindTempo(card, { onChange: render });
+  // A warm-up for this tune, just before it: one more each tap.
+  const warmBtn = $('[data-add-warm]', card);
+  if (warmBtn) warmBtn.onclick = (e) => {
+    e.stopPropagation();
+    const t = itemById(item.itemId);
+    if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);
+    render();
+    toast(`Added a warm-up for ${t.name}`);
+  };
   const recBtn = $('.rec-chip', card);
   if (recBtn) recBtn.onclick = (e) => {
     e.stopPropagation();
@@ -222,7 +231,7 @@ function bindCard(card) {
       : [item.key != null && `In ${kn(item.key)}`, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     openRecorder({ itemId: t.id, text, back: render });
   };
-  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
+  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip, .add-warm')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
   attachSwipe(card, {
     right: toggle,
     actions: isPlanItemPlayed(item) ? [] : leftActions(item).map((a) => (a === 'swap' ? swap : skip)),
@@ -234,6 +243,12 @@ function keyChip(it, t) {
   if (t.type === 'exercise') {
     if (!it.keys?.length && !it.types?.length) return '';
     if (it.prog) return chip('multi', `<b>${esc(it.prog.name)}</b> in <b>${esc(rootName(it.keys[0]))}</b>`, 'tap for notation');
+    // A lick or pattern over part of a progression (in a key, or a sequence of keys), or over one chord.
+    if (it.over && it.overKey != null) {
+      const seq = it.keys.length > 1 ? `played in ${it.keys.map(rootName).join(', then ')}` : 'tap for notation';
+      return chip('multi', `Over <b>${esc(it.over)}</b> in <b>${esc(kn(it.overKey))}</b>`, esc(seq));
+    }
+    if (it.over) return chip('multi', `Over <b>${esc(it.over)}</b>`, esc(`in ${rootName(it.keys[0])}`));
     const what = esc(exerciseKeysText(it.keys, t, it.types)).replaceAll(' · ', '</b> · <b>');
     // The whole list matters here, so it wraps (between keys) rather than being cut off.
     return chip('multi', `${it.keys?.length ? 'In ' : ''}<b>${what}</b>`, t.abc || t.vary ? 'tap for notation' : '');
@@ -291,11 +306,6 @@ function dayNote() {
   if (s.exerciseFocus === 'day' && plan.dayKeys?.length) {
     return `<p class="day-note">Key${plan.dayKeys.length > 1 ? 's' : ''} of the day: <b>${plan.dayKeys.map((r) => esc(rootName(r))).join(' · ')}</b></p>`;
   }
-  if (s.exerciseFocus === 'tunes') {
-    const n = new Set(plan.items.filter((it) => it.warmup && itemById(it.warmup)).map((it) => it.warmup)).size;
-    if (n) return `<p class="day-note">Each tune comes with warm-ups from its chords, just before it.</p>`;
-    return '<p class="day-note">None of today’s tunes has a chord chart, so there are no warm-ups for them.</p>';
-  }
   return '';
 }
 
@@ -327,6 +337,7 @@ function cardHtml(it, i, stats) {
         ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
+      ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? `<button class="link-btn add-warm" data-add-warm>${ICON.plus}Warm-up</button>` : ''}
       ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}
       ${played ? suggestionHtml(t, levelSuggestion(t)) : ''}
       ${played && !it.warmup ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}

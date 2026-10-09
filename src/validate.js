@@ -24,7 +24,7 @@ function item(t, ids) {
   t.type = oneOf(t.type, ['tune', 'exercise'], 'tune');
   t.name = str(t.name, 200);
   t.priority = int(t.priority, 1, 4) ?? 2;
-  t.level = int(t.level, 0, LEVELS.length - 1);
+  t.level = int(t.level, 0, LEVELS.length - 1) ?? 0; // unrated = don't know
   t.notes = str(t.notes);
   t.focus = !!t.focus;
   t.ivl = num(t.ivl, 0, 3650);
@@ -40,6 +40,8 @@ function item(t, ids) {
     t.category = oneOf(t.category, Object.keys(CATEGORIES), 'other');
     t.vary = vary(t.vary);
     t.fromTune = !!t.fromTune;
+    if (t.harmony != null) t.harmony = str(t.harmony, 200) || undefined; // chords it goes with (see warmups.js)
+    if (t.harmony === undefined) delete t.harmony;
   } else {
     t.keys = keyList(t.keys, 23);
     t.style = str(t.style || 'Standard', 60);
@@ -144,12 +146,16 @@ function plan(p, ids) {
     shift: int(it.shift, -11, 11),
     alt: !!it.alt,
     ...(num(it.mix, 0, 1) != null ? { mix: it.mix } : {}),
+    ...(typeof it.over === 'string' ? { over: str(it.over, 60) } : {}),
+    ...(int(it.overKey, 0, 23) != null ? { overKey: it.overKey } : {}),
+    ...(Array.isArray(it.parts) ? { parts: it.parts.slice(0, 12).map((n) => int(n, 1, 16)) } : {}),
+    ...(['setup', 'changes'].includes(it.slot) ? { slot: it.slot } : {}),
   }));
   p.skipped = (Array.isArray(p.skipped) ? p.skipped : []).filter(isId);
   if (p.dayKeys != null) p.dayKeys = keyList(p.dayKeys, 11);
   delete p.warmupFor; // from an earlier version
-  p.prepped = (Array.isArray(p.prepped) ? p.prepped : []).filter((id) => ids.has(id)); // tunes given warm-ups
-  p.mode = oneOf(p.mode, ['own', 'day', 'tunes'], null);
+  delete p.prepped; // (from when warm-ups were added automatically)
+  p.mode = oneOf(p.mode, ['own', 'day', 'tunes'], null); // ('tunes': an earlier version's, made again)
   p.focusSkipped = (Array.isArray(p.focusSkipped) ? p.focusSkipped : []).filter(isId);
   return p;
 }
@@ -165,7 +171,7 @@ function settings(s) {
   s.newKeys = oneOf(s.newKeys, ['mastered', 'proficient', 'never'], DEFAULT_SETTINGS.newKeys);
   s.a4 = int(s.a4, 430, 450) ?? 440;
   s.tuneOrder = oneOf(s.tuneOrder, ['mixed', 'group'], DEFAULT_SETTINGS.tuneOrder);
-  s.exerciseFocus = oneOf(s.exerciseFocus, ['own', 'day', 'tunes'], DEFAULT_SETTINGS.exerciseFocus);
+  s.exerciseFocus = oneOf(s.exerciseFocus, ['own', 'day'], DEFAULT_SETTINGS.exerciseFocus); // ('tunes' is gone: own)
   s.sound = oneOf(s.sound, Object.keys(SOUNDS), DEFAULT_SETTINGS.sound);
   s.swing = oneOf(s.swing, Object.keys(SWING), DEFAULT_SETTINGS.swing);
   s.recordKind = oneOf(s.recordKind, ['audio', 'video'], 'audio');

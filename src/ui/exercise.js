@@ -8,7 +8,8 @@ import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmar
 import { syncFocus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
-import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
+import { DURATIONS, noteToken, restToken, writtenShift, soundingShift, abcFirstChords } from '../abc.js';
+import { chordsInAbc, chordsFromText, chordName } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
@@ -18,7 +19,7 @@ import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './m
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import {
-  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml,
+  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -53,10 +54,11 @@ const patternHint = (kind) => (kind === 'chord'
 
 // The notation to show: generated for a progression (a warm-up), a scale or chord type, or the
 // exercise's own.
-function notationFor(t, type, prog = null) {
+// part: play only its first so many chords (part of a lick over part of a progression).
+function notationFor(t, type, prog = null, part = null) {
   if (t.fromTune) return prog ? progressionAbc(prog.chords, { meter: t.meter || '4/4' }) : '';
   if (t.vary) return generateAbc(t.vary.kind, type, { shape: t.vary.shape, pattern: t.vary.pattern, meter: t.meter || '4/4' });
-  return t.abc;
+  return part ? abcFirstChords(t.abc, part) : t.abc;
 }
 
 // Detail sheet for an exercise. id null = new exercise. opts.keys: today's keys, to preview first.
@@ -64,7 +66,7 @@ export function openExercise(id, opts = {}) {
   const state = store.state;
   const isNew = !id;
   const t = isNew
-    ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', notes: '', priority: 2, level: null, ivl: null, due: null }
+    ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', notes: '', priority: 2, level: 0, ivl: null, due: null }
     : itemById(id);
   if (!t) return;
   // Today's plan item it was opened from (it can be in the set more than once, as warm-ups
@@ -74,6 +76,14 @@ export function openExercise(id, opts = {}) {
   // What Played logs against: that, or if it's only in the set as warm-ups, one of them (shown as
   // itself here, not with a tune's keys) — so it doesn't count for every copy.
   const logItem = () => planItem || today.find((i) => !isPlanItemPlayed(i)) || today[0] || null;
+  // A lick played over part of a progression: in which key only its first so many chords; and
+  // what it's over, in words.
+  const partFor = (root) => planItem?.parts?.[todayKeys.indexOf(root)] ?? null;
+  const overText = () => {
+    const where = planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : '';
+    const keys = todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`);
+    return `Today: over ${planItem.over}${where} — play it in ${keys.join(', then ')}`;
+  };
   // A warm-up is played at its tune's tempo (the tempo row, notation and takes use that).
   const tempoFrom = (planItem?.warmup && itemById(planItem.warmup)) || t;
   const isPlayed = () => (logItem() ? isPlanItemPlayed(logItem()) : isPlayedToday(t.id));
@@ -131,7 +141,8 @@ export function openExercise(id, opts = {}) {
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
             ${playbackOptionsHtml()}
           </div>
-          ${prog ? `<p class="fine">Today: ${esc(prog.name)} in ${esc(rootName(previewRoot))} — ${esc(progressionChords(prog, previewRoot))}</p>`
+          ${planItem?.over ? `<p class="fine">${esc(overText())}</p>`
+            : prog ? `<p class="fine">Today: ${esc(prog.name)} in ${esc(rootName(previewRoot))} — ${esc(progressionChords(prog, previewRoot))}</p>`
             : t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
@@ -146,6 +157,7 @@ export function openExercise(id, opts = {}) {
         ${takes.length ? `<ul class="notes panel-list" id="x-takes">${takes.slice(0, 3).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>
           ${takes.length > 3 ? `<p class="fine">${takes.length - 3} more in the Diary.</p>` : ''}`
           : '<p class="fine">Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.</p>'}`}
+      ${harmonyHtml()}
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
 
@@ -232,6 +244,20 @@ ${t.fromTune ? '' : `
       <p class="fine">Tap keys to play ${t.vary ? 'it in (and pick the type for each)' : 'it in'} today${played ? ' — the session you logged changes too' : ''}.</p>`;
   }
 
+  // The chords a written exercise goes with (so it can be a warm-up over them in tunes): typed
+  // here, or else read from the chord symbols in its notation. Written in C, like the notes.
+  const guessed = () => chordsInAbc(t.abc).filter((c, i, a) => i === 0 || c.root !== a[i - 1].root || c.q !== a[i - 1].q).map((c) => chordName(c)).join(' ');
+  function harmonyHtml() {
+    if (isNew || t.vary || t.fromTune) return '';
+    const g = guessed();
+    return `
+      <label class="field"><span class="field-label">Chords it goes with</span>
+        <input id="x-harmony" value="${esc(t.harmony ?? g)}" placeholder="e.g. Dm7 G7 Cmaj7" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <p class="fine" id="x-harmony-msg">${t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).'
+        : g ? 'From the chord symbols in its notation — change them here if they’re not right.'
+        : 'Type the chords it goes over, in C like the notes (or add chord symbols to its notation), so it can come up as a warm-up for tunes with those chords.'}</p>`;
+  }
+
   const outerBack = opts.back;
   let leaving = false;
   let added = false;
@@ -277,7 +303,7 @@ ${t.fromTune ? '' : `
 
   async function drawNotation() {
     const el = $('#x-notation', sheet);
-    const abc = notationFor(t, previewType, prog);
+    const abc = notationFor(t, previewType, prog, partFor(previewRoot));
     if (!el || !abc) return null;
     return renderNotation(el, abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: tempoFrom.tempo || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });
@@ -366,7 +392,7 @@ ${t.fromTune ? '' : `
     const full = $('#x-full', sheet);
     if (full) full.onclick = () => {
       stopPlaying();
-      const abc = notationFor(t, previewType, prog);
+      const abc = notationFor(t, previewType, prog, partFor(previewRoot));
       if (!abc) return;
       const shift = writtenShift(previewRoot, view());
       const what = prog ? `${prog.name} in ${rootName(previewRoot)}` : exerciseKeysText([previewRoot], t, previewType ? [previewType] : null);
@@ -488,6 +514,18 @@ ${t.fromTune ? '' : `
     const sug = $('.suggest [data-level]', sheet);
     if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
     $('#x-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
+    const harm = $('#x-harmony', sheet);
+    if (harm) harm.oninput = () => {
+      const text = harm.value.trim();
+      const msg = $('#x-harmony-msg', sheet);
+      const parsed = text ? chordsFromText(text) : [];
+      msg.classList.toggle('error', !parsed);
+      if (!parsed) { msg.textContent = 'Couldn’t read those chords — like Dm7 G7 Cmaj7.'; return; }
+      if (!text || text === guessed()) delete t.harmony; // the notation's own, then
+      else t.harmony = text;
+      msg.textContent = t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).' : 'From the chord symbols in its notation.';
+      commit();
+    };
     const addBtn = $('#x-today', sheet);
     if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
 

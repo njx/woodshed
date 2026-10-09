@@ -20,7 +20,7 @@ import { recordingsFor } from '../listen.js';
 // what they see in the app.
 
 const view = () => store.state.settings.view;
-const levelLabel = (l) => (l == null ? 'not rated' : LEVELS[l].label.toLowerCase());
+const levelLabel = (l) => LEVELS[l ?? 0].label.toLowerCase();
 const writtenName = (k) => keyName(k, view());
 const rootName = (r) => keyName(r % 12, view());
 
@@ -230,7 +230,7 @@ export const TOOLS = [
     input_schema: obj({
       query: nullable({ type: 'string', description: 'Words in the name, style or category' }),
       type: nullable({ type: 'string', enum: ['tune', 'exercise'] }),
-      levels: nullable({ type: 'array', items: { type: 'string', enum: ['not rated', "don't know", 'familiar', 'proficient', 'mastered'] } }),
+      levels: nullable({ type: 'array', items: { type: 'string', enum: ["don't know", 'familiar', 'proficient', 'mastered'] } }),
       style: nullable({ type: 'string', description: 'Tune style, e.g. Ballad, Latin, Blues, Standard' }),
       key: nullable({ type: 'string', description: 'Only tunes usually played in this key (as written for the current instrument), e.g. "F" or "Gm"' }),
       due_only: nullable({ type: 'boolean' }),
@@ -242,13 +242,13 @@ export const TOOLS = [
     run: (a) => {
       const stats = itemStats();
       const q = a.query?.toLowerCase().trim();
-      const levels = a.levels?.map((l) => (l === 'not rated' ? null : LEVELS.findIndex((x) => x.label.toLowerCase() === l)));
+      const levels = a.levels?.map((l) => LEVELS.findIndex((x) => x.label.toLowerCase() === l));
       const key = a.key ? concertKey(a.key) : null;
       const today = dateStr();
       let list = store.state.items.filter((t) => {
         if (a.type && t.type !== a.type) return false;
         if (q && !`${t.name} ${t.style || ''} ${CATEGORIES[t.category] || ''}`.toLowerCase().includes(q)) return false;
-        if (levels && !levels.includes(t.level ?? null)) return false;
+        if (levels && !levels.includes(t.level ?? 0)) return false;
         if (a.style && (t.style || '').toLowerCase() !== a.style.toLowerCase()) return false;
         if (key != null && !(t.type === 'tune' && t.keys.includes(key))) return false;
         if (a.due_only && !isDue(t, stats)) return false;
@@ -321,7 +321,7 @@ export const TOOLS = [
         streak_days: streak,
         days_practiced_last_30: [...days].filter((d) => daysBetween(d, today) < 30).length,
         keys: [...Array(12).keys()].map((r) => ({ key: rootName(r), sessions_30d: sess[r], familiarity: Math.round(fam[r] * 10) / 10 })),
-        tunes_by_level: Object.fromEntries([3, 2, 1, 0, null].map((l) => [levelLabel(l), tunes.filter((t) => (t.level ?? null) === l).length])),
+        tunes_by_level: Object.fromEntries([3, 2, 1, 0].map((l) => [levelLabel(l), tunes.filter((t) => (t.level ?? 0) === l).length])),
         last_7_days: lastWeek,
         minutes_practiced_by_day: Object.fromEntries([...practicedByDay()].filter(([d]) => daysBetween(d, today) < 30).sort().map(([d, ms]) => [d, Math.round(ms / 60000)])),
       };
@@ -442,15 +442,15 @@ export const TOOLS = [
   },
   {
     name: 'add_warmups',
-    description: "Add warm-up exercises for a tune to today's set, from its chord chart and the key it's played in today: its main progression arpeggiated through the changes (e.g. iii–VI–ii–V, a minor ii–V–i, keeping colours like ø and ♭9), arpeggios on its main chords, scales that go with its chords, and ii–V–I patterns into its major keys. Replaces those exercises if they're already in today's set and not played yet.",
-    input_schema: obj({ tune_id: { type: 'string' } }),
+    description: "Add warm-ups for a tune to today's set, just before it (and the tune too, if it isn't there), from its chord chart in the key it's played in today. They take turns between (1) a lick or pattern whose chords fit part of one of its progressions — a ii–V lick can go over the ii–V of a iii–VI–ii–V–I, or be played up a step for the iii–VI then on the ii–V — or else its progression arpeggiated through the changes, and (2) something on its chords: arpeggios, scales, or a one-chord exercise. Each call adds `count` more (default 1), never ones it already has.",
+    input_schema: obj({ tune_id: { type: 'string' }, count: nullable({ type: 'integer' }) }),
     write: true,
-    run: ({ tune_id }) => {
+    run: ({ tune_id, count }) => {
       const t = findItem(tune_id);
       if (t.type !== 'tune') return { error: 'Warm-ups are for tunes.' };
       if (!chartFor(t)) return { error: `There's no chord chart for ${t.name}, so warm-ups can't be picked. (Charts can be added in the tune's details.)` };
-      const n = addWarmups(t);
-      if (!n) return { error: 'No warm-up exercises to add (they may all have been played today).' };
+      const n = addWarmups(t, Math.max(1, Math.min(4, count || 1)));
+      if (!n) return { error: 'No more warm-ups to add for it.' };
       const added = store.state.plan.items.filter((i) => i.warmup === t.id).map((i) => itemById(i.itemId)?.name);
       changes.push(`Warm-ups for ${t.name}: ${added.join(', ')}`);
       return { added };
@@ -555,7 +555,7 @@ export const TOOLS = [
         keysPerSession: Math.max(1, Math.min(12, a.keys_per_session || 1)),
         keys: [...new Set(keys.keys.map((k) => k % 12))],
         abc: a.abc?.trim() || '', meter: a.meter || '4/4', notes: a.notes || '',
-        tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: null, ivl: null, due: null, vary: null,
+        tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: 0, ivl: null, due: null, vary: null,
       };
       const varyError = applyVary(t, a);
       if (varyError) return { error: varyError };

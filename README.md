@@ -54,21 +54,32 @@ today's set; a focus item only has Remove), and a long one removes it.
 
 Settings → *Exercises on a day*:
 
-- **Before tunes** (the default): your exercises (the *Exercises* count in the daily mix) come
-  first, as general ones. Then each tune with a chord chart has two **warm-ups** just before it, in
-  the key you're playing it in today: scales or arpeggios on its main chords (taking turns from
-  tune to tune: e.g. Gm6, Aø7, D7 arpeggios for Autumn Leaves, or dorian on a m7 and altered on a
-  7♭13), then **Through the changes** — one of its progressions (say iii–VI7–ii–V7–I or iiø–V7♭9–i)
-  arpeggiated a bar per chord, in the key it leads to. So a set reads: exercises, then warm-ups →
-  tune, warm-ups → tune… The same exercise can come up before several tunes, each set to that tune
-  and ticked off on its own. A warm-up's **Swap** gives scales for arpeggios or the other way round, or the tune's next progression; a tune swapped in (or added with
-  *One more tune*, or made a focus tune) gets its own.
+- **Each its own** (the default): every exercise picks its own keys and types.
 - **Key of the day**: one or two keys (weak keys come up more) for every exercise that picks keys
   by weak keys or at random, so a day has a centre. Shown under *Today's set*.
-- **Each its own**: every exercise picks its own keys and types.
 
-Any tune's details also have **Warm up for this tune**, which adds a longer set of warm-ups (its
-progression, arpeggios, scales and a ii–V–I pattern) just before it in today's set.
+### Warm-ups for a tune
+
+Warm-ups are added by hand, so the set stays short: **+ Warm-up** on a tune's card (or **Add a
+warm-up** under its chart) adds one just before it, in the key you're playing it in today. Each tap
+adds the next, taking turns between:
+
+- **Over its changes**: a written lick or pattern that fits part of one of the tune's progressions
+  (least recently played first), or **Through the changes** — the progression (say iii–VI7–ii–V7–I
+  or iiø–V7♭9–i) arpeggiated a bar per chord.
+- **On its chords**: arpeggios or scales on its main chords (Gm6, Aø7, D7 arpeggios for Autumn
+  Leaves, or dorian on a m7 and altered on a 7♭13), or a one-chord exercise over one of them.
+
+A lick fits where its chords have the same kinds and the same root movement, transposed: a ii–V–I
+lick in C goes over Cm7 F7 B♭maj7 in B♭. Over a longer progression it's used as a sequence: a ii–V
+lick over iii–VI–ii–V plays up a step, then in the key; a ii–V–I lick plays just its ii–V on the
+iii–VI, then all of it (its notation is cut to those chords). A lick's chords come from the chord
+symbols in its notation, or are typed in its details under **Chords it goes with** (in C, like
+the notes).
+
+Add as many as you like; **Swap** gives the next one in its place, and changing the tune's key
+moves them. The same exercise can come up before several tunes, each set to that tune and ticked
+off on its own.
 
 Scale and chord types are picked by how little you've played them on that exercise *and* across all
 exercises, the way keys already were.
@@ -92,7 +103,7 @@ is the octave up and `,` / `'` go further down / up. Tap ⌨ to type ABC directl
 ## Practice time
 
 The first time you open the app on a practice day, it says hello with what's in today's set (focus
-tunes, warm-ups, things to remember, your streak) and a big **Start practice**; **Not now** leaves
+tunes, things to remember, your streak) and a big **Start practice**; **Not now** leaves
 it until tomorrow. After that, the timer is at the top of Today's set: **Start practice**, and
 **End practice** when you're done (with Undo). Marking the first thing played on a day starts it
 too, if you haven't started it yourself.

@@ -29,7 +29,6 @@ export const FILTERS = [
   { id: 'l2', label: 'Proficient', fn: (t) => t.level === 2 },
   { id: 'l1', label: 'Familiar', fn: (t) => t.level === 1 },
   { id: 'l0', label: "Don't know", fn: (t) => t.level === 0 },
-  { id: 'nr', label: 'Not rated', fn: (t) => t.level == null },
   { id: 'p1', label: 'Critical', fn: (t) => t.priority === 1 },
   { id: 'p2', label: 'High', fn: (t) => t.priority === 2 },
   { id: 'mine', label: 'Mine', fn: (t) => t.mine },
@@ -40,7 +39,7 @@ const SORTS = {
   recent: { label: 'Recently played', fn: (a, b, s) => (s.get(b.id)?.last || '').localeCompare(s.get(a.id)?.last || '') || a.name.localeCompare(b.name) },
   stale: { label: 'Longest ago', fn: (a, b, s) => (s.get(a.id)?.last || '').localeCompare(s.get(b.id)?.last || '') || a.priority - b.priority },
   most: { label: 'Most played', fn: (a, b, s) => (s.get(b.id)?.count || 0) - (s.get(a.id)?.count || 0) || a.name.localeCompare(b.name) },
-  level: { label: 'Familiarity', fn: (a, b) => (b.level ?? -1) - (a.level ?? -1) || a.priority - b.priority },
+  level: { label: 'Familiarity', fn: (a, b) => (b.level ?? 0) - (a.level ?? 0) || a.priority - b.priority },
 };
 
 const EXERCISE_FILTERS = [

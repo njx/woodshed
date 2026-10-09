@@ -2,7 +2,7 @@
 // keys: common concert keys (first = most common). Sourced from the iReal Pro jazz
 // collection via github.com/mikeoliphant/JazzStandards, with a few hand edits for
 // tunes regularly called in more than one key.
-// level: 0 = don't know, 1 = familiar, 2 = proficient, 3 = mastered (omitted = not rated)
+// level: 0 = don't know, 1 = familiar, 2 = proficient, 3 = mastered (omitted = don't know)
 export const SEED_TUNES = [
   {"name": "All The Things You Are", "keys": ["Ab"], "style": "Standard", "priority": 1, "level": 1},
   {"name": "Anthropology", "keys": ["Bb"], "style": "Rhythm Changes", "priority": 1},

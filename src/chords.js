@@ -141,7 +141,7 @@ export function chartFromText(text, { key = null, meter = '4/4', shift = 0 } = {
 export function chordFamily(q) {
   if (/^m7b5|^h/.test(q)) return 'm7b5';
   if (/^0|^o|^dim/.test(q)) return 'dim7';
-  if (/^m\/?maj/.test(q)) return 'mMaj7';
+  if (/^m\(?\/?maj/.test(q)) return 'mMaj7';
   if (/^m(6|69|b6)?$/.test(q)) return 'm6';
   if (/^m(?!aj)/.test(q)) return 'm7'; // (maj7 starts with m too)
   if (/^maj7#5|^\+maj|^augmaj/.test(q)) return 'maj7s5';
@@ -153,6 +153,28 @@ export function chordFamily(q) {
   if (/#9|alt/.test(q)) return 'dom7s9';
   if (/b9/.test(q)) return 'dom7b9';
   return 'dom7';
+}
+
+// The kind of chord, for matching an exercise to a tune's chords: a dominant lick fits 7, 7♭9,
+// 7♯9 or 7♯5; a minor one m7 or m6; a major one maj7 or 6.
+const KIND = { maj7: 'maj', maj6: 'maj', maj7s5: 'maj', m7: 'min', m6: 'min', mMaj7: 'min', dom7: 'dom', dom7b9: 'dom', dom7s9: 'dom', dom7s5: 'dom', dom7sus: 'sus', m7b5: 'half', dim7: 'dim' };
+export const chordKind = (family) => KIND[family] || family;
+
+// Chord symbols in ABC notation ("Dm7" over a note), in order: [{ root, q, family }].
+export function chordsInAbc(abc) {
+  return [...String(abc || '').matchAll(/"([^"]+)"/g)]
+    .map((m) => parseChord(m[1]))
+    .filter(Boolean)
+    .map((c) => ({ root: c.root, q: c.q, family: chordFamily(c.q) }));
+}
+
+// Chords typed as text ("Dm7 G7 Cmaj7", spaces, commas or bars between): the list, or null if
+// one of them can't be read.
+export function chordsFromText(text) {
+  const parts = String(text || '').split(/[\s,|]+/).filter(Boolean);
+  const list = parts.map(parseChord);
+  if (list.some((c) => !c)) return null;
+  return list.map((c) => ({ root: c.root, q: c.q, family: chordFamily(c.q) }));
 }
 
 export const isDominant = (family) => ['dom7', 'dom7b9', 'dom7s9'].includes(family);

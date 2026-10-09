@@ -6,19 +6,12 @@ test('first run picks instruments and builds a set @narrow', async ({ page, ui }
   await page.click('.welcome .chip[data-ins="bb"]');
   await page.click('#ins-done');
   await expect(page.locator('.welcome')).toHaveCount(0);
-  // Two exercises up top, then the tunes (1 hone, 2 learn, 1 new, mixed up), each after its warm-ups.
+  // Two exercises up top, then the tunes (1 hone, 2 learn, 1 new, mixed up); no warm-ups till asked for.
   await expect(page.locator('.card:not(.b-exercise)')).toHaveCount(4);
-  const cards = await page.$$eval('.card', (cs) => cs.map((c) => ({
-    bucket: c.querySelector('.bucket').textContent, style: c.querySelector('.style').textContent, name: c.querySelector('h2').textContent,
-  })));
-  expect(cards.slice(0, 2).map((c) => c.bucket)).toEqual(['Exercise', 'Exercise']);
-  const warm = cards.filter((c) => c.bucket === 'Warm-up');
-  expect(warm.length).toBeGreaterThanOrEqual(4);
-  for (const [i, c] of cards.entries()) {
-    if (c.bucket !== 'Warm-up') continue;
-    const tune = cards.slice(i + 1).find((x) => x.bucket !== 'Warm-up');
-    expect(c.style).toBe(`for ${tune.name}`);
-  }
+  const buckets = await page.$$eval('.card .bucket', (bs) => bs.map((b) => b.textContent));
+  expect(buckets).toHaveLength(6);
+  expect(buckets.slice(0, 2)).toEqual(['Exercise', 'Exercise']);
+  expect(buckets).not.toContain('Warm-up');
   await expect(page.locator('#transpose')).toContainText('B♭');
   await ui.expectNoSideScroll();
 });
@@ -57,15 +50,17 @@ test('a short swipe left shows Swap and Remove on every card; a long one removes
   await wrap.locator('.sa-remove').click();
   await expect(page.locator('.card h2', { hasText: name })).toHaveCount(0);
 
-  // A warm-up: swap it for the other kind (arpeggios ↔ scales), or remove it.
+  // A warm-up: swap it for another, or remove it.
+  await page.locator('[data-add-warm]').first().click();
   const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
   const forTune = await warm.locator('.style').textContent();
-  const was = await warm.locator('h2').textContent();
+  const was = `${await warm.locator('h2').textContent()}|${await warm.locator('.keychip').textContent()}`;
   await ui.swipe(warm, -120);
   const wwrap = warm.locator('xpath=..');
   await expect(wwrap.locator('.swipe-actions button')).toHaveText(['Swap', 'Remove']);
   await wwrap.locator('.sa-swap').click();
-  await expect(page.locator('.card').filter({ hasText: forTune }).first().locator('h2')).not.toHaveText(was);
+  const now = page.locator('.card').filter({ hasText: forTune }).first();
+  await expect.poll(async () => `${await now.locator('h2').textContent()}|${await now.locator('.keychip').textContent()}`).not.toBe(was);
   const count = await page.locator('.card').filter({ hasText: forTune }).count();
   await ui.swipe(page.locator('.card').filter({ hasText: forTune }).first(), -280); // a long swipe removes
   await expect(page.locator('.card').filter({ hasText: forTune })).toHaveCount(count - 1);
@@ -104,7 +99,6 @@ test('focus tunes lead the set; recordings and listening links', async ({ page, 
 
   await ui.tab('today');
   await expect(page.locator('.card:not(.b-exercise) .bucket').first()).toHaveText('Focus');
-  await expect(page.locator('.card').filter({ hasText: 'for Giant Steps' })).toHaveCount(2); // its warm-ups
   await page.locator('.card h2', { hasText: 'Giant Steps' }).click();
   await expect(page.locator('.recordings a').first()).toHaveAttribute('href', /spotify\.com/);
 });

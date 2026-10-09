@@ -75,7 +75,7 @@ describe('checking imported data', () => {
     const [ex, t] = s.items;
     expect(ex.id).toMatch(/^[\w-]+$/);
     expect(ex).toMatchObject({ priority: 2, keyMode: 'weak', category: 'other', keys: [3], tempo: null });
-    expect(t).toMatchObject({ keys: [12], level: null });
+    expect(t).toMatchObject({ keys: [12], level: 0 });
     expect(s.log).toHaveLength(1); // the entry without a date is dropped
     expect(s.log[0]).toMatchObject({ rating: null, bpm: null, prev: { ivl: null, due: null } });
     expect(s.diary[0].id).toMatch(/^[\w-]+$/);

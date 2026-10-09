@@ -99,10 +99,10 @@ export const ICON = {
 // A concert key named for the transposition currently shown.
 export const kn = (k) => keyName(k, store.state.settings.view);
 export const keysText = (t) => t.keys.map(kn).join(' / ');
-export const levelLabel = (l) => (l == null ? 'Not rated' : LEVELS[l].label);
+export const levelLabel = (l) => LEVELS[l ?? 0].label;
 
 export function pips(level) {
-  const n = level == null ? -1 : level;
+  const n = level ?? 0;
   return `<span class="pips" aria-label="${esc(levelLabel(level))}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 export function priBadge(p) {

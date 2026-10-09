@@ -162,7 +162,7 @@ export function levelSuggestion(t) {
     .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0)));
   const streak = (rating, n) => recent.length >= n && recent.slice(0, n).every((e) => e.rating === rating);
   if (t.level !== 3 && streak('solid', SOLID_TO_LEVEL_UP)) {
-    const to = t.level == null ? 1 : t.level + 1;
+    const to = (t.level ?? 0) + 1;
     return { to, up: true, text: `${SOLID_TO_LEVEL_UP} solid sessions in a row — ready for ${LEVELS[to].label}?` };
   }
   if (t.level > 0 && streak('rough', ROUGH_TO_LEVEL_DOWN)) {

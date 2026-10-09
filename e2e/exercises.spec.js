@@ -114,6 +114,21 @@ test('a new lick can get its notation straight away @narrow', async ({ page, ui 
   await expect(page.locator('#tune-list .row', { hasText: 'Cannonball lick' })).toHaveCount(1);
 });
 
+test('a lick’s chords: guessed from its chord symbols, or typed; then it comes up as a warm-up', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'ii–V–I, 1-2-3-5' }).click();
+  await expect(page.locator('#x-harmony')).toHaveValue('Dm7 G7 Cmaj7'); // from its notation
+  await page.fill('#x-harmony', 'Dm7 G7 Cmaj7 nonsense');
+  await expect(page.locator('#x-harmony-msg')).toHaveClass(/\berror\b/);
+  await page.fill('#x-harmony', 'Dm7 G7');
+  await expect(page.locator('#x-harmony-msg')).toContainText('As typed');
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'ii–V–I, 1-2-3-5').harmony).toBe('Dm7 G7');
+  await page.fill('#x-harmony', '');
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'ii–V–I, 1-2-3-5').harmony).toBeUndefined();
+});
+
 test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
   const fetched = [];
   page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });
@@ -264,6 +279,7 @@ test('add a tune to today’s set from its details', async ({ page, ui }) => {
 
 test('a warm-up opened from today says what it’s for, and has full screen', async ({ page, ui }) => {
   await ui.start();
+  await page.locator('[data-add-warm]').first().click();
   const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
   const forTune = (await warm.locator('.style').textContent()).replace(/^for /, '');
   await warm.locator('h2').click();

@@ -1107,3 +1107,5 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .today-key { margin-top: 6px; }
 .today-key select { min-height: 40px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--surface-2); color: var(--ink); font-size: 16px; font-weight: 600; }
 .rec-quiet { color: var(--danger); text-align: center; margin: 8px 0 0; }
+.card .add-warm { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 14px; }
+.card .add-warm svg { width: 15px; height: 15px; }
