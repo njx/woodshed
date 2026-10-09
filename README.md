@@ -96,12 +96,15 @@ exercises, the way keys already were.
 
 ### Walking bass
 
-**Bass** under a tune's chart plays a simple walking bass through it, round and round, at the
-tune's tempo and in the key shown, lighting up the bar it's on: 1-2-3-5 on each chord (with the
-chord's own 3rd and 5th), back down from the octave on a chord held for two bars, 1-5 on a
-two-beat chord. A Through the changes warm-up has **Bass** too, a bar a chord. It stops when the
-sheet closes or the app goes into the background. (It's a synth: on a phone speaker it's thin;
-earbuds help.)
+The walking bass is a mode of the metronome, on the same clock, so the click lines up with it.
+Start it with **Bass** under a tune's chart (in the key shown, lighting up the bar it's on), with
+**Bass** on a Through the changes warm-up (a bar a chord), or with **Walking bass** in a tune's
+metronome (through its chart, in today's key). It plays round and round at the tune's tempo:
+1-2-3-5 on each chord (with the chord's own 3rd and 5th), back down from the octave on a chord held
+for two bars, 1-5 on a two-beat chord. While it plays the click is on 2 and 4, every beat, or off
+(remembered), and it keeps going on other screens, with the metronome's pill. Starting the
+metronome for something else stops it, and like the metronome it stops when the app goes into the
+background. (It's a synth: on a phone speaker it's thin; earbuds help.)
 
 ### Notation
 

@@ -102,7 +102,7 @@ test('warm up for a tune from its chart, or with + Warm-up on its card', async (
   await expect(page.locator('#x-bass')).not.toHaveClass(/\bon\b/);
 });
 
-test('a walking bass loops through the chart, lighting up the bar it’s on, and stops when the sheet closes', async ({ page, ui }) => {
+test('a walking bass is a mode of the metronome: from the chart, lighting up the bar it’s on, or from the metronome', async ({ page, ui }) => {
   await ui.start();
   await openTune(page, ui, 'Autumn Leaves');
   await page.click('#chart-bass');
@@ -110,12 +110,32 @@ test('a walking bass loops through the chart, lighting up the bar it’s on, and
   await expect(page.locator('.chart .bar.now')).toHaveCount(1);
   const first = await page.locator('.chart .bar.now').getAttribute('data-b');
   await expect.poll(async () => page.locator('.chart .bar.now').getAttribute('data-b'), { timeout: 8000 }).not.toBe(first); // moves on
-  await page.click('#chart-bass');
-  await expect(page.locator('.chart .bar.now')).toHaveCount(0);
-  await page.click('#chart-bass');
+  // It keeps going after the sheet closes, like the metronome, with its pill.
   await ui.backdrop();
-  await openTune(page, ui, 'Autumn Leaves');
-  await expect(page.locator('#chart-bass')).not.toHaveClass(/\bon\b/);
+  await ui.tab('tunes');
+  await expect(page.locator('.metro-pill')).toContainText('Bass · Autumn Leaves');
+  // The metronome for it shows the bass, with the click on 2 and 4 (or every beat, or off).
+  await page.click('.metro-pill .mp-open');
+  await expect(page.locator('#m-bass-seg .on')).toHaveText('On');
+  await expect(page.locator('#m-click .on')).toHaveText('2 & 4');
+  await page.click('#m-click [data-v="all"]');
+  await expect.poll(async () => (await ui.saved()).state.settings.bassClick).toBe('all');
+  // Bass off: the click carries on.
+  await page.click('#m-bass-seg [data-v="off"]');
+  await expect(page.locator('#m-click')).toHaveCount(0);
+  await expect(page.locator('.metro-pill')).not.toContainText('Bass');
+  await expect(page.locator('#m-go')).toHaveClass(/\bon\b/);
+  await page.click('#m-bass-seg [data-v="on"]');
+  await expect(page.locator('.metro-pill')).toContainText('Bass · Autumn Leaves');
+  // The metronome started for something else takes over: the bass stops.
+  await ui.backdrop();
+  await ui.tab('today');
+  await page.locator('.card .tempo-chip').first().click();
+  await page.click('#m-go');
+  await ui.backdrop();
+  await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
+  await ui.tab('tunes');
+  await expect(page.locator('.metro-pill')).not.toContainText('Bass');
 });
 
 test('exercises on a day: each its own, or key of the day @narrow', async ({ page, ui }) => {

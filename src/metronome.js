@@ -1,6 +1,7 @@
 import { clampBpm } from './tempo.js';
 import { holdAudio } from './audiosession.js';
 import { keepAwake } from './keepawake.js';
+import { walkingLine, pluck } from './bass.js';
 
 // A metronome on the Web Audio clock. A timer wakes every 25 ms and schedules any clicks due in
 // the next 120 ms at exact audio times, so the beat stays steady even if the page is busy.
@@ -8,7 +9,11 @@ const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD_S = 0.12;
 
 const listeners = new Set();
-const state = { running: false, bpm: 100, beats: 4, beat: 0, itemId: null };
+// bass: a walking bass with the click (see bass.js): { chords, owner (who started it), label },
+// played round and round; click: with the bass, 'all' beats, 'twofour' (2 and 4) or 'off'.
+const state = { running: false, bpm: 100, beats: 4, beat: 0, itemId: null, bass: null, click: 'twofour' };
+let line = [];
+let lineAt = 0;
 let ctx = null;
 let timer = null;
 let nextTime = 0;
@@ -24,11 +29,15 @@ export const metronome = {
     return () => listeners.delete(fn);
   },
   // Must be called from a tap, so the phone allows audio.
-  start({ bpm, beats, itemId } = {}) {
+  start({ bpm, beats, itemId, bass = null, click } = {}) {
     if (bpm) state.bpm = clampBpm(bpm);
     if (beats) state.beats = beats;
     if (itemId !== undefined) state.itemId = itemId; // null: not for an item
-    if (state.running) return emit();
+    if (click) state.click = click;
+    state.bass = bass;
+    line = bass ? walkingLine(bass.chords) : [];
+    lineAt = 0;
+    if (state.running) { nextBeat = 0; return emit(); } // (from the top of the bar, and the line)
     const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
     ctx = new Ctx();
     ctx.resume?.();
@@ -52,6 +61,8 @@ export const metronome = {
   stop() {
     if (!state.running) return;
     state.running = false;
+    state.bass = null;
+    line = [];
     clearInterval(timer);
     ctx?.close?.().catch(() => {});
     ctx = null;
@@ -78,12 +89,21 @@ export const metronome = {
   setItem(itemId) {
     state.itemId = itemId;
   },
+  setClick(click) {
+    state.click = click;
+    emit();
+  },
   // The latest click that has sounded, for the visuals: { beat, since (seconds ago) } or null.
   lastClick() {
     if (!ctx) return null;
     const now = ctx.currentTime;
     while (queue.length > 1 && queue[1].time <= now) queue.shift();
-    return queue.length && queue[0].time <= now ? { beat: queue[0].beat, since: now - queue[0].time } : null;
+    return queue.length && queue[0].time <= now ? { beat: queue[0].beat, since: now - queue[0].time, at: queue[0].at } : null;
+  },
+  // With the bass: the beat of its line sounding now (counted from the top of its chords), or -1.
+  bassBeat() {
+    const c = state.bass ? this.lastClick() : null;
+    return c?.at ?? -1;
   },
 };
 
@@ -97,8 +117,16 @@ function schedule() {
   // rather than playing them all at once.
   if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
   while (nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
-    click(nextTime, nextBeat === 0 && state.beats > 1);
-    queue.push({ time: nextTime, beat: nextBeat });
+    const accent = nextBeat === 0 && state.beats > 1;
+    let at = null;
+    if (line.length) {
+      at = lineAt;
+      pluck(ctx, line[at].midi, nextTime, 60 / state.bpm);
+      lineAt = (lineAt + 1) % line.length;
+      if (state.click === 'all') click(nextTime, accent);
+      else if (state.click === 'twofour' && nextBeat % 2 === 1) click(nextTime, false);
+    } else click(nextTime, accent);
+    queue.push({ time: nextTime, beat: nextBeat, at });
     nextTime += 60 / state.bpm;
     nextBeat = (nextBeat + 1) % state.beats;
   }
@@ -127,7 +155,7 @@ function click(time, accent) {
 let stoppedAway = null;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && state.running) {
-    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId };
+    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId, bass: state.bass, click: state.click };
     metronome.stop();
   }
 });

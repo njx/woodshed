@@ -183,6 +183,7 @@ function settings(s) {
   s.recordMicLabel = typeof s.recordMicLabel === 'string' && s.recordMicLabel.length < 200 ? s.recordMicLabel : null;
   if (s.metroBpm != null) s.metroBpm = int(Math.round(s.metroBpm), 10, 400) ?? 100;
   if (s.metroBeats != null) s.metroBeats = int(s.metroBeats, 1, 12) ?? 4;
+  if (s.bassClick != null) s.bassClick = oneOf(s.bassClick, ['all', 'twofour', 'off'], 'twofour');
   return s;
 }
 

@@ -18,7 +18,7 @@ import { openRecorder } from './recorder.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
-import { bass } from '../bass.js';
+import { metronome } from '../metronome.js';
 import {
   $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
 } from './shell.js';
@@ -94,13 +94,15 @@ export function openExercise(id, opts = {}) {
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
   const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
   const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
+  // A walking bass through a progression (a bar a chord): the metronome with a bass line.
   const bassOwner = `prog:${t.id}`;
-  const bassMine = () => bass.state.running && bass.state.owner === bassOwner;
+  const bassMine = () => metronome.state.running && metronome.state.bass?.owner === bassOwner;
   const startBass = () => {
     const chords = prog.chords.map((c) => ({ root: (previewRoot + c.d) % 12, family: c.family, beats: 4 }));
-    bass.start({ chords, bpm: () => tempoFrom.tempo || 100, owner: bassOwner });
-    const watch = () => { if (!bassMine()) return; if (!sheet.isConnected) bass.stop(); else setTimeout(watch, 300); };
-    watch();
+    metronome.start({
+      bpm: tempoFrom.tempo || 100, beats: 4, itemId: tempoFrom.id,
+      bass: { chords, owner: bassOwner, label: `${prog.name}` }, click: store.state.settings.bassClick,
+    });
   };
   // A written exercise can be shown only as written, in C, to transpose in your head.
   const asWritten = () => !!t.asWritten && !t.vary && !prog && !!t.abc;
@@ -375,7 +377,7 @@ ${t.fromTune ? '' : `
     // A walking bass through the progression (a bar a chord), round and round, at the tempo.
     const bassBtn = $('#x-bass', sheet);
     if (bassBtn) bassBtn.onclick = () => {
-      if (bassMine()) bass.stop();
+      if (bassMine()) metronome.stop();
       else startBass();
       refresh();
     };

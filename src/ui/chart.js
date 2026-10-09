@@ -4,8 +4,9 @@ import { dateStr } from '../dates.js';
 import { esc } from '../util.js';
 import { isMinor } from '../keys.js';
 import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
-import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName, chordTimeline, chordFamily } from '../chords.js';
-import { bass } from '../bass.js';
+import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
+import { chartChords } from '../bass.js';
+import { metronome } from '../metronome.js';
 import { addWarmups } from '../plan.js';
 import { $, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
 
@@ -51,29 +52,33 @@ function progsHtml(chart, { shift, sharps }) {
 // Fills `box` with the chart for tune `t`. back: reopens the tune's details after the editor.
 export function mountChart(box, t, { back } = {}) {
   let key = null; // the concert key shown; null = today's / usual
-  // A walking bass through the chart, round and round, at the tune's tempo, in the key shown;
-  // the bar it's on lights up. It stops when the chart goes (the sheet closes).
+  // A walking bass through the chart (a mode of the metronome), round and round, at the tune's
+  // tempo, in the key shown; the bar it's on lights up while the chart is showing.
   const owner = `chart:${t.id}`;
-  const bassMine = () => bass.state.running && bass.state.owner === owner;
+  const bassMine = () => metronome.state.running && metronome.state.bass?.owner === owner;
   let gen = 0; // (one bar-follower at a time)
-  const startBass = () => {
+  const follow = () => {
     const mine = ++gen;
-    const chart = chartFor(t);
-    const shown = key ?? todaysKey(t) ?? chart.key ?? 0;
-    const up = chartShift(chart, shown, 'c');
-    const chords = chordTimeline(chart).map((c) => ({ root: (c.root + up) % 12, family: chordFamily(c.q), beats: c.beats }));
-    const beats = Number(String(chart.meter || '4/4').split('/')[0]) || 4;
-    bass.start({ chords, bpm: () => t.tempo || 120, owner });
     let lit = null;
-    const follow = () => {
-      if (!bassMine() || mine !== gen) { lit?.classList.remove('now'); return; }
-      if (!box.isConnected) { bass.stop(); return; }
-      const i = bass.current();
-      const bar = i < 0 ? null : box.querySelector(`[data-b="${Math.floor(i / beats)}"]`);
+    const step = () => {
+      if (mine !== gen || !box.isConnected) return;
+      if (!bassMine()) {
+        lit?.classList.remove('now');
+        const b = $('#chart-bass', box);
+        if (b?.classList.contains('on')) draw(); // stopped elsewhere (the pill, the metronome)
+        return;
+      }
+      const i = metronome.bassBeat();
+      const bar = i < 0 ? null : box.querySelector(`[data-b="${Math.floor(i / metronome.state.beats)}"]`);
       if (bar !== lit) { lit?.classList.remove('now'); bar?.classList.add('now'); lit = bar; }
-      requestAnimationFrame(follow);
+      requestAnimationFrame(step);
     };
-    requestAnimationFrame(follow);
+    requestAnimationFrame(step);
+  };
+  const startBass = () => {
+    const chart = chartFor(t);
+    const { chords, beats } = chartChords(t, key ?? todaysKey(t) ?? chart.key ?? 0);
+    metronome.start({ bpm: t.tempo || store.state.settings.metroBpm || 120, beats, itemId: t.id, bass: { chords, owner, label: t.name }, click: store.state.settings.bassClick });
   };
   const draw = () => {
     const chart = chartFor(t);
@@ -103,14 +108,15 @@ export function mountChart(box, t, { back } = {}) {
         </div>`;
       $('#chart-key', box).onchange = (e) => {
         key = Number(e.target.value);
-        draw();
         if (bassMine()) startBass(); // on in the new key
+        draw();
       };
       $('#chart-bass', box).onclick = () => {
-        if (bassMine()) bass.stop();
+        if (bassMine()) metronome.stop();
         else startBass();
         draw();
       };
+      if (bassMine()) follow();
       $('#chart-edit', box).onclick = () => openChartEditor(t, { key: shown, back });
       $('#chart-warmup', box).onclick = () => {
         if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);

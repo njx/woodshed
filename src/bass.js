@@ -1,8 +1,8 @@
-import { clampBpm } from './tempo.js';
-import { holdAudio } from './audiosession.js';
-import { keepAwake } from './keepawake.js';
+import { chartFor } from './charts.js';
+import { chordTimeline, chordFamily, chartShift } from './chords.js';
 
-// A simple walking bass for a chord progression, to play against and loop over.
+// A simple walking bass for a chord progression, to play against and loop over. It's a mode of
+// the metronome (metronome.js plays it, on the same clock as the click).
 //
 // The line: on each chord, a beat at a time, 1-2-3-5 (the 3rd and 5th the chord's own: minor,
 // flat 5 and so on); a chord held longer walks back down from the octave (8-7-5-3), then up
@@ -38,89 +38,23 @@ export function walkingLine(chords) {
   return out;
 }
 
-const LOOKAHEAD_MS = 25;
-const SCHEDULE_AHEAD_S = 0.12;
-const listeners = new Set();
-const state = { running: false, owner: null };
-let ctx = null;
-let timer = null;
-let line = [];
-let getBpm = () => 120;
-let nextTime = 0;
-let nextBeat = 0;
-let queue = [];
-let release = [];
 
-export const bass = {
-  get state() { return { ...state }; },
-  subscribe(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  },
-  // Must be called from a tap. chords as for walkingLine; bpm: a number, or a function read each
-  // beat (so a tempo change applies straight away). owner: who started it (to show it running).
-  start({ chords, bpm = 120, owner = null }) {
-    this.stop();
-    line = walkingLine(chords);
-    if (!line.length) return;
-    getBpm = typeof bpm === 'function' ? bpm : () => bpm;
-    const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
-    ctx = new Ctx();
-    ctx.resume?.();
-    const mine = ctx;
-    ctx.onstatechange = () => {
-      if (ctx === mine && state.running && mine.state !== 'running' && mine.state !== 'closed') mine.resume?.().catch(() => {});
-    };
-    release = [holdAudio('playback'), keepAwake()];
-    Object.assign(state, { running: true, owner });
-    nextBeat = 0;
-    nextTime = ctx.currentTime + 0.08;
-    queue = [];
-    timer = setInterval(schedule, LOOKAHEAD_MS);
-    schedule();
-    emit();
-  },
-  stop() {
-    if (!state.running) return;
-    clearInterval(timer);
-    ctx?.close?.().catch(() => {});
-    ctx = null;
-    queue = [];
-    release.forEach((r) => r?.());
-    release = [];
-    Object.assign(state, { running: false, owner: null });
-    emit();
-  },
-  // The beat sounding now (counted from the top of the chords given), for the visuals; -1 if none.
-  current() {
-    if (!ctx) return -1;
-    const now = ctx.currentTime;
-    while (queue.length > 1 && queue[1].time <= now) queue.shift();
-    return queue.length && queue[0].time <= now ? queue[0].i : -1;
-  },
-};
-
-function emit() {
-  for (const fn of listeners) fn(bass.state);
-}
-
-function schedule() {
-  if (!ctx) return;
-  if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05; // after a throttled timer
-  while (nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
-    const beat = 60 / clampBpm(getBpm() || 120);
-    const n = line[nextBeat];
-    pluck(n.midi, nextTime, beat);
-    queue.push({ time: nextTime, i: nextBeat });
-    nextTime += beat;
-    nextBeat = (nextBeat + 1) % line.length; // round again from the top
-  }
+// The chords of a tune's chart in playing order, in concert `key` (null: the chart's own), for
+// walkingLine; and its beats per bar.
+export function chartChords(t, key = null) {
+  const chart = chartFor(t);
+  if (!chart) return null;
+  const up = chartShift(chart, key ?? chart.key ?? 0, 'c');
+  return {
+    chords: chordTimeline(chart).map((c) => ({ root: (c.root + up) % 12, family: chordFamily(c.q), beats: c.beats })),
+    beats: Number(String(chart.meter || '4/4').split('/')[0]) || 4,
+  };
 }
 
 // A plucked bass note: a sawtooth (whose overtones carry the pitch on a phone's small speaker,
 // which can't play the low notes themselves) with a sine for the low end, through a low-pass
 // that closes after the attack. Held most of the beat, a little detached.
-function pluck(midi, time, beat) {
+export function pluck(ctx, midi, time, beat) {
   const f = 440 * 2 ** ((midi - 69) / 12);
   const len = beat * 0.9;
   const gain = ctx.createGain();
@@ -146,8 +80,3 @@ function pluck(midi, time, beat) {
     osc.stop(time + len + 0.02);
   }
 }
-
-// Like the metronome, it stops in the background (the timer slows down and the line drifts).
-globalThis.document?.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') bass.stop();
-});
