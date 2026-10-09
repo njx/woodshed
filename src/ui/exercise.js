@@ -5,7 +5,7 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { syncFocus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
+import { setExerciseStatus, exerciseStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
@@ -115,11 +115,8 @@ export function openExercise(id, opts = {}) {
     const notes = all.filter((e) => !e.media?.length);
     return `
       <textarea class="title-input" id="x-name" rows="1" placeholder="Exercise name" aria-label="Exercise name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
-      <label class="focus-toggle">
-        <span class="focus-icon">${ICON.focus}</span>
-        <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
-        <input type="checkbox" id="x-focus" role="switch" ${t.focus ? 'checked' : ''}>
-      </label>
+      ${isNew ? '' : `<div class="seg ex-status" id="x-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${exerciseStatus(t) === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
+      <p class="fine" id="x-status-hint">${esc(STATUS_HINTS[exerciseStatus(t)])}</p>`}
       ${isNew || t.focus ? '' : planItem?.warmup
         ? `<p class="in-today">${ICON.check}In today’s set, as a warm-up for ${esc(itemById(planItem.warmup)?.name || 'a tune')}</p>`
         : inToday(t)
@@ -455,14 +452,11 @@ ${t.fromTune ? '' : `
       t.name = nameEl.value;
       if (!isNew && t.name.trim()) commit();
     };
-    $('#x-focus', sheet).onchange = (e) => {
-      t.focus = e.target.checked;
-      if (!isNew && state.plan?.date === dateStr()) {
-        if (t.focus) state.plan.focusSkipped = (state.plan.focusSkipped || []).filter((x) => x !== t.id);
-        syncFocus();
-      }
+    $$('#x-status button', sheet).forEach((b) => (b.onclick = () => {
+      setExerciseStatus(t, b.dataset.v);
       commit();
-    };
+      refresh();
+    }));
     $$('[data-cat]', sheet).forEach((b) => (b.onclick = () => { t.category = b.dataset.cat; commit(); refresh(); }));
     $$('[data-vary]', sheet).forEach((b) => (b.onclick = () => {
       const kind = b.dataset.vary;
@@ -786,13 +780,19 @@ export function openNotationEditor(t, back) {
 
 // ---------- Library list ----------
 
+const STATUS_HINTS = {
+  focus: 'In your set every day until you change it.',
+  on: 'Picked for your set now and then, and offered as a warm-up.',
+  off: 'Left out for now: not picked, and not offered as a warm-up.',
+};
+
 export function exerciseRowHtml(t, stats) {
   const s = stats.get(t.id);
   const mode = t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''} · ${KEY_MODES[t.keyMode].label.toLowerCase()}`;
   return `
-  <li class="row" data-id="${t.id}" role="button" tabindex="0">
+  <li class="row ${t.off ? 'off' : ''}" data-id="${t.id}" role="button" tabindex="0">
     <div class="row-main">
-      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.abc ? ' <span class="has-abc" title="Has notation">♪</span>' : ''}</b>
+      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.abc ? ' <span class="has-abc" title="Has notation">♪</span>' : ''}${t.off ? ' <span class="off-mark">off</span>' : ''}</b>
       <span class="row-sub">${esc(CATEGORIES[t.category] || 'Other')} · ${esc(mode)} · ${esc(ago(s?.last))}</span>
     </div>
     <span class="pri p${t.priority}">P${t.priority}</span>

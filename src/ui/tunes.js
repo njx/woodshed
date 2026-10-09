@@ -46,6 +46,8 @@ const EXERCISE_FILTERS = [
   { id: 'all', label: 'All', fn: () => true },
   { id: 'due', label: 'Due', fn: isDue },
   { id: 'focus', label: 'Focus', fn: (t) => t.focus },
+  { id: 'on', label: 'On', fn: (t) => !t.focus && !t.off && !t.fromTune },
+  { id: 'off', label: 'Off', fn: (t) => t.off },
   ...Object.entries(CATEGORIES).map(([k, label]) => ({ id: `c-${k}`, label: `${label}s`, fn: (t) => t.category === k })),
 ];
 

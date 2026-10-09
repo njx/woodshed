@@ -64,7 +64,7 @@ export function chooseKey(t, stats) {
 export function pickItem(bucket, exclude, stats) {
   for (const b of [bucket, ...BUCKETS[bucket].fallback]) {
     // (Exercises that take their chords from a tune only come up as warm-ups.)
-    const pool = store.state.items.filter((t) => !t.focus && !t.fromTune && bucketOf(t) === b && !exclude.has(t.id));
+    const pool = store.state.items.filter((t) => !t.focus && !t.off && !t.fromTune && bucketOf(t) === b && !exclude.has(t.id));
     const t = weightedPick(pool, (t) => weightFor(t, stats, b));
     if (t) return t;
   }
@@ -287,6 +287,23 @@ export function buildPlan(keepPlayed = false) {
   syncFocus();
   applyExerciseFocus(state.plan);
   save();
+}
+
+// Focus on or off (in today's set straight away, or out of it if not played).
+export function setFocus(t, on) {
+  t.focus = !!on;
+  if (store.state.plan?.date !== dateStr()) return;
+  if (t.focus) store.state.plan.focusSkipped = (store.state.plan.focusSkipped || []).filter((x) => x !== t.id);
+  syncFocus();
+}
+
+// An exercise is 'focus' (in every day's set), 'on' (can be picked) or 'off' (left out: not
+// picked, and not offered as a warm-up), for practicing from a smaller pool for a while.
+export const exerciseStatus = (t) => (t.focus ? 'focus' : t.off ? 'off' : 'on');
+export function setExerciseStatus(t, status) {
+  if (status === 'off') t.off = true;
+  else delete t.off;
+  setFocus(t, status === 'focus');
 }
 
 // Focus items are in every day's set (on top of the regular mix) unless skipped for today.

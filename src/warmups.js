@@ -12,7 +12,7 @@ import { uid } from './util.js';
 //   changes: a written lick or pattern over part of one of its progressions (its chords from its
 //            harmony or the chord symbols in its notation), or Through the changes.
 // Each is a plan item: { pid, itemId, bucket: 'exercise', keys, types?, prog?, over?, warmup: tune id }.
-const exercises = () => store.state.items.filter((x) => x.type === 'exercise');
+const exercises = () => store.state.items.filter((x) => x.type === 'exercise' && !x.off); // (not ones turned off)
 const count = (x, fallback) => Math.max(2, Math.min(4, x.keysPerSession || fallback));
 
 const warmItem = (x, t, keys, types = null, extra = {}) => ({

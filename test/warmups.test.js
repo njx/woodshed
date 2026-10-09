@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { nextWarmups, altWarmup, harmonyOf } from '../src/warmups.js';
-import { buildPlan, addWarmups, swapWarmup, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
+import { buildPlan, addWarmups, swapWarmup, setExerciseStatus, pickItem, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
 import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
@@ -120,6 +120,23 @@ describe('from the cleanup review', () => {
     const abc = '"^swing""Dm7"F2 A2 "Dm9"c2 e2 | "G7"d2 B2 G2 F2 | "Cmaj7"e8 |';
     expect(abcFirstChords(abc, 2)).toBe('"^swing""Dm7"F2 A2 "Dm9"c2 e2 | "G7"d2 B2 G2 F2 |');
     expect(abcFirstChords(abc, 3)).toBe(abc);
+  });
+});
+
+describe('exercises turned off', () => {
+  it('aren’t picked for the set or offered as warm-ups; focus ones always are', () => {
+    const exs = store.state.items.filter((x) => x.type === 'exercise');
+    const keep = byName('Long tones');
+    for (const x of exs) if (x !== keep) setExerciseStatus(x, 'off');
+    store.state.settings.exercises = 4;
+    buildPlan(true);
+    const ids = store.state.plan.items.filter((i) => i.bucket === 'exercise').map((i) => i.itemId);
+    expect(ids).toEqual([keep.id]);
+    expect(pickItem('exercise', new Set([keep.id]), new Map())).toBe(null);
+    expect(nextWarmups(byName('Autumn Leaves'), { key: 19, n: 6 })).toEqual([]);
+    setExerciseStatus(byName('Scales: major and minors'), 'focus');
+    expect(byName('Scales: major and minors').off).toBeUndefined();
+    expect(store.state.plan.items.some((i) => i.itemId === byName('Scales: major and minors').id && i.bucket === 'focus')).toBe(true);
   });
 });
 

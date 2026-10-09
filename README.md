@@ -12,6 +12,10 @@ Each day it hands you a short set of tunes to play:
 Turn on **Focus** for a tune (in its detail sheet) and it's in your set every day, on top of the
 regular mix, until you turn it off. Swipe a Focus card left to skip it for just today.
 
+An exercise is **Focus**, **On** or **Off** (at the top of its details). On (the default) means it
+can be picked for the set and offered as a warm-up; Off leaves it out of the pool for now, to
+practice from a smaller set of exercises for a while. The exercise library filters by each.
+
 Swipe a card **right** (or tap ✓) when you've played it, and **left** to swap in a different
 suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
 

@@ -143,6 +143,29 @@ test('a lick can be shown only as written, in C, to transpose in your head', asy
   await expect(page.locator('.key-strip')).toBeVisible();
 });
 
+test('an exercise can be focus, on, or off (left out of the pool) @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  const row = page.locator('#tune-list .row', { hasText: 'Long tones' });
+  await row.click();
+  await expect(page.locator('#x-status .on')).toHaveText('On'); // the default
+  await page.click('#x-status [data-v="off"]');
+  await expect(page.locator('#x-status-hint')).toContainText('Left out');
+  await ui.backdrop();
+  await expect(row).toHaveClass(/\boff\b/);
+  await page.click('.chip[data-f="off"]');
+  await expect(page.locator('#tune-list .row')).toHaveCount(1);
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Long tones').off).toBe(true);
+  // Focus puts it back, in every day's set.
+  await row.click();
+  await page.click('#x-status [data-v="focus"]');
+  await ui.backdrop();
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Long tones')).toMatchObject({ focus: true });
+  expect((await ui.saved()).state.items.find((x) => x.name === 'Long tones').off).toBeUndefined();
+  await ui.expectNoSideScroll();
+});
+
 test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
   const fetched = [];
   page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });

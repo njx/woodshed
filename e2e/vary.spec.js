@@ -75,7 +75,7 @@ test('today’s card names the scale or chord for each key, and the log keeps it
   await ui.start();
   // Put the scales exercise in today's set as a focus item.
   await openExercise(page, ui, 'Scales: major and minors');
-  await page.click('.focus-toggle');
+  await page.click('#x-status [data-v="focus"]');
   await ui.backdrop();
   await ui.tab('today');
   const card = page.locator('.card.b-focus', { hasText: 'Scales: major and minors' });
