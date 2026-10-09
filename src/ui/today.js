@@ -3,7 +3,7 @@ import { BUCKETS, RATINGS, SHIFTS, LEVELS, TRANSPOSITIONS } from '../constants.j
 import { dateStr, niceDate, ago } from '../dates.js';
 import { esc, randomOf } from '../util.js';
 import {
-  itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel,
+  itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel, tempoSource,
   levelSuggestion, overdue,
 } from '../practice.js';
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, applyExerciseFocus, swapWarmup, dropOrphanWarmups } from '../plan.js';
@@ -218,7 +218,7 @@ function bindCard(card) {
     e.stopPropagation();
     const t = itemById(item.itemId);
     const text = t.type === 'exercise'
-      ? takeLabel(t, item.keys || [], item.types || null, item.prog || null)
+      ? takeLabel(t, item.keys || [], item.types || null, item.prog || null, tempoSource(t, item).tempo)
       : [item.key != null && `In ${kn(item.key)}`, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     openRecorder({ itemId: t.id, text, back: render });
   };
@@ -321,7 +321,7 @@ function cardHtml(it, i, stats) {
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>
-      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${recChip(t)}${tempoChip(t)}</div>
+      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${recChip(t)}${tempoChip(tempoSource(t, it))}</div>
       <div class="card-actions">
         ${keyChip(it, t)}
         ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
@@ -329,7 +329,7 @@ function cardHtml(it, i, stats) {
       </div>
       ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}
       ${played ? suggestionHtml(t, levelSuggestion(t)) : ''}
-      ${played ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}
+      ${played && !it.warmup ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}
     </article>
   </li>`;
 }

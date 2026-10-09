@@ -122,7 +122,18 @@ function click(time, accent) {
   osc.stop(time + 0.06);
 }
 
-// Back in the app: wake the audio up if the phone suspended it meanwhile.
+// In the background the phone slows the timer down, so the clicks would drift: stop, and keep
+// what it was doing so the app can offer to start it again (takeAwayStop).
+let stoppedAway = null;
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.running && ctx && ctx.state !== 'running') ctx.resume?.().catch(() => {});
+  if (document.visibilityState === 'hidden' && state.running) {
+    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId };
+    metronome.stop();
+  }
 });
+// What was stopped when the app went into the background (once), or null.
+export function takeAwayStop() {
+  const s = stoppedAway;
+  stoppedAway = null;
+  return s;
+}

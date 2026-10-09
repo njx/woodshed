@@ -76,6 +76,9 @@ export function planEntry(it) {
 const entryFor = (itemId, planItem) => (planItem?.pid ? planEntry({ ...planItem, itemId }) : todaysEntry(itemId));
 export const isPlanItemPlayed = (it) => !!planEntry(it);
 
+// Where a played item's tempo comes from: a warm-up is played at its tune's tempo.
+export const tempoSource = (t, planItem) => (planItem?.warmup && itemById(planItem.warmup)) || t;
+
 export function markPlayed(itemId, planItem) {
   if (entryFor(itemId, planItem)) return;
   const t = itemById(itemId);
@@ -89,7 +92,8 @@ export function markPlayed(itemId, planItem) {
     ...(planItem?.types?.length ? { types: [...planItem.types] } : {}),
     ...(planItem?.prog ? { progName: planItem.prog.name } : {}),
     rating: 'ok', prev: earlier ? { ...earlier.prev } : { ivl: t.ivl, due: t.due },
-    ...(t.tempo ? { bpm: t.tempo } : {}),
+    ...(tempoSource(t, planItem).tempo ? { bpm: tempoSource(t, planItem).tempo } : {}),
+    ...(planItem?.warmup ? { warmup: planItem.warmup } : {}), // played as a warm-up for that tune
   };
   store.state.log.push(entry);
   schedule(t, entry.rating, entry.prev);

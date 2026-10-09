@@ -264,3 +264,20 @@ describe('changing today’s instance', () => {
     expect(store.state.log.at(-1)).toMatchObject({ key: 21, alt: !t.keys.includes(21) });
   });
 });
+
+describe('warm-up tempo', () => {
+  it('is the tune’s: logged with the session, and not counted for the exercise’s own tempo', () => {
+    buildPlan(true);
+    const plan = store.state.plan;
+    const w = plan.items.find((i) => i.warmup);
+    const tune = store.state.items.find((t) => t.id === w.warmup);
+    const ex = store.state.items.find((t) => t.id === w.itemId);
+    tune.tempo = 132;
+    ex.tempo = 90;
+    markPlayed(ex.id, w);
+    rate(ex.id, 'rough', w);
+    const e = store.state.log.at(-1);
+    expect(e).toMatchObject({ bpm: 132, warmup: tune.id });
+    expect(tempoSuggestion(ex)).toBe(null); // a rough warm-up at 132 says nothing about 90
+  });
+});

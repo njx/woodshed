@@ -147,6 +147,10 @@ was when you opened the editor) and chord charts (each edit is kept once it read
 new tune or exercise is added when you close it, once it has a name (with Undo). An exercise's or
 tune's details have **Add to today's set**.
 
+The metronome stops when the app goes into the background (the phone slows it down there, so it
+would drift); coming back, a message offers **Start again**. A warm-up is played at its tune's
+tempo: its card's tempo button and metronome are the tune's, and that's the tempo saved with it.
+
 ## Chord charts
 
 Each tune's details show its chord chart, by section with endings, written for your instrument and in

@@ -1,9 +1,9 @@
 import { store, save } from '../store.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
-import { metronome } from '../metronome.js';
+import { metronome, takeAwayStop } from '../metronome.js';
 import { setTempo, clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
-import { $, $$, ICON, render, openSheet } from './shell.js';
+import { $, $$, ICON, render, toast, openSheet } from './shell.js';
 
 // Metronome sheet. Opened for a tune or exercise (opts.itemId), its tempo is that item's working
 // tempo: changing it here changes the item's.
@@ -118,7 +118,13 @@ export function openMetronome(opts = {}) {
 }
 
 // While the metronome runs, a small pill shows on every screen: tap to open, ■ to stop.
+// (Also: back in the app after it was stopped in the background, an offer to start it again.)
 export function mountMetronomePill() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const was = takeAwayStop();
+    if (was) toast(`Metronome stopped while the app was in the background`, { label: 'Start again', fn: () => metronome.start(was) });
+  });
   const pill = document.createElement('div');
   pill.className = 'metro-pill';
   pill.hidden = true;

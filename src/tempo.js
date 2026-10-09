@@ -34,7 +34,8 @@ export function setTempo(t, bpm, { nextTime = false } = {}) {
 export function tempoSuggestion(t, log = store.state.log) {
   if (!t.tempo) return null;
   const recent = latestPerDay(log
-    .filter((e) => e.itemId === t.id && e.bpm === t.tempo && (e.at || 0) >= (t.tempoSetAt || 0))
+    // (Not counting plays as a warm-up: those were at the tune's tempo.)
+    .filter((e) => e.itemId === t.id && !e.warmup && e.bpm === t.tempo && (e.at || 0) >= (t.tempoSetAt || 0))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0)));
   if (!recent.length) return null;
   if (recent[0].rating === 'rough') {

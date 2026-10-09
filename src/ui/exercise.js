@@ -42,9 +42,9 @@ export function exerciseKeysText(keys = [], t = null, types = null, prog = null)
 
 // A recording's note for an exercise: what was played (keys and types, or the progression) and
 // the tempo, e.g. "In C · E♭ · 120 bpm", "D dorian · G mixolydian", "ii–V7–I in F".
-export function takeLabel(t, keys = [], types = null, prog = null) {
+export function takeLabel(t, keys = [], types = null, prog = null, tempo = t.tempo) {
   const what = exerciseKeysText(keys, t, types, prog);
-  return [what && (t.vary || prog ? what : `In ${what}`), t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
+  return [what && (t.vary || prog ? what : `In ${what}`), tempo && `${tempo} bpm`].filter(Boolean).join(' · ');
 }
 
 const patternHint = (kind) => (kind === 'chord'
@@ -74,6 +74,8 @@ export function openExercise(id, opts = {}) {
   // What Played logs against: that, or if it's only in the set as warm-ups, one of them (shown as
   // itself here, not with a tune's keys) — so it doesn't count for every copy.
   const logItem = () => planItem || today.find((i) => !isPlanItemPlayed(i)) || today[0] || null;
+  // A warm-up is played at its tune's tempo (the tempo row, notation and takes use that).
+  const tempoFrom = (planItem?.warmup && itemById(planItem.warmup)) || t;
   const isPlayed = () => (logItem() ? isPlanItemPlayed(logItem()) : isPlayedToday(t.id));
   let todayKeys = opts.keys || planItem?.keys || []; // changes if today's keys are edited
   const prog = planItem?.prog || opts.prog || null; // a tune's progression (warm-ups)
@@ -86,8 +88,8 @@ export function openExercise(id, opts = {}) {
   let previewType = typeFor(previewRoot);
   // A new take's note: today's keys and types, or else the key (and type) shown.
   const label = () => (prog || !todayKeys.length
-    ? takeLabel(t, [previewRoot], previewType ? [previewType] : null, prog)
-    : takeLabel(t, todayKeys, todayTypes(), prog));
+    ? takeLabel(t, [previewRoot], previewType ? [previewType] : null, prog, tempoFrom.tempo)
+    : takeLabel(t, todayKeys, todayTypes(), prog, tempoFrom.tempo));
   let stopFn = null;
 
   const body = () => {
@@ -135,7 +137,9 @@ export function openExercise(id, opts = {}) {
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
       ${todayHtml()}
 
-      ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
+      ${isNew ? '' : tempoFrom !== t
+        ? `<div data-item-id="${tempoFrom.id}">${tempoRowHtml(tempoFrom)}<p class="fine">As a warm-up it’s played at ${esc(tempoFrom.name)}’s tempo.</p></div>`
+        : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
       ${isNew || !canRecord() ? '' : `
         <div class="field-label row-label"><span>Recordings</span><span class="row-links">
           <button class="link-btn" id="x-rec">${ICON.rec}Record</button></span></div>
@@ -275,7 +279,7 @@ ${t.fromTune ? '' : `
     const el = $('#x-notation', sheet);
     const abc = notationFor(t, previewType, prog);
     if (!el || !abc) return null;
-    return renderNotation(el, abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: t.tempo || 100 })
+    return renderNotation(el, abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: tempoFrom.tempo || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });
   }
 
@@ -369,7 +373,7 @@ ${t.fromTune ? '' : `
       let fullTune = null;
       openFullNotation({
         title: `${t.name} · ${what}`,
-        draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, meter: t.meter, tempo: t.tempo || 100, wide: true }).catch(() => null); },
+        draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, meter: t.meter, tempo: tempoFrom.tempo || 100, wide: true }).catch(() => null); },
         play: async (onEnded) => {
           if (!fullTune) return null;
           try {

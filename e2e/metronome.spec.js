@@ -84,3 +84,32 @@ test('started from a card, the metronome can be stopped from the Today circle', 
   await ui.backdrop();
   await expect(page.locator('#today-metro')).not.toHaveClass(/\blive\b/);
 });
+
+test('a warm-up’s tempo is its tune’s', async ({ page, ui }) => {
+  await ui.start();
+  const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
+  const tuneName = (await warm.locator('.style').textContent()).replace(/^for /, '');
+  await warm.locator('.tempo-chip').click();
+  await expect(page.locator('.sheet .eyebrow')).toContainText(tuneName); // the tune's metronome
+  for (let i = 0; i < 2; i++) await page.click('[data-step="5"]');
+  await ui.backdrop();
+  const tune = page.locator('.card:not(.b-exercise)', { hasText: tuneName });
+  await expect(warm.locator('.tempo-chip')).toContainText(await tune.locator('.tempo-chip').textContent());
+});
+
+test('the metronome stops when the app goes into the background, and offers to start again', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-metro');
+  await page.click('#m-go');
+  await ui.backdrop();
+  const setVisibility = (v) => page.evaluate((v) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, v);
+  await setVisibility('hidden');
+  await expect(page.locator('#today-metro')).not.toHaveClass(/\blive\b/);
+  await setVisibility('visible');
+  await expect(page.locator('#toast')).toContainText('Metronome stopped');
+  await page.click('#toast button');
+  await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
+});

@@ -94,6 +94,7 @@ function logEntry(e, ids) {
   if (e.types != null) e.types = typeList(e.types);
   if (e.progName != null) e.progName = str(e.progName, 60);
   if (e.pid != null && !isId(e.pid)) delete e.pid;
+  if (e.warmup != null && !ids.has(e.warmup)) delete e.warmup;
   e.rating = oneOf(e.rating, RATINGS.map((r) => r.v), null);
   e.bpm = e.bpm == null ? null : int(Math.round(e.bpm), 10, 400);
   e.alt = !!e.alt;
