@@ -261,3 +261,13 @@ test('add a tune to today’s set from its details', async ({ page, ui }) => {
   await ui.tab('today');
   await expect(page.locator('.card h2', { hasText: 'Killer Joe' })).toHaveCount(1);
 });
+
+test('a warm-up opened from today says what it’s for, and has full screen', async ({ page, ui }) => {
+  await ui.start();
+  const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
+  const forTune = (await warm.locator('.style').textContent()).replace(/^for /, '');
+  await warm.locator('h2').click();
+  await expect(page.locator('.in-today')).toHaveText(`In today’s set, as a warm-up for ${forTune}`);
+  await expect(page.locator('#x-today')).toHaveCount(0);
+  await expect(page.locator('#x-full')).toBeVisible();
+});

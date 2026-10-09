@@ -11,6 +11,8 @@ import { cleanupMedia } from './media.js';
 import { mountMetronomePill } from './ui/metronome.js';
 import { mountTunerPill } from './ui/tuner.js';
 import { heartbeat, HEARTBEAT_MS } from './practicetime.js';
+import { metronome } from './metronome.js';
+import { tuner } from './tuning.js';
 import { maybeGreet } from './ui/greet.js';
 
 mountMetronomePill();
@@ -70,6 +72,25 @@ loadState().then(
   },
 );
 
+// Updates: a home-screen app restored from memory keeps running the old version, so check for a
+// new one whenever the app comes back, and when it's installed reload — straight away if nothing
+// is going on (no sheet open, metronome and tuner off), otherwise offer it and do it the next time
+// the app comes back.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  let hadController = !!navigator.serviceWorker.controller;
+  let pendingReload = false;
+  const idle = () => !document.querySelector('#sheet-root.open') && !metronome.state.running && !tuner.state.running;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (pendingReload && idle()) return location.reload();
+      reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; } // the first install: nothing to replace
+    if (idle()) return location.reload();
+    pendingReload = true;
+    toast('A new version of Woodshed is ready', { label: 'Reload', fn: () => location.reload() });
+  });
 }

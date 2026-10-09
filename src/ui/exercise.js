@@ -104,7 +104,9 @@ export function openExercise(id, opts = {}) {
         <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
         <input type="checkbox" id="x-focus" role="switch" ${t.focus ? 'checked' : ''}>
       </label>
-      ${isNew || t.focus ? '' : inToday(t)
+      ${isNew || t.focus ? '' : planItem?.warmup
+        ? `<p class="in-today">${ICON.check}In today’s set, as a warm-up for ${esc(itemById(planItem.warmup)?.name || 'a tune')}</p>`
+        : inToday(t)
         ? `<p class="in-today">${ICON.check}In today’s set</p>`
         : `<button class="ghost-btn add-today" id="x-today">${ICON.plus}<span>Add to today’s set</span></button>`}
 
