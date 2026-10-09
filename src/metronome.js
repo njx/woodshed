@@ -27,11 +27,17 @@ export const metronome = {
   start({ bpm, beats, itemId } = {}) {
     if (bpm) state.bpm = clampBpm(bpm);
     if (beats) state.beats = beats;
-    state.itemId = itemId ?? state.itemId;
+    if (itemId !== undefined) state.itemId = itemId; // null: not for an item
     if (state.running) return emit();
     const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
     ctx = new Ctx();
     ctx.resume?.();
+    // iOS pauses ("interrupts") the audio when the mic starts (recorder, tuner) or a call comes
+    // in; pick up again rather than go quiet while it still says it's running.
+    const mine = ctx;
+    ctx.onstatechange = () => {
+      if (ctx === mine && state.running && mine.state !== 'running' && mine.state !== 'closed') mine.resume?.().catch(() => {});
+    };
     // Play through the iPhone's silent switch, like a music app.
     releaseAudio = holdAudio('playback');
     state.running = true;
@@ -115,3 +121,8 @@ function click(time, accent) {
   osc.start(time);
   osc.stop(time + 0.06);
 }
+
+// Back in the app: wake the audio up if the phone suspended it meanwhile.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.running && ctx && ctx.state !== 'running') ctx.resume?.().catch(() => {});
+});

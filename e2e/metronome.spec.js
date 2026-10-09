@@ -66,3 +66,21 @@ test('working tempo, and suggestions to speed up or slow down', async ({ page, u
   await ui.backdrop();
   await expect(page.locator('.tempo-row')).toContainText('140');
 });
+
+test('started from a card, the metronome can be stopped from the Today circle', async ({ page, ui }) => {
+  await ui.start();
+  const card = page.locator('.card:not(.b-exercise)').first();
+  const name = await card.locator('h2').textContent();
+  await card.locator('.tempo-chip').click();
+  await page.click('#m-go');
+  await ui.backdrop();
+  await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
+  // The circle opens the metronome that's on: this tune's, with Stop.
+  await page.click('#today-metro');
+  await expect(page.locator('.sheet .eyebrow')).toContainText(name);
+  await expect(page.locator('#m-go span')).toHaveText('Stop');
+  await page.click('#m-go');
+  await expect(page.locator('#m-go span')).toHaveText('Start');
+  await ui.backdrop();
+  await expect(page.locator('#today-metro')).not.toHaveClass(/\blive\b/);
+});

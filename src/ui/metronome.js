@@ -9,8 +9,11 @@ import { $, $$, ICON, render, openSheet } from './shell.js';
 // tempo: changing it here changes the item's.
 export function openMetronome(opts = {}) {
   const settings = store.state.settings;
-  const item = opts.itemId ? itemById(opts.itemId) : null;
   const ms = metronome.state;
+  // Opened without an item (the Today circle) while it's running for one: that's the metronome
+  // that's on, so it opens as that item's (and can be stopped).
+  const itemId = opts.itemId ?? (ms.running ? ms.itemId : null);
+  const item = itemId ? itemById(itemId) : null;
   const sameItem = ms.running && ms.itemId === (item?.id ?? null);
   let bpm = sameItem ? ms.bpm : item?.tempo || (ms.running ? ms.bpm : settings.metroBpm || 100);
   let beats = settings.metroBeats || 4;
