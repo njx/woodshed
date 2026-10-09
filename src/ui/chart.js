@@ -4,7 +4,8 @@ import { dateStr } from '../dates.js';
 import { esc } from '../util.js';
 import { isMinor } from '../keys.js';
 import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
-import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
+import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName, chordTimeline, chordFamily } from '../chords.js';
+import { bass } from '../bass.js';
 import { addWarmups } from '../plan.js';
 import { $, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
 
@@ -20,20 +21,23 @@ function todaysKey(t) {
   return it?.key ?? t.keys?.[0] ?? null;
 }
 
-function barHtml(b, opts) {
-  if (!b.chords.length) return '<div class="bar same">%</div>';
+// Bars are numbered (data-b) in playing order, as chordTimeline goes, for the bass to follow.
+function barHtml(b, opts, n) {
+  if (!b.chords.length) return `<div class="bar same" data-b="${n}">%</div>`;
   const alts = b.alts.length ? `<small>(${b.alts.map((c) => esc(chordName(c, opts))).join(' ')})</small>` : '';
-  return `<div class="bar n${b.chords.length}">${b.chords.map((c) => `<span>${esc(chordName(c, opts))}</span>`).join('')}${alts}</div>`;
+  return `<div class="bar n${b.chords.length}" data-b="${n}">${b.chords.map((c) => `<span>${esc(chordName(c, opts))}</span>`).join('')}${alts}</div>`;
 }
 
 function chartHtml(chart, opts) {
+  let n = 0;
+  const barHtml_ = (b) => barHtml(b, opts, n++);
   return chart.sections.map((s) => `
     <div class="chart-section">
       <span class="chart-label">${esc(s.label || '')}</span>
-      <div class="bars">${s.bars.map((b) => barHtml(b, opts)).join('')}</div>
+      <div class="bars">${s.bars.map(barHtml_).join('')}</div>
       ${s.endings.map((e, i) => `
         <span class="chart-label ending">${i + 1}.</span>
-        <div class="bars">${e.map((b) => barHtml(b, opts)).join('')}</div>`).join('')}
+        <div class="bars">${e.map(barHtml_).join('')}</div>`).join('')}
     </div>`).join('');
 }
 
@@ -47,6 +51,30 @@ function progsHtml(chart, { shift, sharps }) {
 // Fills `box` with the chart for tune `t`. back: reopens the tune's details after the editor.
 export function mountChart(box, t, { back } = {}) {
   let key = null; // the concert key shown; null = today's / usual
+  // A walking bass through the chart, round and round, at the tune's tempo, in the key shown;
+  // the bar it's on lights up. It stops when the chart goes (the sheet closes).
+  const owner = `chart:${t.id}`;
+  const bassMine = () => bass.state.running && bass.state.owner === owner;
+  let gen = 0; // (one bar-follower at a time)
+  const startBass = () => {
+    const mine = ++gen;
+    const chart = chartFor(t);
+    const shown = key ?? todaysKey(t) ?? chart.key ?? 0;
+    const up = chartShift(chart, shown, 'c');
+    const chords = chordTimeline(chart).map((c) => ({ root: (c.root + up) % 12, family: chordFamily(c.q), beats: c.beats }));
+    const beats = Number(String(chart.meter || '4/4').split('/')[0]) || 4;
+    bass.start({ chords, bpm: () => t.tempo || 120, owner });
+    let lit = null;
+    const follow = () => {
+      if (!bassMine() || mine !== gen) { lit?.classList.remove('now'); return; }
+      if (!box.isConnected) { bass.stop(); return; }
+      const i = bass.current();
+      const bar = i < 0 ? null : box.querySelector(`[data-b="${Math.floor(i / beats)}"]`);
+      if (bar !== lit) { lit?.classList.remove('now'); bar?.classList.add('now'); lit = bar; }
+      requestAnimationFrame(follow);
+    };
+    requestAnimationFrame(follow);
+  };
   const draw = () => {
     const chart = chartFor(t);
     if (!chart) {
@@ -67,10 +95,22 @@ export function mountChart(box, t, { back } = {}) {
         <div class="chart">${chartHtml(chart, opts)}</div>
         ${progsHtml(chart, opts)}
         <div class="chart-foot">
-          <button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>
+          <span class="chart-btns">
+            <button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>
+            <button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="chart-bass">${bassMine() ? ICON.stop : ICON.play}Bass</button>
+          </span>
           <span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>
         </div>`;
-      $('#chart-key', box).onchange = (e) => { key = Number(e.target.value); draw(); };
+      $('#chart-key', box).onchange = (e) => {
+        key = Number(e.target.value);
+        draw();
+        if (bassMine()) startBass(); // on in the new key
+      };
+      $('#chart-bass', box).onclick = () => {
+        if (bassMine()) bass.stop();
+        else startBass();
+        draw();
+      };
       $('#chart-edit', box).onclick = () => openChartEditor(t, { key: shown, back });
       $('#chart-warmup', box).onclick = () => {
         if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);

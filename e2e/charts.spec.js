@@ -91,6 +91,31 @@ test('warm up for a tune from its chart, or with + Warm-up on its card', async (
   await warm.nth(1).locator('h2').click();
   await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText(/m6/);
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await ui.backdrop();
+  // A third: through its changes, with a walking bass to play against.
+  await page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) }).locator('[data-add-warm]').click();
+  const changes = warm.filter({ hasText: 'Through the changes' });
+  await changes.locator('h2').click();
+  await page.click('#x-bass');
+  await expect(page.locator('#x-bass')).toHaveClass(/\bon\b/);
+  await page.click('#x-bass');
+  await expect(page.locator('#x-bass')).not.toHaveClass(/\bon\b/);
+});
+
+test('a walking bass loops through the chart, lighting up the bar it’s on, and stops when the sheet closes', async ({ page, ui }) => {
+  await ui.start();
+  await openTune(page, ui, 'Autumn Leaves');
+  await page.click('#chart-bass');
+  await expect(page.locator('#chart-bass')).toHaveClass(/\bon\b/);
+  await expect(page.locator('.chart .bar.now')).toHaveCount(1);
+  const first = await page.locator('.chart .bar.now').getAttribute('data-b');
+  await expect.poll(async () => page.locator('.chart .bar.now').getAttribute('data-b'), { timeout: 8000 }).not.toBe(first); // moves on
+  await page.click('#chart-bass');
+  await expect(page.locator('.chart .bar.now')).toHaveCount(0);
+  await page.click('#chart-bass');
+  await ui.backdrop();
+  await openTune(page, ui, 'Autumn Leaves');
+  await expect(page.locator('#chart-bass')).not.toHaveClass(/\bon\b/);
 });
 
 test('exercises on a day: each its own, or key of the day @narrow', async ({ page, ui }) => {

@@ -46,7 +46,7 @@ function release() {
   video?.pause();
 }
 
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') acquire(); });
+globalThis.document?.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') acquire(); });
 
 // Call from a tap where possible (the video fallback needs one to start). Returns a function that
 // releases it (safe to call more than once).

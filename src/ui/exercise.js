@@ -18,6 +18,7 @@ import { openRecorder } from './recorder.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
+import { bass } from '../bass.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
 } from './shell.js';
@@ -93,6 +94,14 @@ export function openExercise(id, opts = {}) {
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
   const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
   const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
+  const bassOwner = `prog:${t.id}`;
+  const bassMine = () => bass.state.running && bass.state.owner === bassOwner;
+  const startBass = () => {
+    const chords = prog.chords.map((c) => ({ root: (previewRoot + c.d) % 12, family: c.family, beats: 4 }));
+    bass.start({ chords, bpm: () => tempoFrom.tempo || 100, owner: bassOwner });
+    const watch = () => { if (!bassMine()) return; if (!sheet.isConnected) bass.stop(); else setTimeout(watch, 300); };
+    watch();
+  };
   // A written exercise can be shown only as written, in C, to transpose in your head.
   const asWritten = () => !!t.asWritten && !t.vary && !prog && !!t.abc;
   const writtenC = () => writtenToConcert(0, view());
@@ -140,6 +149,7 @@ export function openExercise(id, opts = {}) {
           </div>
           <div class="play-row">
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
+            ${prog ? `<button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="x-bass" aria-label="Walking bass">${bassMine() ? ICON.stop : ICON.play}<span>Bass</span></button>` : ''}
             ${playbackOptionsHtml()}
           </div>
           ${!t.vary && !prog && t.abc ? `<label class="as-written"><input type="checkbox" id="x-as-written" ${t.asWritten ? 'checked' : ''}>
@@ -331,6 +341,7 @@ ${t.fromTune ? '' : `
       $$('[data-root]', sheet).forEach((x) => x.classList.toggle('on', x === b));
       $$('[data-type]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.type === previewType));
       stopPlaying();
+      if (prog && bassMine()) startBass(); // on in the new key
       tune = await drawNotation();
     }));
     $$('[data-type]', sheet).forEach((b) => (b.onclick = async () => {
@@ -362,6 +373,13 @@ ${t.fromTune ? '' : `
     };
 
     bindPlaybackOptions(sheet, stopPlaying);
+    // A walking bass through the progression (a bar a chord), round and round, at the tempo.
+    const bassBtn = $('#x-bass', sheet);
+    if (bassBtn) bassBtn.onclick = () => {
+      if (bassMine()) bass.stop();
+      else startBass();
+      refresh();
+    };
     const aw = $('#x-as-written', sheet);
     if (aw) aw.onchange = () => {
       stopPlaying();

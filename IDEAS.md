@@ -48,10 +48,10 @@ sessions), L (a big piece, or needs a native app).
   The log already records each session's keys and tempo, so there's history to start from.
 - **Comping under notation** (S). Notation with chord symbols could play a simple comp under the
   line (the notation library can, it's turned off for now), as a mini backing track.
-- **Walking bass to play against** (M). Generate a simple bass line for a chord progression — a
-  tune's chart, or a warm-up's progression — and loop it at the working tempo: 1-2-3-5 on each
-  chord to start (with an approach note into the next chord later). Drums are harder; a hi-hat on
-  2 and 4 might be enough.
+- **Walking bass, next steps** (S–M). The basic loop is in (1-2-3-5 per chord, on a tune's chart
+  and on Through the changes). Next: chromatic approach notes into the next chord, a hi-hat on 2
+  and 4 (or the metronome in time with it), looping just a section or a few bars, and the bass
+  under a lick over part of a progression.
 - **Licks over related progressions** (M, to think about). A lick could also fit progressions that
   aren't the same chord kinds: a minor ii–V–i lick over its relative major, a ii–V lick starting a
   minor 3rd up, and so on. Not every lick works this way — maybe offered only for ones marked so.
