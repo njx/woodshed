@@ -768,12 +768,13 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 /* ---------- Metronome & tempo ---------- */
 
 
-.card-sub .rec-chip, .card-sub .tempo-chip { margin-left: auto; }
-.tempo-chip, .rec-chip {
+.card-sub .note-chip, .card-sub .rec-chip, .card-sub .tempo-chip { margin-left: auto; }
+.card-sub .note-chip ~ .rec-chip, .card-sub .note-chip ~ .tempo-chip { margin-left: 0; }
+.tempo-chip, .rec-chip, .note-chip {
   flex: none; height: 28px; min-width: 32px; padding: 0 10px; border-radius: 14px;
   background: var(--surface-2); font-size: 13px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
-.tempo-chip.empty, .rec-chip.empty { color: var(--ink-3); font-weight: 600; }
+.tempo-chip.empty, .rec-chip.empty, .note-chip.empty { color: var(--ink-3); font-weight: 600; }
 .suggest.tempo.up { background: color-mix(in srgb, var(--exercise) 16%, var(--surface)); }
 .suggest.tempo.up .pill-btn { background: var(--exercise); color: #fff; }
 
@@ -822,8 +823,10 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .mp-dot.on.accent { background: var(--danger); }
 .mp-stop { padding: 0 14px 0 8px; }
 .mp-stop svg { width: 16px; height: 16px; }
-.tempo-chip, .rec-chip { display: inline-flex; align-items: center; gap: 2px; }
-.tempo-chip svg, .rec-chip svg { width: 15px; height: 15px; }
+.tempo-chip, .rec-chip, .note-chip { display: inline-flex; align-items: center; gap: 2px; }
+.tempo-chip svg, .rec-chip svg, .note-chip svg { width: 15px; height: 15px; }
+.note-chip svg { color: var(--learn); }
+.note-chip.empty svg { color: var(--ink-3); }
 .tempo-chip.empty svg { width: 16px; height: 16px; }
 .suggest .pill-btn svg { width: 15px; height: 15px; }
 
@@ -1058,6 +1061,7 @@ html { overflow-anchor: none; }
 .hd-tool:active { transform: scale(.94); }
 .hd-icon { display: grid; place-items: center; }
 .hd-icon svg { width: 19px; height: 19px; }
+.hd-key { font: 700 14px/1 system-ui, sans-serif; color: var(--ink); letter-spacing: -.02em; }
 #today-ask .hd-icon { color: var(--fresh); }
 #today-rec .hd-icon { color: var(--danger); }
 #today-metro .hd-icon { color: var(--accent); }
@@ -1076,7 +1080,7 @@ html { overflow-anchor: none; }
 .today-tuner.live.sharp { background: linear-gradient(var(--off) 50%, var(--ink) 50%); color: #fff; }
 .today-tuner.live.flat { background: linear-gradient(var(--ink) 50%, var(--off) 50%); color: #fff; }
 .today-tuner .hd-live { position: relative; text-shadow: 0 0 3px rgba(0, 0, 0, .55); }
-@media (max-width: 359px) { .hd-tool { width: 34px; height: 34px; } .hd-tools { gap: 3px; } }
+@media (max-width: 359px) { .hd-tool { width: 34px; height: 34px; } .hd-tools { gap: 3px; } .tt-wd { display: none; } }
 /* On Today the circles show the metronome and tuner, so their pills aren't needed there. */
 body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"]) .tuner-pill { display: none; }
 .add-today { margin-top: 10px; }

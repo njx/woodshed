@@ -12,7 +12,7 @@ test('first run picks instruments and builds a set @narrow', async ({ page, ui }
   expect(buckets).toHaveLength(6);
   expect(buckets.slice(0, 2)).toEqual(['Exercise', 'Exercise']);
   expect(buckets).not.toContain('Warm-up');
-  await expect(page.locator('#transpose')).toContainText('B♭');
+  await expect(page.locator('#transpose')).toContainText('B♭'); // the keys' circle, up top
   await ui.expectNoSideScroll();
 });
 
@@ -154,4 +154,21 @@ test('tune order: mixed by default, or by group from Settings (applies to today)
   const buckets = await page.$$eval('.card:not(.b-exercise) .bucket', (b) => b.map((x) => x.textContent));
   const rank = { Focus: 0, Hone: 1, Learn: 2, New: 3 };
   expect(buckets.map((b) => rank[b])).toEqual([...buckets.map((b) => rank[b])].sort());
+});
+
+test('a note on a card: written from its note button, and counted there @narrow', async ({ page, ui }) => {
+  await ui.start();
+  const card = page.locator('.card').first();
+  const name = await card.locator('h2').textContent();
+  await card.locator('.note-chip').click();
+  await expect(page.locator('.sheet .eyebrow')).toHaveText('New note');
+  await page.fill('#n-text', 'Watch the 3rd bar');
+  await page.click('#n-save');
+  await expect(page.locator('.card').first().locator('.note-chip')).toHaveText('1');
+  await expect.poll(async () => {
+    const { state } = await ui.saved();
+    const e = state.diary.find((x) => x.text === 'Watch the 3rd bar');
+    return e && state.items.find((t) => t.id === e.itemId)?.name;
+  }).toBe(name);
+  await ui.expectNoSideScroll();
 });

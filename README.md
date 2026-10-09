@@ -47,6 +47,9 @@ as circles at its top right: Ask, Note, Record, Metronome and Tuner. While the m
 circle shows the tempo and flashes on the beat; while the tuner listens (**Mini tuner** in the
 tuner), its circle shows the note, green when in tune. On other tabs they show as small pills.
 
+Each card has a **note** button (with today's count) that opens a new note on it, and the line
+under its name shows its level, when you last played it (not once it's today) and how many times.
+
 Swiping a card: right marks it played; a short swipe left shows **Swap** and **Remove** (out of
 today's set; a focus item only has Remove), and a long one removes it.
 
@@ -254,7 +257,7 @@ which don't cover it. The Anthropic console has the official numbers.
   Proficient and up, if you choose) are suggested in a *different* key, with less-practiced keys
   coming up first.
 - **Transposition.** Pick the instruments you play (Concert, B♭, E♭, F). Keys are shown for
-  whichever one is active; tap **Keys in …** to switch.
+  whichever one is active; tap the key circle at the top of Today (or **Keys in …** on Tunes) to switch.
 
 ## Diary
 

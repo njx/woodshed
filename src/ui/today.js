@@ -9,7 +9,7 @@ import {
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, addWarmups } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
-  levelLabel, transposeToggle, bindTransposeToggle, suggestionHtml,
+  levelLabel, bindTransposeToggle, suggestionHtml,
 } from './shell.js';
 import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
@@ -43,7 +43,7 @@ export function renderToday(root) {
   root.innerHTML = `
     <header class="top today-top">
       <div class="tt-row">
-        <p class="eyebrow tt-date">${esc(niceDate(today, { weekday: 'short', month: 'short', day: 'numeric' }))}</p>
+        <p class="eyebrow tt-date"><span class="tt-wd">${esc(niceDate(today, { weekday: 'short' }))}, </span>${esc(niceDate(today, { month: 'short', day: 'numeric' }))}</p>
         ${toolsHtml()}
       </div>
       <div class="tt-row">
@@ -53,7 +53,7 @@ export function renderToday(root) {
           <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)">${ICON.shuffle}</button>
         </div>
       </div>
-      <div class="tt-sub eyebrow-row">${transposeToggle()}${dayNote()}</div>
+      ${dayNote() ? `<div class="tt-sub eyebrow-row">${dayNote()}</div>` : ''}
     </header>
     ${timerHtml()}
     ${state.settings.instrumentsChosen ? '' : welcomeHtml()}
@@ -96,7 +96,13 @@ export function renderToday(root) {
 function toolsHtml() {
   const tool = (id, icon, label, live = false) => `<button class="hd-tool${live ? ` ${id}` : ''}" id="${id}" aria-label="${label}">
     <span class="hd-icon">${icon}</span>${live ? '<b class="hd-live" aria-hidden="true"></b>' : ''}</button>`;
+  const s = store.state.settings;
+  const multi = s.instruments.length > 1;
+  // The keys shown: tap to switch instruments (or, with one, to pick them in Settings).
+  const keys = `<button class="hd-tool" id="transpose" aria-label="Keys in ${esc(TRANSPOSITIONS[s.view].label)}${multi ? '. Tap to switch' : ''}">
+    <span class="hd-icon hd-key">${esc(s.view === 'c' ? 'C' : TRANSPOSITIONS[s.view].label)}</span></button>`;
   return `<div class="hd-tools" role="toolbar" aria-label="Tools">
+    ${keys}
     ${tool('today-ask', ICON.ask, 'Ask the assistant')}
     ${tool('today-note', ICON.note, 'New note')}
     ${canRecord() ? tool('today-rec', ICON.rec, 'Record') : ''}
@@ -222,6 +228,11 @@ function bindCard(card) {
     render();
     toast(`Added a warm-up for ${t.name}`);
   };
+  const noteBtn = $('.note-chip', card);
+  if (noteBtn) noteBtn.onclick = (e) => {
+    e.stopPropagation();
+    openNote(null, { itemId: item.itemId });
+  };
   const recBtn = $('.rec-chip', card);
   if (recBtn) recBtn.onclick = (e) => {
     e.stopPropagation();
@@ -331,7 +342,7 @@ function cardHtml(it, i, stats) {
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>
-      <div class="card-sub">${pips(t.level)}<span>${esc(levelLabel(t.level))} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}${late ? ' · <em>overdue</em>' : ''}</span>${recChip(t)}${tempoChip(tempoSource(t, it))}</div>
+      <div class="card-sub">${pips(t.level)}<span>${esc([levelLabel(t.level), s?.last !== dateStr() && ago(s?.last), s?.count && `${s.count}×`].filter(Boolean).join(' · '))}${late ? ' · <em>overdue</em>' : ''}</span>${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}</div>
       <div class="card-actions">
         ${keyChip(it, t)}
         ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
@@ -346,6 +357,11 @@ function cardHtml(it, i, stats) {
 }
 
 // Record a take of it; shows how many were recorded today.
+// A note on it: today's count, and a tap to write one.
+function noteChip(t) {
+  const n = entriesFor(t.id).filter((e) => e.date === dateStr() && !e.media?.length).length;
+  return `<button class="note-chip ${n ? '' : 'empty'}" aria-label="Note on ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.note}${n ? `<span>${n}</span>` : ''}</button>`;
+}
 function recChip(t) {
   if (!canRecord()) return '';
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && e.media?.length).length;

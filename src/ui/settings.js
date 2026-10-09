@@ -31,7 +31,7 @@ export function renderSettings(root) {
 
     <section class="panel">
       <h3 class="section-label">Instruments you play</h3>
-      <p class="fine">Keys are shown for these. With more than one, tap <b>Keys in …</b> on the Today screen to switch.</p>
+      <p class="fine">Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.</p>
       <ul class="instruments">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => `
         <li><label>
           <input type="checkbox" data-ins="${id}" ${s.instruments.includes(id) ? 'checked' : ''}>
