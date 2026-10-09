@@ -85,3 +85,18 @@ describe('loading and saving', () => {
     expect(store.state.items[0].notes).toBe('check the bridge');
   });
 });
+
+describe('chord symbols for the starter exercises (v9)', () => {
+  it('added to notation that hasn’t been changed, not to edited notation', () => {
+    const s = migrate({
+      version: 8,
+      items: [
+        { id: 'a', type: 'exercise', name: 'ii–V–I, 1-2-3-5', abc: 'D E F A G A B d | c8 |' },
+        { id: 'b', type: 'exercise', name: 'Major scale', abc: 'C D E F G A B c | B A G F E D C4 |' }, // edited
+      ],
+      log: [],
+    });
+    expect(s.items.find((t) => t.id === 'a').abc).toBe('"Dm7"D E F A "G7"G A B d | "Cmaj7"c8 |');
+    expect(s.items.find((t) => t.id === 'b').abc).toBe('C D E F G A B c | B A G F E D C4 |');
+  });
+});

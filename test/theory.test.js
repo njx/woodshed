@@ -24,19 +24,19 @@ describe('scales and chords', () => {
 describe('generated notation', () => {
   it('writes a scale up and down with accidentals only where they change', () => {
     // Harmonic minor: A♭ and B♮. Accidentals are written again in each new bar.
-    expect(generateAbc('scale', 'harmonic')).toBe('CD_EF G_ABc | B_AGF _ED C2 |');
+    expect(generateAbc('scale', 'harmonic')).toBe('"Cm(maj7)"CD_EF G_ABc | B_AGF _ED C2 |');
   });
 
   it('marks a natural when the same note changes within a bar', () => {
     // Diminished half–whole: D♭ E♭ E♮ F♯ — the E needs a natural after E♭.
     const abc = generateAbc('scale', 'dimHW');
-    expect(abc).toBe('C_D_E=E ^FGA_B | c_BAG ^FE_E_D | C8 |');
+    expect(abc).toBe('"C7♭9"C_D_E=E ^FGA_B | c_BAG ^FE_E_D | C8 |');
   });
 
   it('fills the last bar with the final note, and beams eighths by the beat', () => {
-    expect(generateAbc('scale', 'major')).toBe('CDEF GABc | BAGF ED C2 |');
+    expect(generateAbc('scale', 'major')).toBe('"Cmaj7"CDEF GABc | BAGF ED C2 |');
     expect(generateAbc('chord', 'm7')).toBe('"Cm7"C_EG_B cBGE | C8 |');
-    expect(generateAbc('scale', 'major', { meter: '3/4' })).toBe('CD EF GA | Bc BA GF | ED C4 |');
+    expect(generateAbc('scale', 'major', { meter: '3/4' })).toBe('"Cmaj7"CD EF GA | Bc BA GF | ED C4 |');
   });
 
   it('spells a diminished 7th with a double flat', () => {
@@ -58,7 +58,7 @@ describe('generated notation', () => {
     expect(parsePattern('10 12', 'chord').numbers).toEqual([6, 7]);
     expect(parsePattern('1 2', 'chord').error).toMatch(/chord tones/);
     expect(parsePattern('1 x', 'scale').error).toMatch(/x/);
-    expect(generateAbc('scale', 'dorian', { shape: 'custom', pattern: '1 3 5 7 9 7 5 3 1' })).toBe('C_EG_B dBGE | C8 |');
+    expect(generateAbc('scale', 'dorian', { shape: 'custom', pattern: '1 3 5 7 9 7 5 3 1' })).toBe('"Cm7"C_EG_B dBGE | C8 |');
   });
 });
 

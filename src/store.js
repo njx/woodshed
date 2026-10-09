@@ -9,7 +9,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
-// Schema (version 8):
+// Schema (version 9):
 //   items:    practice items, all with { id, type, name, priority 1–4, level null|0–3, notes,
 //             focus, ivl, due, levelSetAt }, plus by type:
 //             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart?,
@@ -31,7 +31,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -134,6 +134,21 @@ export function migrate(s) {
     // v8: one hone tune a day by default (was two).
     if (s.settings?.hone === 2) s.settings.hone = 1;
     s.version = 8;
+  }
+  if (s.version < 9) {
+    // v9: the starter exercises' notation gets chord symbols (unless it's been edited since).
+    const withChords = new Map([
+      ["C D E F G A B c | B A G F E D C2 |", "\"Cmaj7\"C D E F G A B c | B A G F E D C2 |"],
+      ["C D _E F G A _B c | _B A G F _E D C2 |", "\"Cm7\"C D _E F G A _B c | _B A G F _E D C2 |"],
+      ["C D E F G A _B c | _B A G F E D C2 |", "\"C7\"C D E F G A _B c | _B A G F E D C2 |"],
+      ["c B _B A G F E D | C8 |", "\"C7\"c B _B A G F E D | C8 |"],
+      ["C E G B c B G E | C8 |", "\"Cmaj7\"C E G B c B G E | C8 |"],
+      ["C E G _B c _B G E | C8 |", "\"C7\"C E G _B c _B G E | C8 |"],
+      ["C _E G _B c _B G _E | C8 |", "\"Cm7\"C _E G _B c _B G _E | C8 |"],
+      ["D E F A G A B d | c8 |", "\"Dm7\"D E F A \"G7\"G A B d | \"Cmaj7\"c8 |"],
+    ]);
+    for (const t of s.items || []) if (t.type === 'exercise' && withChords.has(t.abc)) t.abc = withChords.get(t.abc);
+    s.version = 9;
   }
   return normalize(s);
 }

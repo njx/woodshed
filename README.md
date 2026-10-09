@@ -128,8 +128,11 @@ Accepting a suggestion changes the working tempo for next time; today's session 
 you actually played. Nudging the metronome while you practice updates today's session too.
 
 Notation: tap ⤢ on any exercise's notation for **full screen**, sideways and bigger (on a phone
-held upright the page is turned for you; turn the phone to read it), with Play. Chord arpeggios and
-the *Through the changes* warm-ups show **chord symbols** over the notes, in the key shown. In the
+held upright the page is turned for you; turn the phone to read it), with Play. Generated notation shows
+**chord symbols** over the notes, in the key shown: chord arpeggios their chord, scales the chord
+they go with (dorian → m7, half–whole diminished → 7♭9, altered → 7alt…), the *Through the
+changes* warm-ups each bar's chord; so do the starter exercises' written notation (the ii–V–I
+pattern's Dm7 · G7 · Cmaj7). In the
 notation editor, ◀ ▶ step the cursor a note at a time, and **Chord** adds a chord symbol (written
 in C like the notes, transposed with them). Notation plays through the iPhone's silent switch.
 

@@ -49,7 +49,7 @@ export const SEED_EXERCISES = [
     category: 'scale',
     keyMode: 'weak',
     keysPerSession: 3,
-    abc: 'C D E F G A B c | B A G F E D C2 |',
+    abc: '"Cmaj7"C D E F G A B c | B A G F E D C2 |',
     notes: 'Full range of the horn once it’s comfortable: from the lowest note in the key to the highest.',
   },
   {
@@ -57,7 +57,7 @@ export const SEED_EXERCISES = [
     category: 'scale',
     keyMode: 'weak',
     keysPerSession: 3,
-    abc: 'C D _E F G A _B c | _B A G F _E D C2 |',
+    abc: '"Cm7"C D _E F G A _B c | _B A G F _E D C2 |',
     notes: 'The ii chord’s scale. Keys shown are the root of the mode.',
   },
   {
@@ -65,7 +65,7 @@ export const SEED_EXERCISES = [
     category: 'scale',
     keyMode: 'weak',
     keysPerSession: 3,
-    abc: 'C D E F G A _B c | _B A G F E D C2 |',
+    abc: '"C7"C D E F G A _B c | _B A G F E D C2 |',
     notes: 'The V7 chord’s scale. Keys shown are the root of the mode.',
   },
   {
@@ -73,7 +73,7 @@ export const SEED_EXERCISES = [
     category: 'scale',
     keyMode: 'fourths',
     keysPerSession: 4,
-    abc: 'c B _B A G F E D | C8 |',
+    abc: '"C7"c B _B A G F E D | C8 |',
     notes: 'Descending from the root, with the passing tone between the root and ♭7 so chord tones land on the beat.',
   },
   {
@@ -81,7 +81,7 @@ export const SEED_EXERCISES = [
     category: 'arpeggio',
     keyMode: 'weak',
     keysPerSession: 4,
-    abc: 'C E G B c B G E | C8 |',
+    abc: '"Cmaj7"C E G B c B G E | C8 |',
     notes: '',
   },
   {
@@ -89,7 +89,7 @@ export const SEED_EXERCISES = [
     category: 'arpeggio',
     keyMode: 'fourths',
     keysPerSession: 4,
-    abc: 'C E G _B c _B G E | C8 |',
+    abc: '"C7"C E G _B c _B G E | C8 |',
     notes: '',
   },
   {
@@ -97,7 +97,7 @@ export const SEED_EXERCISES = [
     category: 'arpeggio',
     keyMode: 'weak',
     keysPerSession: 4,
-    abc: 'C _E G _B c _B G _E | C8 |',
+    abc: '"Cm7"C _E G _B c _B G _E | C8 |',
     notes: '',
   },
   {
@@ -105,7 +105,7 @@ export const SEED_EXERCISES = [
     category: 'pattern',
     keyMode: 'fourths',
     keysPerSession: 3,
-    abc: 'D E F A G A B d | c8 |',
+    abc: '"Dm7"D E F A "G7"G A B d | "Cmaj7"c8 |',
     notes: '1-2-3-5 on each chord of a ii–V–I. Keys shown are the I chord.',
   },
   {

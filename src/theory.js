@@ -7,22 +7,22 @@
 const n = (s) => s.split(' ').map((x) => [x.at(-1).toUpperCase(), { __: -2, _: -1, '': 0, '^': 1, '^^': 2 }[x.slice(0, -1)], x.at(-1) === x.at(-1).toLowerCase() ? 1 : 0]);
 
 export const SCALES = {
-  major: { label: 'Major', short: 'maj', notes: n('C D E F G A B') },
-  dorian: { label: 'Dorian', short: 'dor', notes: n('C D _E F G A _B') },
-  aeolian: { label: 'Aeolian (natural minor)', short: 'aeol', notes: n('C D _E F G _A _B') },
-  harmonic: { label: 'Harmonic minor', short: 'harm min', notes: n('C D _E F G _A B') },
-  melodic: { label: 'Melodic minor', short: 'mel min', notes: n('C D _E F G A B') },
-  dimHW: { label: 'Diminished (half–whole)', short: 'dim H/W', notes: n('C _D _E E ^F G A _B') },
-  dimWH: { label: 'Diminished (whole–half)', short: 'dim W/H', notes: n('C D _E F _G _A A B') },
-  mixolydian: { label: 'Mixolydian', short: 'mixo', notes: n('C D E F G A _B') },
-  lydian: { label: 'Lydian', short: 'lyd', notes: n('C D E ^F G A B') },
-  lydianDom: { label: 'Lydian dominant', short: 'lyd dom', notes: n('C D E ^F G A _B') },
-  altered: { label: 'Altered', short: 'alt', notes: n('C _D _E _F _G _A _B') },
-  phrygian: { label: 'Phrygian', short: 'phryg', notes: n('C _D _E F G _A _B') },
-  locrian: { label: 'Locrian', short: 'loc', notes: n('C _D _E F _G _A _B') },
-  wholeTone: { label: 'Whole tone', short: 'whole tone', notes: n('C D E ^F ^G ^A') },
-  majPent: { label: 'Major pentatonic', short: 'maj pent', notes: n('C D E G A') },
-  minPent: { label: 'Minor pentatonic', short: 'min pent', notes: n('C _E F G _B') },
+  major: { label: 'Major', short: 'maj', chord: 'maj7', notes: n('C D E F G A B') },
+  dorian: { label: 'Dorian', short: 'dor', chord: 'm7', notes: n('C D _E F G A _B') },
+  aeolian: { label: 'Aeolian (natural minor)', short: 'aeol', chord: 'm7', notes: n('C D _E F G _A _B') },
+  harmonic: { label: 'Harmonic minor', short: 'harm min', chord: 'm(maj7)', notes: n('C D _E F G _A B') },
+  melodic: { label: 'Melodic minor', short: 'mel min', chord: 'm(maj7)', notes: n('C D _E F G A B') },
+  dimHW: { label: 'Diminished (half–whole)', short: 'dim H/W', chord: '7♭9', notes: n('C _D _E E ^F G A _B') },
+  dimWH: { label: 'Diminished (whole–half)', short: 'dim W/H', chord: '°7', notes: n('C D _E F _G _A A B') },
+  mixolydian: { label: 'Mixolydian', short: 'mixo', chord: '7', notes: n('C D E F G A _B') },
+  lydian: { label: 'Lydian', short: 'lyd', chord: 'maj7♯11', notes: n('C D E ^F G A B') },
+  lydianDom: { label: 'Lydian dominant', short: 'lyd dom', chord: '7♯11', notes: n('C D E ^F G A _B') },
+  altered: { label: 'Altered', short: 'alt', chord: '7alt', notes: n('C _D _E _F _G _A _B') },
+  phrygian: { label: 'Phrygian', short: 'phryg', chord: 'm7', notes: n('C _D _E F G _A _B') },
+  locrian: { label: 'Locrian', short: 'loc', chord: 'ø7', notes: n('C _D _E F _G _A _B') },
+  wholeTone: { label: 'Whole tone', short: 'whole tone', chord: '7♯5', notes: n('C D E ^F ^G ^A') },
+  majPent: { label: 'Major pentatonic', short: 'maj pent', chord: '6', notes: n('C D E G A') },
+  minPent: { label: 'Minor pentatonic', short: 'min pent', chord: 'm7', notes: n('C _E F G _B') },
   blues: { label: 'Blues', short: 'blues', notes: n('C _E F ^F G _B') },
   bebopDom: { label: 'Bebop dominant', short: 'bebop dom', notes: n('C D E F G A _B B') },
 };
@@ -178,8 +178,10 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
   if (!numbers.length) return '';
   return writeAbc(numbers.map((v, i) => {
     const [letter, acc, up] = t.notes[(v - 1) % len];
-    // Chord types are labelled, so the symbol shows (transposed) over each key's arpeggio.
-    return { letter, acc, octave: 4 + up + Math.floor((v - 1) / len), ...(kind === 'chord' && i === 0 ? { chord: chordSymbol(0, id) } : {}) };
+    // The chord symbol (transposed with the notes) over the start: the chord type itself, or the
+    // chord a scale goes with (dorian → m7, half–whole diminished → 7♭9…).
+    const sym = kind === 'chord' ? chordSymbol(0, id) : t.chord ? `C${t.chord}` : null;
+    return { letter, acc, octave: 4 + up + Math.floor((v - 1) / len), ...(sym && i === 0 ? { chord: sym } : {}) };
   }), meter);
 }
 

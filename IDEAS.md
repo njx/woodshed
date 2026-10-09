@@ -35,11 +35,17 @@ sessions), L (a big piece, or needs a native app).
   more progression shapes (Coltrane changes, rhythm-changes bridge, minor-key turnarounds);
   guide-tone lines through a progression.
 
-- **Tempo per key** (M). An exercise's harder keys often want a slower tempo. Proposal: keep one
-  working tempo per exercise, plus an optional offset for a key ("B: −16"), set from the metronome
-  when it was opened for an exercise in a key (*Just for B*), shown on the card per key, and
-  nudged by the same up/down suggestions using only that key's ratings. Logs already keep each
-  session's keys and bpm, so per-key history is there to start from.
+- **Per-key rating and tempo** (M, parked — worried about complexity). An exercise's harder keys
+  often want a slower tempo, and go less well. Latest thinking:
+  - On a played card with several keys, "How did it go?" gets a line per key (E♭ Solid · A♭ OK ·
+    D♭ Rough), one tap each; one overall rating stays as a shortcut that sets them all.
+  - The metronome opened from an exercise offers "just for D♭": an offset from the exercise's
+    working tempo for that key, which **carries over** to future days until changed; the log
+    keeps each key's tempo.
+  - Weak-key picking uses the per-key ratings (rough keys come back sooner, solid ones later), and
+    speed-up / slow-down suggestions work per key ("Rough at 120 in D♭ — 115 there?").
+  - The exercise's overall rating (for when it's due) comes from its keys: the worst one.
+  The log already records each session's keys and tempo, so there's history to start from.
 - **Compact warm-ups** (S). Show a tune's warm-ups as smaller cards grouped under it, so a day
   with many tunes stays scannable.
 

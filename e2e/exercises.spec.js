@@ -212,21 +212,21 @@ test('notation editor: arrows step through notes; Chord adds a symbol over the n
   await page.locator('#tune-list .row', { hasText: 'Bebop dominant scale' }).click();
   await page.click('#x-edit-abc');
   const area = page.locator('#ne-abc');
-  await expect(area).toHaveValue('c B _B A G F E D | C8 |');
+  await expect(area).toHaveValue('"C7"c B _B A G F E D | C8 |');
   const caret = () => area.evaluate((a) => a.selectionStart);
   await area.evaluate((a) => a.setSelectionRange(0, 0));
   await page.click('#ne-pad [data-move="1"]');
-  expect(await caret()).toBe(1); // after c
+  expect(await caret()).toBe(5); // after "C7"c (a chord symbol goes with its note)
   await page.click('#ne-pad [data-move="1"]');
-  expect(await caret()).toBe(3); // after B
+  expect(await caret()).toBe(7); // after B
   await page.click('#ne-pad [data-move="-1"]');
-  expect(await caret()).toBe(1);
+  expect(await caret()).toBe(5);
   page.once('dialog', (d) => d.accept('G7'));
   await page.click('#ne-pad [data-chord]');
-  await expect(area).toHaveValue('c"G7" B _B A G F E D | C8 |');
-  await expect(page.locator('#ne-preview .abcjs-chord')).toHaveText(['G7']);
+  await expect(area).toHaveValue('"C7"c"G7" B _B A G F E D | C8 |');
+  await expect(page.locator('#ne-preview .abcjs-chord')).toHaveText(['C7', 'G7']);
   await page.click('#ne-pad [data-back]'); // the symbol goes in one go
-  await expect(area).toHaveValue('c B _B A G F E D | C8 |');
+  await expect(area).toHaveValue('"C7"c B _B A G F E D | C8 |');
 });
 
 test('notation full screen, turned sideways on a phone held upright, plays, and closes @narrow', async ({ page, ui }) => {
