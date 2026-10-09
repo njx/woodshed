@@ -121,10 +121,7 @@ export function addToToday(t) {
   return true;
 }
 // Whether it's in today's set in its own right (not only as a warm-up).
-export const inToday = (t) => {
-  const plan = store.state.plan;
-  return !!plan && plan.date === dateStr() && plan.items.some((i) => i.itemId === t.id && !i.warmup);
-};
+export const inToday = (t) => !!todayItem(t);
 
 // ---------- Changing today's instance of an item ----------
 // What varies from day to day (an exercise's keys and types, a tune's key) can be changed for
@@ -175,7 +172,8 @@ export function swapWarmup(i, plan = store.state.plan) {
   const t = it?.warmup && itemById(it.warmup);
   if (!t) return false;
   const tuneItem = plan.items.find((x) => x.itemId === it.warmup && !x.warmup);
-  const alt = altWarmup(t, it, { key: tuneItem?.key ?? null });
+  const have = plan.items.filter((x) => x !== it && x.warmup === it.warmup);
+  const alt = altWarmup(t, it, { key: tuneItem?.key ?? null, have });
   if (!alt) return false;
   plan.items[i] = alt;
   return true;
@@ -189,8 +187,8 @@ export function dropOrphanWarmups(plan = store.state.plan) {
 
 // The order of today's set: exercises, then tunes, focus ones first; the rest mixed up (each tune
 // has a random `mix` for the day, so the order holds) or by group (hone, learn, new), as set.
-// In "Before tunes", each tune's warm-ups go just before it. Warm-ups for a tune that isn't in the
-// set go with the exercises.
+// Each tune's warm-ups go just before it. Warm-ups for a tune that isn't in the set go with the
+// exercises.
 export function orderPlan(plan = store.state.plan) {
   const { tuneOrder } = store.state.settings;
   const isTune = (it) => itemById(it.itemId)?.type === 'tune';
@@ -238,8 +236,8 @@ function repickExercises(plan) {
 export function addWarmups(t, n = 1) {
   ensurePlan();
   const plan = store.state.plan;
-  if (!plan.items.some((i) => i.itemId === t.id && !i.warmup)) addToToday(t);
-  const key = plan.items.find((i) => i.itemId === t.id && !i.warmup)?.key ?? null;
+  if (!todayItem(t)) addToToday(t);
+  const key = todayItem(t)?.key ?? null;
   const have = plan.items.filter((i) => i.warmup === t.id);
   const warm = nextWarmups(t, { key, have, avoid: new Set(plan.items.map((i) => i.itemId)), n });
   if (!warm.length) return 0;
@@ -327,7 +325,6 @@ export function ensurePlan() {
     save();
   }
   syncFocus();
-  // Made with another exercise setting (or before this one existed): picked again.
   // Made with another exercise setting: picked again. One from before there were settings for this
   // (no mode) keeps the exercises already shown, and just gets what the setting adds.
   const mode = store.state.settings.exerciseFocus || 'own';
@@ -338,8 +335,7 @@ export function ensurePlan() {
 // Picks today's scale or chord types for an exercise again, after its settings change (unless
 // it's already been played today). `types` asks for particular ones, in key order.
 export function refreshTypes(t, types = null) {
-  const plan = store.state.plan;
-  const item = plan?.date === dateStr() && plan.items.find((i) => i.itemId === t.id && !i.warmup);
+  const item = todayItem(t);
   if (!item || isPlanItemPlayed(item)) return;
   if (!t.vary) { delete item.types; return; }
   const count = Math.max(1, item.keys?.length || 0);

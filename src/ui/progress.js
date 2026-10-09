@@ -2,7 +2,7 @@ import { store } from '../store.js';
 import { dateStr, daysBetween, addDays, parseDate, niceDate } from '../dates.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
-import { $, $$, ui, saveUi, render, pips, levelLabel } from './shell.js';
+import { $, $$, pips, levelLabel } from './shell.js';
 import { keyFamiliarity, keySessions } from '../keystats.js';
 import { writtenToConcert } from '../keys.js';
 import { rootName } from './exercise.js';

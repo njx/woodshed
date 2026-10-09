@@ -8,8 +8,8 @@ import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmar
 import { syncFocus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
-import { DURATIONS, noteToken, restToken, writtenShift, soundingShift, abcFirstChords } from '../abc.js';
-import { chordsInAbc, chordsFromText, chordName } from '../chords.js';
+import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
+import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
@@ -19,7 +19,7 @@ import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './m
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import {
-  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
+  $, $$, ICON, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -78,7 +78,8 @@ export function openExercise(id, opts = {}) {
   const logItem = () => planItem || today.find((i) => !isPlanItemPlayed(i)) || today[0] || null;
   // A lick played over part of a progression: in which key only its first so many chords; and
   // what it's over, in words.
-  const partFor = (root) => planItem?.parts?.[todayKeys.indexOf(root)] ?? null;
+  // How much of it to show in a key (all of it when it's shown only as written).
+  const partFor = (root) => (asWritten() ? null : planItem?.parts?.[todayKeys.indexOf(root)] ?? null);
   const overText = () => {
     const where = planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : '';
     const keys = todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`);
@@ -127,7 +128,7 @@ export function openExercise(id, opts = {}) {
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? '<button class="link-btn" id="x-to-pattern">Edit pattern</button>'
         : t.abc ? '<button class="link-btn" id="x-edit-abc">Edit</button>' : ''}</div>
-      ${t.fromTune && !prog ? '<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: open a tune’s details and tap <b>Warm up for this tune</b>, or choose <b>From tunes</b> in Settings.</p>' : ''}
+      ${t.fromTune && !prog ? '<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: tap <b>+ Warm-up</b> on a tune’s card in Today, or <b>Add a warm-up</b> under its chart.</p>' : ''}
       ${t.vary || t.abc || prog ? `
         <div class="notation-card">
           ${asWritten() ? '' : `<div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
@@ -252,7 +253,7 @@ ${t.fromTune ? '' : `
 
   // The chords a written exercise goes with (so it can be a warm-up over them in tunes): typed
   // here, or else read from the chord symbols in its notation. Written in C, like the notes.
-  const guessed = () => chordsInAbc(t.abc).filter((c, i, a) => i === 0 || c.root !== a[i - 1].root || c.q !== a[i - 1].q).map((c) => chordName(c)).join(' ');
+  const guessed = () => chordChanges(chordsInAbc(t.abc)).map((c) => chordName(c)).join(' ');
   function harmonyHtml() {
     if (isNew || t.vary || t.fromTune) return '';
     const g = guessed();

@@ -48,8 +48,6 @@ export async function clipFile(clip, name) {
   return new File([blob], `${name}.${ext}`, { type: blob.type });
 }
 
-export const discardClip = (clip) => mediaDelete(clip.id).catch(() => {});
-
 // Clip ids no diary entry refers to (e.g. after deleting a note). Deleting notes doesn't
 // remove the clip right away, so Undo can bring it back; this clears them out later.
 export function orphanIds(state, keys) {

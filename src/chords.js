@@ -161,11 +161,25 @@ const KIND = { maj7: 'maj', maj6: 'maj', maj7s5: 'maj', m7: 'min', m6: 'min', mM
 export const chordKind = (family) => KIND[family] || family;
 
 // Chord symbols in ABC notation ("Dm7" over a note), in order: [{ root, q, family }].
+// (at: where it is in the notation.) Quotes that aren't chords (like "^swing") are skipped.
 export function chordsInAbc(abc) {
   return [...String(abc || '').matchAll(/"([^"]+)"/g)]
-    .map((m) => parseChord(m[1]))
-    .filter(Boolean)
-    .map((c) => ({ root: c.root, q: c.q, family: chordFamily(c.q) }));
+    .map((m) => ({ c: parseChord(m[1]), at: m.index }))
+    .filter((x) => x.c)
+    .map(({ c, at }) => ({ root: c.root, q: c.q, family: chordFamily(c.q), at }));
+}
+
+// A chord repeated in a row (Dm7 then Dm9 is the same m7 chord) counts once.
+export const chordChanges = (list) => list.filter((c, i) => i === 0 || c.root !== list[i - 1].root || c.family !== list[i - 1].family);
+
+// A lick's first n chords: its notation up to its (n+1)th chord change, cut at the bar line before
+// it. (For playing part of a lick over part of a progression; counted as warmups.js's harmonyOf.)
+export function abcFirstChords(abc, n) {
+  const next = chordChanges(chordsInAbc(abc))[n];
+  if (!next) return abc;
+  const before = abc.slice(0, next.at);
+  const bar = before.lastIndexOf('|');
+  return (bar >= 0 ? before.slice(0, bar + 1) : before).trim();
 }
 
 // Chords typed as text ("Dm7 G7 Cmaj7", spaces, commas or bars between): the list, or null if

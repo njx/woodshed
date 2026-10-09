@@ -86,21 +86,3 @@ export function writtenShift(root, view = 'c') {
 export function soundingShift(view = 'c') {
   return -TRANSPOSITIONS[view].offset;
 }
-
-// A lick's first n chords: its notation up to its (n+1)th chord change (a chord symbol unlike
-// the one before), cut at the bar line before it. (For playing part of a lick over part of a
-// progression.)
-export function abcFirstChords(abc, n) {
-  let changes = 0;
-  let prev = null;
-  for (const m of String(abc).matchAll(/"([^"]*)"/g)) {
-    if (m[1] === prev) continue;
-    prev = m[1];
-    if (++changes === n + 1) {
-      const before = abc.slice(0, m.index);
-      const bar = before.lastIndexOf('|');
-      return (bar >= 0 ? before.slice(0, bar + 1) : before).trim();
-    }
-  }
-  return abc;
-}

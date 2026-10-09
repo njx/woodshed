@@ -37,8 +37,8 @@ export const TRANSPOSITIONS = {
 };
 
 // Spaced repetition: starting and maximum review interval (days) per familiarity level.
-export const BASE_INTERVAL = { null: 1, 0: 1, 1: 2, 2: 4, 3: 7 };
-export const MAX_INTERVAL = { null: 14, 0: 14, 1: 30, 2: 45, 3: 90 };
+export const BASE_INTERVAL = { 0: 1, 1: 2, 2: 4, 3: 7 };
+export const MAX_INTERVAL = { 0: 14, 1: 30, 2: 45, 3: 90 };
 export const RATINGS = [
   { v: 'rough', label: 'Rough' },
   { v: 'ok', label: 'OK' },

@@ -43,7 +43,8 @@ toward its key, recent sessions count more (a session counts half as much after 
 weeks), and rough ones less. The Progress tab charts it around the circle of fifths.
 
 Today's header stays on screen as you scroll (shrinking to the title and progress), with the tools
-as circles at its top right: Ask, Note, Record, Metronome and Tuner. While the metronome runs its
+as circles at its top right: the keys shown (C, B♭, E♭ or F; tap to switch), Ask, Note, Record,
+Metronome and Tuner. While the metronome runs its
 circle shows the tempo and flashes on the beat; while the tuner listens (**Mini tuner** in the
 tuner), its circle shows the note, green when in tune. On other tabs they show as small pills.
 

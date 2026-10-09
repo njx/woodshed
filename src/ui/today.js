@@ -75,7 +75,7 @@ export function renderToday(root) {
     const t = pickItem(randomOf(['fresh', 'learn', 'hone']), excludedIds(), stats);
     if (!t) return toast('No more tunes to suggest');
     state.plan.items.push(makePlanItem(t, stats));
-    prepTunes();
+    dropOrphanWarmups();
     save();
     render();
   };
@@ -150,12 +150,6 @@ function liveTools() {
 metronome.subscribe(() => liveTools());
 tuner.subscribe(() => liveTools());
 
-// After tunes come or go: warm-ups for a tune that's gone go with it, and in "Before tunes" a tune
-// added (or swapped in) gets its own.
-function prepTunes() {
-  dropOrphanWarmups(store.state.plan);
-}
-
 function bindCard(card) {
   const state = store.state;
   const i = Number(card.dataset.i);
@@ -180,7 +174,7 @@ function bindCard(card) {
       if (item.bucket === 'focus') state.plan.focusSkipped.push(item.itemId);
       else if (!item.warmup) state.plan.skipped.push(item.itemId);
       state.plan.items.splice(i, 1);
-      prepTunes(); // a tune's warm-ups go with it
+      dropOrphanWarmups(); // a tune's warm-ups go with it
     });
   };
   const swap = () => {
@@ -197,7 +191,7 @@ function bindCard(card) {
     withUndo(`Swapped out ${name()}`, () => {
       state.plan.skipped.push(item.itemId);
       state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
-      prepTunes();
+      dropOrphanWarmups();
     });
   };
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
@@ -273,7 +267,6 @@ function keyChip(it, t) {
   return chip('', `Key of <b>${kn(it.key)}</b>`, others.length ? `also ${others.map(kn).join(', ')}` : '');
 }
 
-// What ties today's exercises together (Settings → Exercises), if anything.
 // The practice timer: start, end (with undo), and after the app was closed a while, the choice
 // to count the time away too.
 function timerHtml() {
@@ -356,12 +349,12 @@ function cardHtml(it, i, stats) {
   </li>`;
 }
 
-// Record a take of it; shows how many were recorded today.
 // A note on it: today's count, and a tap to write one.
 function noteChip(t) {
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && !e.media?.length).length;
   return `<button class="note-chip ${n ? '' : 'empty'}" aria-label="Note on ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.note}${n ? `<span>${n}</span>` : ''}</button>`;
 }
+// Record a take of it; shows how many were recorded today.
 function recChip(t) {
   if (!canRecord()) return '';
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && e.media?.length).length;

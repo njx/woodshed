@@ -2,12 +2,12 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { nextWarmups, altWarmup, harmonyOf } from '../src/warmups.js';
-import { buildPlan, addWarmups, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
+import { buildPlan, addWarmups, swapWarmup, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
 import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
 import { freezeToday } from './helpers.js';
-import { progressions } from '../src/chords.js';
+import { progressions, abcFirstChords } from '../src/chords.js';
 
 const byName = (n) => store.state.items.find((t) => t.name === n);
 
@@ -99,6 +99,27 @@ describe('warm-ups for a tune', () => {
     expect(c).toMatchObject({ slot: 'changes' });
     expect(`${c.over}${c.keys}`).not.toBe(`${a.over}${a.keys}`);
     expect(nextWarmups(byName('Killer Joe'))).toEqual([]); // no chart
+  });
+});
+
+describe('from the cleanup review', () => {
+  it('swapping a warm-up never gives one the tune already has', () => {
+    for (const n of ['Autumn Leaves', 'There Will Never Be Another You', 'Solar']) {
+      buildPlan(true);
+      const t = byName(n);
+      addWarmups(t, 4);
+      const plan = store.state.plan;
+      const i = plan.items.findIndex((x) => x.warmup === t.id);
+      swapWarmup(i);
+      const ws = plan.items.filter((x) => x.warmup === t.id);
+      const ids = ws.map((w) => `${w.itemId}|${w.keys}|${w.over || w.prog?.name || ''}|${w.types}`);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+  it('part of a lick counts its chords the way its harmony does (Dm7 then Dm9 is one; "^swing" isn\'t one)', () => {
+    const abc = '"^swing""Dm7"F2 A2 "Dm9"c2 e2 | "G7"d2 B2 G2 F2 | "Cmaj7"e8 |';
+    expect(abcFirstChords(abc, 2)).toBe('"^swing""Dm7"F2 A2 "Dm9"c2 e2 | "G7"d2 B2 G2 F2 |');
+    expect(abcFirstChords(abc, 3)).toBe(abc);
   });
 });
 

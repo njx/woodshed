@@ -1,6 +1,6 @@
 import { store } from './store.js';
 import { chartFor } from './charts.js';
-import { mainChords, scaleFor, progressions, chordKind, chordsInAbc, chordsFromText, chordName, roman, usesSharps } from './chords.js';
+import { mainChords, scaleFor, progressions, chordKind, chordsInAbc, chordsFromText, chordChanges, chordName, roman, usesSharps } from './chords.js';
 import { itemStats } from './practice.js';
 import { CHORDS, SCALES } from './theory.js';
 import { uid } from './util.js';
@@ -28,8 +28,7 @@ const progItem = (x, t, prog, up) => warmItem(x, t, [up(prog.target)], null, {
 // its details), else the chord symbols in its notation. A chord repeated in a row counts once.
 export function harmonyOf(x) {
   if (!x || x.vary || x.fromTune) return [];
-  const list = x.harmony ? chordsFromText(x.harmony) || [] : chordsInAbc(x.abc);
-  return list.filter((c, i) => i === 0 || c.root !== list[i - 1].root || c.family !== list[i - 1].family);
+  return chordChanges(x.harmony ? chordsFromText(x.harmony) || [] : chordsInAbc(x.abc));
 }
 
 // Where a written exercise fits in a chart: a stretch of one of its progressions with the same
@@ -147,8 +146,8 @@ export function nextWarmups(t, { key = null, have = [], avoid = new Set(), n = 1
   const got = [...have];
   const out = [];
   for (let i = 0; i < n; i++) {
-    const count = (slot) => got.filter((x) => (x.slot || (x.prog || x.over ? 'changes' : 'setup')) === slot).length;
-    const order = count('changes') <= count('setup') ? ['changes', 'setup'] : ['setup', 'changes'];
+    const inSlot = (slot) => got.filter((x) => (x.slot || (x.prog || x.over ? 'changes' : 'setup')) === slot).length;
+    const order = inSlot('changes') <= inSlot('setup') ? ['changes', 'setup'] : ['setup', 'changes'];
     let next = null;
     for (const slot of order) {
       const item = lists[slot].find((x) => !got.some((g) => same(g, x)));
@@ -162,12 +161,14 @@ export function nextWarmups(t, { key = null, have = [], avoid = new Set(), n = 1
 }
 
 // Another warm-up in place of `it` before tune `t` (played in `key` today): the next candidate in
-// its place (see candidates). Null if there's nothing else.
-export function altWarmup(t, it, { key = null } = {}) {
+// its place (see candidates) that isn't one of its others (`have`). Null if there's nothing else.
+export function altWarmup(t, it, { key = null, have = [] } = {}) {
   const { setup, changes } = candidates(t, { key });
   const list = it.slot === 'setup' || it.types || (!it.prog && !it.over) ? setup.map((c) => c.item) : changes;
-  if (list.length < 2 && list.some((x) => same(x, it))) return null;
   const at = list.findIndex((x) => same(x, it));
-  const next = list[(at + 1) % list.length];
-  return next && !same(next, it) ? { ...next, slot: it.slot } : null;
+  for (let i = 1; i <= list.length; i++) {
+    const next = list[(at + i) % list.length];
+    if (!same(next, it) && !have.some((h) => same(h, next))) return { ...next, slot: it.slot };
+  }
+  return null;
 }

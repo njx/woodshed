@@ -252,8 +252,7 @@ export function openItem(id, opts) {
       $('#log-today', sheet).onclick = () => {
         if (isPlayedToday(t.id)) unmarkPlayed(t.id);
         else {
-          const planItem = state.plan?.date === dateStr() && state.plan.items.find((i) => i.itemId === t.id && !i.warmup);
-          markPlayed(t.id, planItem || { key: t.keys[0] ?? null });
+          markPlayed(t.id, todayItem(t) || { key: t.keys[0] ?? null });
           autoStart();
           haptic();
         }
