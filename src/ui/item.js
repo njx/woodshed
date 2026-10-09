@@ -6,7 +6,7 @@ import { esc, uid } from '../util.js';
 import {
   itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
 } from '../practice.js';
-import { syncFocus, addToToday, inToday, todayItem, setTodayKey } from '../plan.js';
+import { setItemStatus, itemStatus, addToToday, inToday, todayItem, setTodayKey } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
 import { entriesFor } from '../diary.js';
 import { noteHtml, bindNotes, openNote } from './diary.js';
@@ -18,7 +18,7 @@ import { mountChart } from './chart.js';
 import { canRecord } from '../media.js';
 import { autoStart } from '../practicetime.js';
 import {
-  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml,
+  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml, statusHtml,
 } from './shell.js';
 
 // Detail sheet for a tune: edit it, listen to recordings, see its history. id null = new tune.
@@ -75,11 +75,7 @@ export function openItem(id, opts) {
     const tr = TRANSPOSITIONS[view];
     return `
       <textarea class="title-input" id="f-name" rows="1" placeholder="Tune name" aria-label="Tune name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
-      <label class="focus-toggle">
-        <span class="focus-icon">${ICON.focus}</span>
-        <span><b>Focus</b><small>In your set every day until you turn it off</small></span>
-        <input type="checkbox" id="f-focus" role="switch" ${t.focus ? 'checked' : ''}>
-      </label>
+      ${isNew ? '' : statusHtml(t, itemStatus(t))}
       ${isNew || t.focus ? '' : inToday(t)
         ? `<p class="in-today">${ICON.check}In today’s set</p>`
         : `<button class="ghost-btn add-today" id="f-today">${ICON.plus}<span>Add to today’s set</span></button>`}
@@ -190,14 +186,11 @@ export function openItem(id, opts) {
 
   const bind = () => {
     bindListen();
-    $('#f-focus', sheet).onchange = (e) => {
-      t.focus = e.target.checked;
-      if (!isNew && state.plan?.date === dateStr()) {
-        if (t.focus) state.plan.focusSkipped = (state.plan.focusSkipped || []).filter((x) => x !== t.id);
-        syncFocus();
-      }
+    $$('#item-status button', sheet).forEach((b) => (b.onclick = () => {
+      setItemStatus(t, b.dataset.v);
       commit();
-    };
+      refresh();
+    }));
     const sug = $('.suggest [data-level]', sheet);
     if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
     // The name field wraps onto as many lines as it needs, but stays a single line of text.

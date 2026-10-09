@@ -11,9 +11,9 @@ export function rowHtml(t, stats) {
   const s = stats.get(t.id);
   const keys = keysText(t);
   return `
-  <li class="row" data-id="${t.id}" role="button" tabindex="0">
+  <li class="row ${t.off ? 'off' : ''}" data-id="${t.id}" role="button" tabindex="0">
     <div class="row-main">
-      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.mine ? ' <span class="mine">mine</span>' : ''}</b>
+      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.mine ? ' <span class="mine">mine</span>' : ''}${t.off ? ' <span class="off-mark">off</span>' : ''}</b>
       <span class="row-sub">${keys ? `<span class="row-key">${esc(keys)}</span> · ` : ''}${esc(t.style)} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}</span>
     </div>
     ${pips(t.level)}
@@ -25,6 +25,8 @@ export const FILTERS = [
   { id: 'all', label: 'All', fn: () => true },
   { id: 'due', label: 'Due', fn: isDue },
   { id: 'focus', label: 'Focus', fn: (t) => t.focus },
+  { id: 'on', label: 'On', fn: (t) => !t.focus && !t.off },
+  { id: 'off', label: 'Off', fn: (t) => t.off },
   { id: 'l3', label: 'Mastered', fn: (t) => t.level === 3 },
   { id: 'l2', label: 'Proficient', fn: (t) => t.level === 2 },
   { id: 'l1', label: 'Familiar', fn: (t) => t.level === 1 },

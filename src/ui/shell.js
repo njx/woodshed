@@ -360,3 +360,15 @@ Object.assign(ICON, {
   metro: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3h5l4 18h-13zM12 15l5-9M7.5 15h9"/></svg>',
   note: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM9 10h6M9 14h6M9 18h3"/></svg>',
 });
+
+// Focus / On / Off for a tune or exercise (see plan.js itemStatus), with what it means.
+const STATUS_HINTS = {
+  focus: 'In your set every day until you change it.',
+  on: { tune: 'Picked for your set when it’s due.', exercise: 'Picked for your set now and then, and offered as a warm-up.' },
+  off: { tune: 'Left out for now: not picked for your set.', exercise: 'Left out for now: not picked, and not offered as a warm-up.' },
+};
+export function statusHtml(t, status) {
+  const hint = STATUS_HINTS[status];
+  return `<div class="seg item-status" id="item-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${status === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
+    <p class="fine" id="item-status-hint">${esc(typeof hint === 'string' ? hint : hint[t.type])}</p>`;
+}

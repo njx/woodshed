@@ -460,24 +460,6 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 /* ---------- Focus ---------- */
 .focus-mark { display: inline-flex; vertical-align: -3px; margin-right: 5px; color: var(--focus); }
 .focus-mark svg { width: 16px; height: 16px; }
-.focus-toggle {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
-  margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); cursor: pointer;
-}
-.focus-toggle b { display: block; font-weight: 650; }
-.focus-toggle small { display: block; font-size: 13px; color: var(--ink-3); }
-.focus-icon { color: var(--focus); display: grid; }
-.focus-toggle input {
-  appearance: none; -webkit-appearance: none; margin: 0;
-  width: 50px; height: 30px; border-radius: 15px; background: var(--line);
-  position: relative; transition: background .2s; cursor: pointer;
-}
-.focus-toggle input::after {
-  content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
-  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .2s;
-}
-.focus-toggle input:checked { background: var(--focus); }
-.focus-toggle input:checked::after { transform: translateX(20px); }
 
 /* ---------- Today header: progress ring + compact transposition toggle ---------- */
 .top-actions { display: flex; align-items: center; gap: 10px; flex: none; }
@@ -1108,9 +1090,9 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .card .add-warm svg { width: 15px; height: 15px; }
 
 /* Exercises: focus, on or off (left out of the pool for now). */
-.ex-status { margin-top: 12px; }
-.ex-status button svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; fill: none; stroke: currentColor; stroke-width: 2; }
-.ex-status + .fine { margin-top: 6px; }
+.item-status { margin-top: 12px; }
+.item-status button svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; fill: none; stroke: currentColor; stroke-width: 2; }
+.item-status + .fine { margin-top: 6px; }
 .row.off b, .row.off .row-sub { color: var(--ink-3); }
 .off-mark { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; margin-left: 4px; }
 

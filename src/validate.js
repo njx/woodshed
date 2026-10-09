@@ -27,6 +27,8 @@ function item(t, ids) {
   t.level = int(t.level, 0, LEVELS.length - 1) ?? 0; // unrated = don't know
   t.notes = str(t.notes);
   t.focus = !!t.focus;
+  if (t.off && !t.focus) t.off = true; // left out of the pool (see plan.js itemStatus)
+  else delete t.off;
   t.ivl = num(t.ivl, 0, 3650);
   t.due = isDate(t.due) ? t.due : null;
   t.tempo = int(Math.round(t.tempo), 10, 400);
@@ -42,8 +44,6 @@ function item(t, ids) {
     t.fromTune = !!t.fromTune;
     if (t.harmony != null) t.harmony = str(t.harmony, 200) || undefined; // chords it goes with (see warmups.js)
     if (t.harmony === undefined) delete t.harmony;
-    if (t.off && !t.focus) t.off = true; // left out of the pool (see plan.js exerciseStatus)
-    else delete t.off;
     if (t.asWritten) t.asWritten = true; // notation shown only in C (see ui/exercise.js)
     else delete t.asWritten;
   } else {

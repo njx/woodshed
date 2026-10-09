@@ -5,7 +5,7 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { setExerciseStatus, exerciseStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
+import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
@@ -20,7 +20,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { bass } from '../bass.js';
 import {
-  $, $$, ICON, render, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
+  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -124,8 +124,7 @@ export function openExercise(id, opts = {}) {
     const notes = all.filter((e) => !e.media?.length);
     return `
       <textarea class="title-input" id="x-name" rows="1" placeholder="Exercise name" aria-label="Exercise name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
-      ${isNew ? '' : `<div class="seg ex-status" id="x-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${exerciseStatus(t) === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
-      <p class="fine" id="x-status-hint">${esc(STATUS_HINTS[exerciseStatus(t)])}</p>`}
+      ${isNew ? '' : statusHtml(t, itemStatus(t))}
       ${isNew || t.focus ? '' : planItem?.warmup
         ? `<p class="in-today">${ICON.check}In today’s set, as a warm-up for ${esc(itemById(planItem.warmup)?.name || 'a tune')}</p>`
         : inToday(t)
@@ -470,8 +469,8 @@ ${t.fromTune ? '' : `
       t.name = nameEl.value;
       if (!isNew && t.name.trim()) commit();
     };
-    $$('#x-status button', sheet).forEach((b) => (b.onclick = () => {
-      setExerciseStatus(t, b.dataset.v);
+    $$('#item-status button', sheet).forEach((b) => (b.onclick = () => {
+      setItemStatus(t, b.dataset.v);
       commit();
       refresh();
     }));
@@ -797,12 +796,6 @@ export function openNotationEditor(t, back) {
 }
 
 // ---------- Library list ----------
-
-const STATUS_HINTS = {
-  focus: 'In your set every day until you change it.',
-  on: 'Picked for your set now and then, and offered as a warm-up.',
-  off: 'Left out for now: not picked, and not offered as a warm-up.',
-};
 
 export function exerciseRowHtml(t, stats) {
   const s = stats.get(t.id);

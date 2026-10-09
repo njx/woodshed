@@ -5,7 +5,7 @@ import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlanItemPlayed, planEntry, setLevel, deleteItem } from '../practice.js';
-import { ensurePlan, makePlanItem, syncFocus, setFocus, setExerciseStatus, refreshTypes, addWarmups, dropOrphanWarmups, todayItem, setTodayKeys, setTodayKey, typeCounts } from '../plan.js';
+import { ensurePlan, makePlanItem, syncFocus, setFocus, setItemStatus, refreshTypes, addWarmups, dropOrphanWarmups, todayItem, setTodayKeys, setTodayKey, typeCounts } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
 import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern, chooseTypes } from '../theory.js';
@@ -113,7 +113,7 @@ function itemSummary(t, stats) {
     level: levelLabel(t.level),
     priority: PRIORITIES[(t.priority || 3) - 1].label.toLowerCase(),
     focus: !!t.focus,
-    ...(t.type === 'exercise' ? { enabled: !t.off } : {}),
+    enabled: !t.off,
     last_played: s?.last || null,
     times_played: s?.count || 0,
     due: isDue(t, stats),
@@ -478,7 +478,7 @@ export const TOOLS = [
       level: nullable({ type: 'string', enum: ["don't know", 'familiar', 'proficient', 'mastered'] }),
       priority: nullable({ type: 'string', enum: ['critical', 'high', 'medium', 'low'] }),
       focus: nullable({ type: 'boolean', description: 'Focus items are in the set every day until turned off' }),
-      enabled: nullable({ type: 'boolean', description: 'Exercises only: false leaves it out of the pool (not picked for the set, not offered as a warm-up); true puts it back' }),
+      enabled: nullable({ type: 'boolean', description: 'false leaves it out of the pool (not picked for the set; for exercises, not offered as a warm-up either); true puts it back' }),
       tempo: nullable({ type: 'integer', description: 'Working tempo' }),
       goal_tempo: nullable({ type: 'integer' }),
       keys: nullable({ type: 'array', items: { type: 'string' }, description: 'Tunes: the usual keys, most common first. Exercises: the chosen keys (sets key mode to chosen keys).' }),
@@ -501,9 +501,8 @@ export const TOOLS = [
       const did = [];
       if (a.level) { setLevel(t, LEVELS.findIndex((l) => l.label.toLowerCase() === a.level)); did.push(`level → ${a.level}`); }
       if (a.priority) { t.priority = PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1; did.push(`priority → ${a.priority}`); }
-      if (a.enabled != null && t.type !== 'exercise') return { error: 'Only exercises can be turned on or off.' };
       if (a.enabled != null) {
-        if (!a.enabled) setExerciseStatus(t, 'off');
+        if (!a.enabled) setItemStatus(t, 'off');
         else delete t.off;
         did.push(a.enabled ? 'turned on' : 'turned off (left out of the pool)');
       }

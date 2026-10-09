@@ -149,9 +149,9 @@ test('an exercise can be focus, on, or off (left out of the pool) @narrow', asyn
   await page.click('[data-lib="exercises"]');
   const row = page.locator('#tune-list .row', { hasText: 'Long tones' });
   await row.click();
-  await expect(page.locator('#x-status .on')).toHaveText('On'); // the default
-  await page.click('#x-status [data-v="off"]');
-  await expect(page.locator('#x-status-hint')).toContainText('Left out');
+  await expect(page.locator('#item-status .on')).toHaveText('On'); // the default
+  await page.click('#item-status [data-v="off"]');
+  await expect(page.locator('#item-status-hint')).toContainText('Left out');
   await ui.backdrop();
   await expect(row).toHaveClass(/\boff\b/);
   await page.click('.chip[data-f="off"]');
@@ -159,7 +159,7 @@ test('an exercise can be focus, on, or off (left out of the pool) @narrow', asyn
   await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Long tones').off).toBe(true);
   // Focus puts it back, in every day's set.
   await row.click();
-  await page.click('#x-status [data-v="focus"]');
+  await page.click('#item-status [data-v="focus"]');
   await ui.backdrop();
   await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Long tones')).toMatchObject({ focus: true });
   expect((await ui.saved()).state.items.find((x) => x.name === 'Long tones').off).toBeUndefined();

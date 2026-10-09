@@ -82,7 +82,7 @@ test('focus tunes lead the set; recordings and listening links', async ({ page, 
   await ui.tab('tunes');
   await page.fill('#q', 'giant steps');
   await page.locator('.row').first().click();
-  await page.click('.focus-toggle');
+  await page.click('#item-status [data-v="focus"]');
   // Add a recording, then remove it.
   await page.click('#rec-add-toggle');
   await page.fill('#rec-form input[name=artist]', 'Tommy Flanagan');
@@ -142,7 +142,7 @@ test('picks up data from the first version of the app', async ({ page }) => {
   await expect(page.locator('.card h2', { hasText: 'Solar' })).toBeVisible();
   await page.locator('.card h2', { hasText: 'Solar' }).click();
   await expect(page.locator('#f-notes')).toHaveValue('watch the bridge');
-  await expect(page.locator('#f-focus')).toBeChecked();
+  await expect(page.locator('#item-status .on')).toHaveText('Focus');
 });
 
 test('tune order: mixed by default, or by group from Settings (applies to today)', async ({ page, ui }) => {
@@ -170,5 +170,20 @@ test('a note on a card: written from its note button, and counted there @narrow'
     const e = state.diary.find((x) => x.text === 'Watch the 3rd bar');
     return e && state.items.find((t) => t.id === e.itemId)?.name;
   }).toBe(name);
+  await ui.expectNoSideScroll();
+});
+
+test('a tune can be focus, on, or off (left out of the pool) @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.fill('#q', 'Solar');
+  const row = page.locator('#tune-list .row', { hasText: 'Solar' }).first();
+  await row.click();
+  await expect(page.locator('#item-status .on')).toHaveText('On');
+  await page.click('#item-status [data-v="off"]');
+  await expect(page.locator('#item-status-hint')).toContainText('not picked for your set');
+  await ui.backdrop();
+  await expect(row).toHaveClass(/\boff\b/);
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Solar').off).toBe(true);
   await ui.expectNoSideScroll();
 });

@@ -297,10 +297,10 @@ export function setFocus(t, on) {
   syncFocus();
 }
 
-// An exercise is 'focus' (in every day's set), 'on' (can be picked) or 'off' (left out: not
-// picked, and not offered as a warm-up), for practicing from a smaller pool for a while.
-export const exerciseStatus = (t) => (t.focus ? 'focus' : t.off ? 'off' : 'on');
-export function setExerciseStatus(t, status) {
+// A tune or exercise is 'focus' (in every day's set), 'on' (can be picked) or 'off' (left out:
+// not picked, nor offered as a warm-up), for practicing from a smaller pool for a while.
+export const itemStatus = (t) => (t.focus ? 'focus' : t.off ? 'off' : 'on');
+export function setItemStatus(t, status) {
   if (status === 'off') t.off = true;
   else delete t.off;
   setFocus(t, status === 'focus');
