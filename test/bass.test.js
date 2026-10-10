@@ -25,3 +25,18 @@ describe('walking bass', () => {
     }
   });
 });
+
+describe('looping part of a chart', () => {
+  it('numbers bars in playing order, sections as ranges (repeated labels numbered)', async () => {
+    const { chartBars } = await import('../src/bass.js');
+    const bar = (root) => ({ chords: [{ root, q: 'maj7' }], alts: [] });
+    const chart = { key: 0, meter: '4/4', sections: [
+      { label: 'A', repeats: 0, bars: [bar(0), bar(5)], endings: [] },
+      { label: 'B', repeats: 0, bars: [bar(7), { chords: [], alts: [] }], endings: [] },
+      { label: 'A', repeats: 0, bars: [bar(0)], endings: [[bar(2)], [bar(4)]] },
+    ] };
+    const { bars, sections } = chartBars(chart);
+    expect(bars).toHaveLength(7);
+    expect(sections.map((s) => [s.name, s.from, s.to])).toEqual([['A1', 0, 1], ['B', 2, 3], ['A2', 4, 6]]);
+  });
+});

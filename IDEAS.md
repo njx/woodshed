@@ -50,7 +50,7 @@ sessions), L (a big piece, or needs a native app).
   line (the notation library can, it's turned off for now), as a mini backing track.
 - **Walking bass, next steps** (S–M). The basic loop is in (1-2-3-5 per chord, on a tune's chart
   and on Through the changes). Next: chromatic approach notes into the next chord, a hi-hat sound
-  for the click, looping just a section or a few bars, and the bass
+  for the click, and the bass
   under a lick over part of a progression.
 - **Licks over related progressions** (M, to think about). A lick could also fit progressions that
   aren't the same chord kinds: a minor ii–V–i lick over its relative major, a ii–V lick starting a

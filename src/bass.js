@@ -39,16 +39,43 @@ export function walkingLine(chords) {
 }
 
 
+// A chart's bars in playing order (each section's bars, then its endings), numbered as the chart
+// shows them (data-b in ui/chart.js); and its sections, as ranges of those bars, for looping one.
+export function chartBars(chart) {
+  const bars = [];
+  const sections = [];
+  for (const s of chart.sections) {
+    const from = bars.length;
+    bars.push(...s.bars, ...s.endings.flat());
+    sections.push({ label: s.label || '', from, to: bars.length - 1 });
+  }
+  // The same label twice (A, A, B, A): numbered, A1, A2, B, A3.
+  const total = (l) => sections.filter((x) => x.label === l).length;
+  const seen = {};
+  for (const x of sections) x.name = total(x.label) > 1 ? `${x.label}${(seen[x.label] = (seen[x.label] || 0) + 1)}` : x.label || '–';
+  return { bars, sections };
+}
+
 // The chords of a tune's chart in playing order, in concert `key` (null: the chart's own), for
-// walkingLine; and its beats per bar.
-export function chartChords(t, key = null) {
+// walkingLine, with its beats per bar. from/to: just those bars (a loop); a bar that carries the
+// chord on (%) at the start of them takes the chord from before.
+export function chartChords(t, key = null, { from = null, to = null } = {}) {
   const chart = chartFor(t);
   if (!chart) return null;
   const up = chartShift(chart, key ?? chart.key ?? 0, 'c');
-  return {
-    chords: chordTimeline(chart).map((c) => ({ root: (c.root + up) % 12, family: chordFamily(c.q), beats: c.beats })),
-    beats: Number(String(chart.meter || '4/4').split('/')[0]) || 4,
-  };
+  const beats = Number(String(chart.meter || '4/4').split('/')[0]) || 4;
+  const chord = (c, n) => ({ root: (c.root + up) % 12, family: chordFamily(c.q), beats: n });
+  if (from == null) return { chords: chordTimeline(chart).map((c) => chord(c, c.beats)), beats };
+  const { bars } = chartBars(chart);
+  const out = [];
+  for (let i = from; i <= Math.min(to ?? bars.length - 1, bars.length - 1); i++) {
+    const b = bars[i];
+    if (b.chords.length) { for (const c of b.chords) out.push(chord(c, beats / b.chords.length)); continue; }
+    if (out.length) { out.at(-1).beats += beats; continue; }
+    const before = bars.slice(0, i).reverse().find((x) => x.chords.length);
+    if (before) out.push(chord(before.chords.at(-1), beats));
+  }
+  return { chords: out, beats };
 }
 
 // A plucked bass note: a sawtooth (whose overtones carry the pitch on a phone's small speaker,

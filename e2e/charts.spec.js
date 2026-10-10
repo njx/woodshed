@@ -138,6 +138,35 @@ test('a walking bass is a mode of the metronome: from the chart, lighting up the
   await expect(page.locator('.metro-pill')).not.toContainText('Bass');
 });
 
+test('loop a section, or bars tapped, with the bass going round just those @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await openTune(page, ui, 'Autumn Leaves');
+  const chips = page.locator('.loop-row [data-loop]');
+  await expect(chips.first()).toHaveText('Whole tune');
+  await chips.nth(2).click(); // the second section
+  const name = await chips.nth(2).textContent();
+  await expect(chips.nth(2)).toHaveClass(/\bon\b/);
+  await expect(page.locator('.chart')).toHaveClass(/\blooping\b/);
+  await page.click('#chart-bass');
+  await expect(page.locator('.chart .bar.now')).toHaveCount(1);
+  await expect(page.locator('.chart .bar.now')).toHaveClass(/\bin-loop\b/);
+  await ui.backdrop();
+  await ui.tab('diary');
+  await expect(page.locator('.metro-pill')).toContainText(`Autumn Leaves · ${name}`);
+  // Two bars tapped: just those (changed while it plays).
+  await openTune(page, ui, 'Autumn Leaves');
+  await page.locator('.chart [data-b="0"]').click();
+  await expect(page.locator('.loop-hint')).toContainText('now tap the last bar');
+  await page.locator('.chart [data-b="1"]').click();
+  await expect(page.locator('.loop-row .chip.on')).toHaveText('bars 1–2 ×');
+  await expect(page.locator('.chart .in-loop')).toHaveCount(2);
+  await expect(page.locator('.chart .bar.now')).toHaveClass(/\bin-loop\b/);
+  await page.locator('.loop-row .chip.on').click(); // × back to the whole tune
+  await expect(page.locator('.chart')).not.toHaveClass(/\blooping\b/);
+  await page.click('#chart-bass');
+  await ui.expectNoSideScroll();
+});
+
 test('exercises on a day: each its own, or key of the day @narrow', async ({ page, ui }) => {
   await ui.start();
   await ui.tab('settings');

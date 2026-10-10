@@ -364,3 +364,18 @@ describe('warm-up tempo', () => {
     expect(tempoSuggestion(ex)).toBe(null); // a rough warm-up at 132 says nothing about 90
   });
 });
+
+describe('the bass over part of a chart', () => {
+  it('plays just the bars looped, a carried-on chord at the start taking the one before', async () => {
+    const { chartChords, chartBars } = await import('../src/bass.js');
+    const t = byName('Autumn Leaves');
+    const whole = chartChords(t);
+    const { bars, sections } = chartBars(chartFor(t));
+    expect(whole.chords.reduce((n, c) => n + c.beats, 0)).toBe(bars.length * 4);
+    const s = sections[1];
+    const part = chartChords(t, null, { from: s.from, to: s.to });
+    expect(part.chords.reduce((n, c) => n + c.beats, 0)).toBe((s.to - s.from + 1) * 4);
+    const two = chartChords(t, null, { from: 0, to: 1 });
+    expect(two.chords.map((c) => c.family)).toEqual(['m7', 'dom7']); // Cm7 | F7
+  });
+});

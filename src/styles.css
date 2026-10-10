@@ -1106,3 +1106,14 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .use-tunes { margin: 14px 0 4px; align-items: flex-start; }
 .use-tunes input { margin-top: 1px; flex: none; }
 .x-tune-chart { margin-top: 6px; }
+
+/* Looping part of a chart: the bars in the loop stand out; the first bar tapped is marked. */
+.loop-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.loop-row .field-label { margin: 0; flex: none; }
+.loop-row .chips { flex-wrap: wrap; }
+.loop-hint { margin-top: 4px; }
+.chart [data-b] { cursor: pointer; }
+.chart.looping .bar:not(.in-loop) { opacity: .4; }
+.bar.pick { box-shadow: inset 0 0 0 2px var(--exercise); }
+.loop-row .chip { min-height: 32px; padding: 4px 12px; font-size: 14px; }
+.loop-row .chips { gap: 6px; }

@@ -5,10 +5,10 @@ import { esc } from '../util.js';
 import { isMinor } from '../keys.js';
 import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
 import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
-import { chartChords } from '../bass.js';
+import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { addWarmups } from '../plan.js';
-import { $, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
+import { $, $$, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
 
 // The chord chart in a tune's details: shown in the key it's played in today (or its usual
 // key), written for the instrument; another key can be picked. Editable.
@@ -57,6 +57,19 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
   // tempo, in the key shown; the bar it's on lights up while the chart is showing.
   const owner = `chart:${t.id}`;
   const bassMine = () => metronome.state.running && metronome.state.bass?.owner === owner;
+  // A loop of part of the chart (a section, or bars tapped: first then last): { from, to, name }
+  // in bar numbers (data-b), or null for the whole tune. `pick`: the first bar tapped.
+  let loop = bassMine() ? metronome.state.bass.loop || null : null;
+  let pick = null;
+  const loopHtml = (chart) => {
+    const { sections } = chartBars(chart);
+    const chip = (v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-loop="${v}">${esc(label)}</button>`;
+    const isSection = (s) => loop && loop.from === s.from && loop.to === s.to;
+    return `<div class="loop-row"><span class="field-label">Loop</span><div class="chips">
+      ${chip('all', 'Whole tune', !loop)}${sections.length > 1 ? sections.map((s, i) => chip(i, s.name, isSection(s))).join('') : ''}
+      ${loop && !sections.some(isSection) ? chip('all', `${loop.name} ×`, true) : ''}</div></div>
+      <p class="fine loop-hint">${pick != null ? `From bar ${pick + 1}: now tap the last bar to loop.` : 'Or tap a bar, then another, to loop just those.'}</p>`;
+  };
   let gen = 0; // (one bar-follower at a time)
   const follow = () => {
     const mine = ++gen;
@@ -70,7 +83,8 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
         return;
       }
       const i = metronome.bassBeat();
-      const bar = i < 0 ? null : box.querySelector(`[data-b="${Math.floor(i / metronome.state.beats)}"]`);
+      const from = metronome.state.bass.loop?.from ?? 0;
+      const bar = i < 0 ? null : box.querySelector(`[data-b="${from + Math.floor(i / metronome.state.beats)}"]`);
       if (bar !== lit) { lit?.classList.remove('now'); bar?.classList.add('now'); lit = bar; }
       requestAnimationFrame(step);
     };
@@ -78,8 +92,10 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
   };
   const startBass = () => {
     const chart = chartFor(t);
-    const { chords, beats } = chartChords(t, key ?? todaysKey(t) ?? chart.key ?? 0);
-    metronome.start({ bpm: t.tempo || store.state.settings.metroBpm || 120, beats, itemId: t.id, bass: { chords, owner, label: t.name }, click: store.state.settings.bassClick });
+    const { chords, beats } = chartChords(t, key ?? todaysKey(t) ?? chart.key ?? 0, loop || {});
+    if (!chords.length) return;
+    const label = loop ? `${t.name} · ${loop.name}` : t.name;
+    metronome.start({ bpm: t.tempo || store.state.settings.metroBpm || 120, beats, itemId: t.id, bass: { chords, owner, label, loop }, click: store.state.settings.bassClick });
   };
   const draw = () => {
     const chart = chartFor(t);
@@ -98,7 +114,8 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
         <div class="field-label row-label"><span>${compact ? `${esc(t.name)}’s chords` : 'Chords'}</span><span class="row-links">
           <select class="chart-key" id="chart-key" aria-label="Key">${keys.map((k) => `<option value="${k}" ${k === shown ? 'selected' : ''}>in ${esc(kn(k))}</option>`).join('')}</select>
           ${compact ? '' : '<button class="link-btn" id="chart-edit">Edit</button>'}</span></div>
-        <div class="chart">${chartHtml(chart, opts)}</div>
+        <div class="chart ${loop ? 'looping' : ''}">${chartHtml(chart, opts)}</div>
+        ${loopHtml(chart)}
         ${progsHtml(chart, opts)}
         <div class="chart-foot">
           <span class="chart-btns">
@@ -112,6 +129,30 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
         if (bassMine()) startBass(); // on in the new key
         draw();
       };
+      // Looping: a section's chip, or tap a bar then another; the bass goes round just those.
+      $$('.chart [data-b]', box).forEach((el) => {
+        const n = Number(el.dataset.b);
+        el.classList.toggle('in-loop', !!loop && n >= loop.from && n <= loop.to);
+        el.classList.toggle('pick', n === pick);
+      });
+      const setLoop = (l) => {
+        loop = l;
+        pick = null;
+        if (bassMine()) startBass();
+        draw();
+      };
+      $$('[data-loop]', box).forEach((b) => (b.onclick = () => {
+        const v = b.dataset.loop;
+        if (v === 'all') return setLoop(null);
+        const s = chartBars(chart).sections[Number(v)];
+        setLoop({ from: s.from, to: s.to, name: s.name });
+      }));
+      $$('.chart [data-b]', box).forEach((el) => (el.onclick = () => {
+        const n = Number(el.dataset.b);
+        if (pick == null) { pick = n; draw(); return; }
+        const [from, to] = [Math.min(pick, n), Math.max(pick, n)];
+        setLoop({ from, to, name: from === to ? `bar ${from + 1}` : `bars ${from + 1}–${to + 1}` });
+      }));
       $('#chart-bass', box).onclick = () => {
         if (bassMine()) metronome.stop();
         else startBass();
