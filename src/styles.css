@@ -1101,3 +1101,8 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .bass-btn svg { fill: currentColor; stroke: none; width: 14px; height: 14px; }
 .bass-btn.on { background: var(--exercise); color: #fff; }
 .bar.now { background: color-mix(in srgb, var(--exercise) 18%, transparent); }
+
+/* An exercise with tunes: its switch, and the tune's chart under its notation. */
+.use-tunes { margin: 14px 0 4px; align-items: flex-start; }
+.use-tunes input { margin-top: 1px; flex: none; }
+.x-tune-chart { margin-top: 6px; }

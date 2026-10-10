@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
-import { nextWarmups, altWarmup, harmonyOf } from '../src/warmups.js';
-import { buildPlan, addWarmups, swapWarmup, setItemStatus, pickItem, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
+import { nextWarmups, altWarmup, harmonyOf, warmupOf } from '../src/warmups.js';
+import { buildPlan, addWarmups, swapWarmup, setItemStatus, pickItem, tryWithTune, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
 import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
@@ -151,6 +151,43 @@ describe('tunes turned off', () => {
     setItemStatus(byName('Solar'), 'focus');
     expect(byName('Solar').off).toBeUndefined();
     expect(todayItem(byName('Solar')).bucket).toBe('focus');
+  });
+});
+
+describe('exercises with tunes', () => {
+  it('any exercise can go through a tune’s form (after the ones that fit); technical ones never', () => {
+    const t = byName('Autumn Leaves');
+    const w = nextWarmups(t, { key: 19, n: 60 });
+    const form = w.filter((x) => x.form);
+    expect(form.length).toBeGreaterThan(0);
+    expect(form.every((x) => x.overKey === 19 && x.keys[0] === 7)).toBe(true);
+    const longTones = byName('Long tones');
+    expect(longTones.solo).toBe(true);
+    expect(w.some((x) => x.itemId === longTones.id)).toBe(false);
+    // An exercise that doesn't fit its chords goes through the form; one that does, where it fits.
+    expect(warmupOf(t, byName('Cross-arpeggios'), { key: 19 })).toMatchObject({ form: true, slot: 'changes' });
+    expect(warmupOf(t, byName('ii–V–I, 1-2-3-5'), { key: 19 })).toMatchObject({ over: 'ii–V7–I' });
+  });
+  it('“try it through a tune” picks one of today’s tunes first, then another each time', () => {
+    buildPlan(true);
+    const x = byName('Cross-arpeggios');
+    const first = tryWithTune(x);
+    expect(todayItem(first)).toBeTruthy();
+    const second = tryWithTune(x);
+    expect(second.id).not.toBe(first.id);
+    const before = store.state.plan.items.filter((i) => i.itemId === x.id && i.warmup).map((i) => i.warmup);
+    expect(before).toEqual(expect.arrayContaining([first.id, second.id]));
+    // just before its tune
+    const items = store.state.plan.items;
+    const at = items.findIndex((i) => i.itemId === second.id && !i.warmup);
+    expect(items.slice(0, at).some((i) => i.itemId === x.id && i.warmup === second.id)).toBe(true);
+  });
+  it('the v11 migration keeps long tones and the chromatic scale out of tunes', () => {
+    const old = seedState();
+    old.version = 10;
+    for (const x of old.items) delete x.solo;
+    const s = migrate(old);
+    expect(s.items.filter((x) => x.solo).map((x) => x.name).sort()).toEqual(['Chromatic scale', 'Long tones']);
   });
 });
 

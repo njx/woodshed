@@ -12,7 +12,8 @@ import { uid } from './util.js';
 //   changes: a written lick or pattern over part of one of its progressions (its chords from its
 //            harmony or the chord symbols in its notation), or Through the changes.
 // Each is a plan item: { pid, itemId, bucket: 'exercise', keys, types?, prog?, over?, warmup: tune id }.
-const exercises = () => store.state.items.filter((x) => x.type === 'exercise' && !x.off); // (not ones turned off)
+// (Not ones turned off, or ones not for tunes: technical exercises like long tones.)
+const exercises = () => store.state.items.filter((x) => x.type === 'exercise' && !x.off && !x.solo);
 const count = (x, fallback) => Math.max(2, Math.min(4, x.keysPerSession || fallback));
 
 const warmItem = (x, t, keys, types = null, extra = {}) => ({
@@ -133,9 +134,29 @@ function candidates(t, { key = null, avoid = new Set() } = {}) {
   if (through) {
     for (const p of progressions(chart).filter((q) => q.chords.length >= 2 && q.chords.every((c) => CHORDS[c.family]))) changes.push(progItem(through, t, p, up));
   }
-  return { setup, changes: [...changes, ...later] };
+  // Then any exercise through the whole form, in the tune's key: not written out chord by chord,
+  // but shown with the tune's chart and a walking bass, to bend to the changes or take off from.
+  const form = exercises().filter((x) => !x.fromTune)
+    .sort((a, b) => { const [p, q] = [order(a), order(b)]; return p[0] - q[0] || p[1].localeCompare(q[1]); })
+    .map((x) => warmItem(x, t, [playKey % 12], null, { form: true, overKey: playKey }));
+  return { setup, changes: [...changes, ...later, ...form] };
 }
-const same = (a, b) => a.itemId === b.itemId && String(a.keys) === String(b.keys) && (a.over || a.prog?.name || '') === (b.over || b.prog?.name || '') && String(a.types) === String(b.types);
+
+// The best way to take exercise x before tune t (played in `key`): over a stretch of its chords it
+// fits, on one of its chords, through a progression (Through the changes), or else through the form.
+export function warmupOf(t, x, { key = null } = {}) {
+  const { setup, changes } = candidates(t, { key });
+  const item = changes.find((c) => c.itemId === x.id) || setup.find((c) => c.item.itemId === x.id)?.item;
+  if (!item) return null;
+  return { ...item, slot: setup.some((c) => c.item === item) ? 'setup' : 'changes' };
+}
+
+// Whether written exercise x fits somewhere in tune t's chords (for suggesting tunes to try it with).
+export function fitsTune(x, t) {
+  const chart = chartFor(t);
+  return !!chart && fitsIn(x, chart, (r) => r, false).length > 0;
+}
+const same = (a, b) => a.itemId === b.itemId && String(a.keys) === String(b.keys) && !!a.form === !!b.form && (a.over || a.prog?.name || '') === (b.over || b.prog?.name || '') && String(a.types) === String(b.types);
 
 // The next warm-ups to add before a tune (`have`: its warm-ups already in the set): taking turns
 // between a lick, pattern or progression and something on its chords, starting with whichever it
@@ -146,7 +167,7 @@ export function nextWarmups(t, { key = null, have = [], avoid = new Set(), n = 1
   const got = [...have];
   const out = [];
   for (let i = 0; i < n; i++) {
-    const inSlot = (slot) => got.filter((x) => (x.slot || (x.prog || x.over ? 'changes' : 'setup')) === slot).length;
+    const inSlot = (slot) => got.filter((x) => (x.slot || (x.prog || x.over || x.form ? 'changes' : 'setup')) === slot).length;
     const order = inSlot('changes') <= inSlot('setup') ? ['changes', 'setup'] : ['setup', 'changes'];
     let next = null;
     for (const slot of order) {
@@ -164,7 +185,7 @@ export function nextWarmups(t, { key = null, have = [], avoid = new Set(), n = 1
 // its place (see candidates) that isn't one of its others (`have`). Null if there's nothing else.
 export function altWarmup(t, it, { key = null, have = [] } = {}) {
   const { setup, changes } = candidates(t, { key });
-  const list = it.slot === 'setup' || it.types || (!it.prog && !it.over) ? setup.map((c) => c.item) : changes;
+  const list = it.slot === 'setup' || it.types || (!it.prog && !it.over && !it.form) ? setup.map((c) => c.item) : changes;
   const at = list.findIndex((x) => same(x, it));
   for (let i = 1; i <= list.length; i++) {
     const next = list[(at + i) % list.length];

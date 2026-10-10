@@ -119,6 +119,7 @@ export const SEED_EXERCISES = [
   {
     name: 'Long tones',
     category: 'other',
+    solo: true,
     keyMode: 'none',
     keysPerSession: 1,
     abc: '',
@@ -127,6 +128,7 @@ export const SEED_EXERCISES = [
   {
     name: 'Chromatic scale',
     category: 'scale',
+    solo: true,
     keyMode: 'none',
     keysPerSession: 1,
     abc: '',

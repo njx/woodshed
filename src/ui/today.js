@@ -247,6 +247,7 @@ function keyChip(it, t) {
   const chip = (cls, main, sub) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   if (t.type === 'exercise') {
     if (!it.keys?.length && !it.types?.length) return '';
+    if (it.form) return chip('multi', `Through the form in <b>${esc(kn(it.overKey ?? it.keys[0]))}</b>`, 'with its chords and a bass');
     if (it.prog) return chip('multi', `<b>${esc(it.prog.name)}</b> in <b>${esc(rootName(it.keys[0]))}</b>`, 'tap for notation');
     // A lick or pattern over part of a progression (in a key, or a sequence of keys), or over one chord.
     if (it.over && it.overKey != null) {

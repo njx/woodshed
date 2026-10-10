@@ -5,7 +5,9 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts } from '../plan.js';
+import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, tryWithTune, todayItem } from '../plan.js';
+import { chartFor } from '../charts.js';
+import { mountChart } from './chart.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
@@ -81,6 +83,7 @@ export function openExercise(id, opts = {}) {
   // what it's over, in words.
   // How much of it to show in a key (all of it when it's shown only as written).
   const partFor = (root) => (asWritten() ? null : planItem?.parts?.[todayKeys.indexOf(root)] ?? null);
+  const formText = () => `Today: through ${tempoFrom.name}’s form, in ${kn(planItem.overKey)} — bend it to the changes, or take off from it.`;
   const overText = () => {
     const where = planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : '';
     const keys = todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`);
@@ -132,6 +135,7 @@ export function openExercise(id, opts = {}) {
         : inToday(t)
         ? `<p class="in-today">${ICON.check}In today’s set</p>`
         : `<button class="ghost-btn add-today" id="x-today">${ICON.plus}<span>Add to today’s set</span></button>`}
+      ${isNew || t.solo ? '' : `<button class="ghost-btn add-today" id="x-try">${ICON.plus}<span>Try it through a tune</span></button>`}
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? '<button class="link-btn" id="x-to-pattern">Edit pattern</button>'
         : t.abc ? '<button class="link-btn" id="x-edit-abc">Edit</button>' : ''}</div>
@@ -155,12 +159,14 @@ export function openExercise(id, opts = {}) {
           </div>
           ${!t.vary && !prog && t.abc ? `<label class="as-written"><input type="checkbox" id="x-as-written" ${t.asWritten ? 'checked' : ''}>
             <span>Only as written, in C — transpose it in your head</span></label>` : ''}
-          ${planItem?.over ? `<p class="fine">${esc(overText())}</p>`
+          ${planItem?.form ? `<p class="fine">${esc(formText())}</p>`
+            : planItem?.over ? `<p class="fine">${esc(overText())}</p>`
             : prog ? `<p class="fine">Today: ${esc(prog.name)} in ${esc(rootName(previewRoot))} — ${esc(progressionChords(prog, previewRoot))}</p>`
             : t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
             : todayKeys.length && asWritten() ? `<p class="fine">Today: ${esc(todayKeys.map((k) => rootName(k)).join(', '))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
+      ${planItem?.warmup && !prog && chartFor(tempoFrom) ? '<div class="x-tune-chart" id="x-tune-chart"></div>' : ''}
       ${todayHtml()}
 
       ${isNew ? '' : tempoFrom !== t
@@ -173,6 +179,8 @@ export function openExercise(id, opts = {}) {
           ${takes.length > 3 ? `<p class="fine">${takes.length - 3} more in the Diary.</p>` : ''}`
           : '<p class="fine">Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.</p>'}`}
       ${harmonyHtml()}
+      ${isNew || t.fromTune ? '' : `<label class="as-written use-tunes"><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}>
+        <span>Use with tunes — as a warm-up, or through a tune’s form. Off for technical work like long tones.</span></label>`}
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
 
@@ -555,6 +563,22 @@ ${t.fromTune ? '' : `
       msg.textContent = t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).' : 'From the chord symbols in its notation.';
       commit();
     };
+    const tryBtn = $('#x-try', sheet);
+    if (tryBtn) tryBtn.onclick = () => {
+      const tune = tryWithTune(t);
+      if (!tune) return toast('No tune with a chart to try it with');
+      toast(`Added ${tune.name} to today’s set, with ${t.name} before it`);
+      render();
+    };
+    const useTunes = $('#x-tunes', sheet);
+    if (useTunes) useTunes.onchange = () => {
+      if (useTunes.checked) delete t.solo;
+      else t.solo = true;
+      commit();
+      refresh();
+    };
+    const tuneChart = $('#x-tune-chart', sheet);
+    if (tuneChart) mountChart(tuneChart, tempoFrom, { key: todayItem(tempoFrom)?.key ?? (planItem.form ? planItem.overKey : null), compact: true }); // in the tune's key
     const addBtn = $('#x-today', sheet);
     if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
 

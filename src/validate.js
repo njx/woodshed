@@ -27,6 +27,8 @@ function item(t, ids) {
   t.level = int(t.level, 0, LEVELS.length - 1) ?? 0; // unrated = don't know
   t.notes = str(t.notes);
   t.focus = !!t.focus;
+  if (t.type === 'exercise' && t.solo) t.solo = true; // not for tunes: technical, on its own only
+  else delete t.solo;
   if (t.off && !t.focus) t.off = true; // left out of the pool (see plan.js itemStatus)
   else delete t.off;
   t.ivl = num(t.ivl, 0, 3650);
@@ -152,6 +154,7 @@ function plan(p, ids) {
     ...(num(it.mix, 0, 1) != null ? { mix: it.mix } : {}),
     ...(typeof it.over === 'string' ? { over: str(it.over, 60) } : {}),
     ...(int(it.overKey, 0, 23) != null ? { overKey: it.overKey } : {}),
+    ...(it.form ? { form: true } : {}), // an exercise through a tune's form (see warmups.js)
     ...(Array.isArray(it.parts) ? { parts: it.parts.slice(0, 12).map((n) => int(n, 1, 16)) } : {}),
     ...(['setup', 'changes'].includes(it.slot) ? { slot: it.slot } : {}),
   }));

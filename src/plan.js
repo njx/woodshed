@@ -6,7 +6,8 @@ import { weightedPick, randomOf, uid } from './util.js';
 import { itemStats, overdue, itemById, isPlayedToday, isPlanItemPlayed, planEntry } from './practice.js';
 import { chooseExerciseKeys, keyFamiliarity } from './keystats.js';
 import { chooseTypes } from './theory.js';
-import { nextWarmups, altWarmup } from './warmups.js';
+import { nextWarmups, altWarmup, warmupOf, fitsTune } from './warmups.js';
+import { chartFor } from './charts.js';
 
 export function bucketOf(t) {
   if (t.type === 'exercise') return 'exercise';
@@ -246,6 +247,30 @@ export function addWarmups(t, n = 1) {
   orderPlan(plan);
   save();
   return warm.length;
+}
+
+// Try exercise x through a tune: adds the next tune to try it with to today's set (if it isn't
+// there), with x as a warm-up just before it. Suggested: one of today's tunes, else one whose chords
+// it fits, else one you know; not one it's already before today. Returns the tune, or null.
+export function tryWithTune(x) {
+  ensurePlan();
+  const plan = store.state.plan;
+  const stats = itemStats();
+  const has = (t) => plan.items.some((i) => i.itemId === x.id && i.warmup === t.id);
+  const tunes = store.state.items.filter((t) => t.type === 'tune' && !t.off && chartFor(t) && !has(t));
+  const today = tunes.filter((t) => todayItem(t) && !isPlanItemPlayed(todayItem(t)));
+  const fit = tunes.filter((t) => fitsTune(x, t));
+  const known = tunes.filter((t) => t.level >= 1);
+  const pool = fit.length ? fit : known.length ? known : tunes;
+  const t = today[0] || weightedPick(pool, (u) => weightFor(u, stats, bucketOf(u))) || randomOf(pool);
+  if (!t) return null;
+  if (!todayItem(t)) addToToday(t);
+  const item = warmupOf(t, x, { key: todayItem(t)?.key ?? null });
+  if (!item) return null;
+  plan.items.push(item);
+  orderPlan(plan);
+  save();
+  return t;
 }
 
 export function excludedIds() {

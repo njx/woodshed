@@ -166,6 +166,34 @@ test('an exercise can be focus, on, or off (left out of the pool) @narrow', asyn
   await ui.expectNoSideScroll();
 });
 
+test('try an exercise through a tune: it goes before the tune, with the tune’s chart and a bass @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  // Technical ones aren't for tunes.
+  await page.locator('#tune-list .row', { hasText: 'Long tones' }).click();
+  await expect(page.locator('#x-tunes')).not.toBeChecked();
+  await expect(page.locator('#x-try')).toHaveCount(0);
+  await ui.backdrop();
+  await page.locator('#tune-list .row', { hasText: 'Cross-arpeggios' }).click();
+  await expect(page.locator('#x-tunes')).toBeChecked();
+  await page.click('#x-try');
+  await expect(page.locator('#toast')).toContainText('with Cross-arpeggios before it');
+  const tune = (await page.locator('#toast').textContent()).match(/^Added (.+) to today’s set/)[1];
+  await ui.backdrop();
+  await ui.tab('today');
+  const card = page.locator('.card', { hasText: `for ${tune}` }).filter({ hasText: 'Cross-arpeggios' });
+  await expect(card).toHaveCount(1);
+  await card.locator('h2').click();
+  await expect(page.locator('.in-today')).toContainText(`as a warm-up for ${tune}`);
+  await expect(page.locator('#x-tune-chart .chart')).toBeVisible();
+  await expect(page.locator('#x-tune-chart #chart-edit')).toHaveCount(0);
+  await page.click('#x-tune-chart #chart-bass');
+  await expect(page.locator('#x-tune-chart .bar.now')).toHaveCount(1);
+  await page.click('#x-tune-chart #chart-bass');
+  await ui.expectNoSideScroll();
+});
+
 test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
   const fetched = [];
   page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });

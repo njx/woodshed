@@ -87,6 +87,15 @@ the notes).
 A written exercise's notation can be shown **Only as written, in C** (a box under it): the key strip
 goes, and you transpose into today's keys in your head.
 
+After the ones that fit come **through the form**: any exercise, in the tune's key, shown with the
+tune's chart (and **Bass**, a walking bass through it) under its notation. It isn't rewritten chord
+by chord: bend it to the changes as you go, or use it to take off from. Technical exercises (long
+tones, interval drills) can be kept out of all this: turn off **Use with tunes** in their details.
+
+The other way round, **Try it through a tune** in an exercise's details adds a tune to try it with,
+one per tap: one of today's tunes first, then tunes whose chords it fits, then ones you know. The
+tune goes into today's set if it isn't there, with the exercise just before it.
+
 Add as many as you like; **Swap** gives the next one in its place, and changing the tune's key
 moves them. The same exercise can come up before several tunes, each set to that tune and ticked
 off on its own.

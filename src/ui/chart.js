@@ -50,8 +50,9 @@ function progsHtml(chart, { shift, sharps }) {
 }
 
 // Fills `box` with the chart for tune `t`. back: reopens the tune's details after the editor.
-export function mountChart(box, t, { back } = {}) {
-  let key = null; // the concert key shown; null = today's / usual
+// compact: just the chart, its key and the bass (shown with an exercise taken through the tune).
+export function mountChart(box, t, { back, key: startKey = null, compact = false } = {}) {
+  let key = startKey; // the concert key shown; null = today's / usual
   // A walking bass through the chart (a mode of the metronome), round and round, at the tune's
   // tempo, in the key shown; the bar it's on lights up while the chart is showing.
   const owner = `chart:${t.id}`;
@@ -94,17 +95,17 @@ export function mountChart(box, t, { back } = {}) {
       const opts = { shift, sharps: usesSharps(written) };
       const keys = [...Array(12).keys()].map((r) => r + (minor ? 12 : 0));
       box.innerHTML = `
-        <div class="field-label row-label"><span>Chords</span><span class="row-links">
+        <div class="field-label row-label"><span>${compact ? `${esc(t.name)}’s chords` : 'Chords'}</span><span class="row-links">
           <select class="chart-key" id="chart-key" aria-label="Key">${keys.map((k) => `<option value="${k}" ${k === shown ? 'selected' : ''}>in ${esc(kn(k))}</option>`).join('')}</select>
-          <button class="link-btn" id="chart-edit">Edit</button></span></div>
+          ${compact ? '' : '<button class="link-btn" id="chart-edit">Edit</button>'}</span></div>
         <div class="chart">${chartHtml(chart, opts)}</div>
         ${progsHtml(chart, opts)}
         <div class="chart-foot">
           <span class="chart-btns">
-            <button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>
+            ${compact ? '' : `<button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>`}
             <button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="chart-bass">${bassMine() ? ICON.stop : ICON.play}Bass</button>
           </span>
-          <span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>
+          ${compact ? '' : `<span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>`}
         </div>`;
       $('#chart-key', box).onchange = (e) => {
         key = Number(e.target.value);
@@ -117,8 +118,8 @@ export function mountChart(box, t, { back } = {}) {
         draw();
       };
       if (bassMine()) follow();
-      $('#chart-edit', box).onclick = () => openChartEditor(t, { key: shown, back });
-      $('#chart-warmup', box).onclick = () => {
+      if (!compact) $('#chart-edit', box).onclick = () => openChartEditor(t, { key: shown, back });
+      if (!compact) $('#chart-warmup', box).onclick = () => {
         if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);
         render();
         toast(`Added a warm-up for ${t.name} to today’s set`);

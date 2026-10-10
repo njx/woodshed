@@ -32,7 +32,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -52,6 +52,7 @@ export function seedExercises(since = 0) {
     abc: x.abc,
     vary: x.vary ? { ...x.vary, types: [...x.vary.types] } : null,
     ...(x.fromTune ? { fromTune: true } : {}),
+    ...(x.solo ? { solo: true } : {}),
     meter: '4/4',
     notes: x.notes,
     priority: 3,
@@ -157,6 +158,11 @@ export function migrate(s) {
     const played = new Set((s.log || []).map((e) => e.pid).filter(Boolean));
     if (s.plan) s.plan.items = (s.plan.items || []).filter((it) => !it.warmup || played.has(it.pid));
     s.version = 10;
+  }
+  if (s.version < 11) {
+    // v11: exercises can be kept out of tunes (technical ones): the starting ones that are.
+    for (const t of s.items || []) if (t.type === 'exercise' && ['Long tones', 'Chromatic scale'].includes(t.name)) t.solo = true;
+    s.version = 11;
   }
   return normalize(s);
 }
