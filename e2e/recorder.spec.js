@@ -212,7 +212,9 @@ test('deleting the recording on a note you wrote keeps the note', async ({ page,
   await page.click('#n-record');
   await record(page, 800);
   await page.click('#rec-keep');
-  await ui.backdrop(); // the note reopens after; close it
+  await expect(page.locator('#n-text')).toBeVisible(); // the note reopens after (once the take is saved)
+  await ui.backdrop(); // close it
+  await expect(page.locator('#sheet-root.open')).toHaveCount(0);
   await ui.tab('diary');
   const note = page.locator('.note', { hasText: 'Bridge is rushing' });
   await expect(note.locator('.clip-pill')).toHaveCount(1);

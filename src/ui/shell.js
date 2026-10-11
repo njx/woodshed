@@ -131,7 +131,9 @@ export function bindTransposeToggle(root) {
 // ---------- Bottom sheet ----------
 
 let sheetClose = null;
+let sheetGen = 0; // which sheet is current (a closed one's cleanup mustn't clear the next)
 export function openSheet(html, onClose) {
+  sheetGen++;
   const root = $('#sheet-root');
   root.innerHTML = `
     <div class="sheet-backdrop"></div>
@@ -233,7 +235,10 @@ export function closeSheet() {
   if (sheet) sheet.style.transform = '';
   const cb = sheetClose;
   sheetClose = null;
-  setTimeout(() => { if (!root.classList.contains('open')) root.innerHTML = ''; }, 250);
+  // Cleared once it's slid away, unless another sheet has been opened since (even one still
+  // getting ready, like the recorder).
+  const gen = sheetGen;
+  setTimeout(() => { if (gen === sheetGen && !root.classList.contains('open')) root.innerHTML = ''; }, 250);
   cb?.();
 }
 
