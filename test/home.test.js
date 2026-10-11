@@ -34,3 +34,15 @@ describe('the notation editor: notes nearest the one before', async () => {
     expect(moveLastNote('"Cmaj7"', 1)).toBe(null); // no note
   });
 });
+
+describe('chord symbols as written by hand', async () => {
+  const { parseChord, chordFamily } = await import('../src/chords.js');
+  it('reads Δ, ^, M, -, ø, h and ° as maj, minor, half-diminished and diminished', () => {
+    const fam = (s) => chordFamily(parseChord(s).q);
+    expect(['CΔ7', 'C^7', 'CM7', 'CΔ', 'Cmaj7'].map(fam)).toEqual(Array(5).fill('maj7'));
+    expect(['D-7', 'Dm7', 'Dmin7'].map(fam)).toEqual(Array(3).fill('m7'));
+    expect(['Bø7', 'Bø', 'Bh7', 'Bm7b5', 'B-7b5'].map(fam)).toEqual(Array(5).fill('m7b5'));
+    expect(['B°7', 'Bo7', 'Bdim7'].map(fam)).toEqual(Array(3).fill('dim7'));
+    expect(fam('Cm(maj7)')).toBe('mMaj7');
+  });
+});

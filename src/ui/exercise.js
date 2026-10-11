@@ -11,7 +11,7 @@ import { mountChart } from './chart.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey, lastNote, nearestOctave, moveLastNote } from '../abc.js';
-import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords } from '../chords.js';
+import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords, parseChord } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
@@ -109,7 +109,7 @@ export function openExercise(id, opts = {}) {
       bass: { chords, owner: bassOwner, label: `${prog.name}` }, click: store.state.settings.bassClick,
     });
   };
-  // A written exercise can be shown only as written, in C, to transpose in your head.
+  // A written exercise can be shown only as written (in its own key), to transpose in your head.
   const asWritten = () => !!t.asWritten && !t.vary && !prog && !!t.abc;
   const writtenC = () => writtenToConcert(homeKey(t) % 12, view()); // (the key it's written in)
   let previewRoot = asWritten() ? writtenC() : todayKeys[0] ?? 0;
@@ -270,7 +270,7 @@ ${t.fromTune ? '' : `
   }
 
   // The chords a written exercise goes with (so it can be a warm-up over them in tunes): typed
-  // here, or else read from the chord symbols in its notation. Written in C, like the notes.
+  // here, or else read from the chord symbols in its notation. As written, like the notes.
   const guessed = () => chordChanges(chordsInAbc(t.abc)).map((c) => chordName(c)).join(' ');
   function harmonyHtml() {
     if (isNew || t.vary || t.fromTune) return '';
@@ -634,7 +634,11 @@ function noteIcon(d) {
   return `<svg viewBox="0 0 22 24" aria-hidden="true">${head}${stem}${flag}</svg>`;
 }
 
-// Edit an exercise's notation (written in C) with a tap keypad or by typing ABC.
+// Edit an exercise's notation (written in its own key: Written in) with a tap keypad or by typing ABC.
+// Chord types to tap in the editor: [as written in the notation, label].
+const CHORD_QUALITIES = [['maj7', 'Δ7'], ['6', '6'], ['m7', 'm7'], ['m6', 'm6'], ['7', '7'], ['7b9', '7♭9'],
+  ['7#9', '7♯9'], ['7alt', '7alt'], ['7sus', '7sus'], ['m7b5', 'ø7'], ['dim7', '°7'], ['m(maj7)', 'mΔ7']];
+
 export function openNotationEditor(t, back) {
   let body = t.abc || '';
   let meter = t.meter || '4/4';
@@ -643,6 +647,7 @@ export function openNotationEditor(t, back) {
   let accidental = '';
   let typing = false;
   let stopFn = null;
+  let chord = { open: false, root: '', acc: '' }; // a chord symbol being picked
   const original = { abc: t.abc || '', meter: t.meter || '4/4', home: t.home };
   let tune = null;
 
@@ -678,13 +683,22 @@ export function openNotationEditor(t, back) {
         <button data-move="1" aria-label="Next note">▶</button>
         <button data-back aria-label="Delete">⌫</button>
       </div>
+      <div class="kp-chord" id="ne-chord" hidden>
+        <div class="kp-row notes">${['C', 'D', 'E', 'F', 'G', 'A', 'B'].map((n) => `<button data-croot="${n}">${n}</button>`).join('')}</div>
+        <div class="kp-row chord-mods">
+          <button data-cacc="b" aria-label="Flat root">♭</button><button data-cacc="#" aria-label="Sharp root">♯</button>
+          <span class="oct" id="ne-chord-root">Root?</span>
+          <button data-cother>Type…</button><button data-cclose aria-label="Close chords">✕</button>
+        </div>
+        <div class="kp-row qualities">${CHORD_QUALITIES.map(([q, label]) => `<button data-cq="${q}">${label}</button>`).join('')}</div>
+      </div>
     </div>
     <div class="ne-opts">
       <label>Time <select id="ne-meter">${METERS.map((m) => `<option ${m === meter ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
       <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
       ${playbackOptionsHtml()}
     </div>
-    <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, each note goes in the octave nearest the one before it; <b>↑8</b> <b>↓8</b> move the note before the cursor (lowercase = octave up, <code>'</code> and <code>,</code> another octave). <b>Chord</b> adds a chord symbol over the next note (<code>"Dm7"</code>).</p>
+    <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, each note goes in the octave nearest the one before it; <b>↑8</b> <b>↓8</b> move the note before the cursor (lowercase = octave up, <code>'</code> and <code>,</code> another octave). <b>Chord</b> adds a chord symbol over the next note: tap its root, then its type (<code>"Dm7"</code>; ø7 is <code>m7b5</code>).</p>
     <button class="primary-btn" id="ne-save">Done</button>
     <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
   `, () => {
@@ -714,6 +728,11 @@ export function openNotationEditor(t, back) {
     $$('[data-dur]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.dur === duration));
     $('[data-dot]', sheet).classList.toggle('on', dotted);
     $$('[data-acc]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.acc === accidental));
+    $('#ne-chord', sheet).hidden = !chord.open;
+    $('[data-chord]', sheet).classList.toggle('on', chord.open);
+    $$('[data-croot]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.croot === chord.root));
+    $$('[data-cacc]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.cacc === chord.acc));
+    $('#ne-chord-root', sheet).textContent = chord.root ? `${chord.root}${chord.acc.replace('b', '♭').replace('#', '♯')}…` : 'Root?';
     // The note before the cursor (the next one goes nearest it; ↑8 ↓8 move it).
     const n = lastNote(body.slice(0, area.selectionStart ?? body.length));
     $('#ne-oct', sheet).textContent = n ? `${n.letter}${n.octave}` : '';
@@ -793,10 +812,21 @@ export function openNotationEditor(t, back) {
     else if (b.dataset.ins) insert(b.dataset.ins);
     else if (b.hasAttribute('data-back')) backspace();
     else if (b.dataset.move) step(Number(b.dataset.move));
-    else if (b.hasAttribute('data-chord')) {
-      // Over the next note; written in C like the notes, and transposed with them.
-      const sym = (prompt('Chord symbol, as written in C (like Dm7, G7, Cmaj7):') || '').replace(/["\s]/g, '');
+    // Chord symbols (over the next note; as written, like the notes, and transposed with them):
+    // tap a root (♭ ♯), then its type — or type one.
+    else if (b.hasAttribute('data-chord') || b.hasAttribute('data-cclose')) {
+      chord = { open: b.hasAttribute('data-chord') && !chord.open, root: '', acc: '' };
+    } else if (b.dataset.croot) chord.root = b.dataset.croot;
+    else if (b.dataset.cacc) chord.acc = chord.acc === b.dataset.cacc ? '' : b.dataset.cacc;
+    else if (b.dataset.cq != null) {
+      if (!chord.root) return toast('Tap the chord’s root first');
+      insert(`"${chord.root}${chord.acc}${b.dataset.cq}"`);
+      chord = { open: false, root: '', acc: '' };
+    } else if (b.hasAttribute('data-cother')) {
+      const sym = (prompt('Chord symbol, as written (like Dm7, G7, Bø7, Cmaj7):') || '').replace(/["\s]/g, '');
+      if (sym && !parseChord(sym)) return toast(`“${sym}” isn’t a chord symbol I can read`);
       if (sym) insert(`"${sym}"`);
+      chord = { open: false, root: '', acc: '' };
     }
     showMods();
   };

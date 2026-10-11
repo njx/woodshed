@@ -186,8 +186,10 @@ held upright the page is turned for you; turn the phone to read it), with Play. 
 they go with (dorian → m7, half–whole diminished → 7♭9, altered → 7alt…), the *Through the
 changes* warm-ups each bar's chord; so do the starter exercises' written notation (the ii–V–I
 pattern's Dm7 · G7 · Cmaj7). In the
-notation editor, ◀ ▶ step the cursor a note at a time, and **Chord** adds a chord symbol (written
-in C like the notes, transposed with them). Notation plays through the iPhone's silent switch.
+notation editor, ◀ ▶ step the cursor a note at a time, and **Chord** adds a chord symbol over the
+next note: tap its root (♭ ♯), then its type — Δ7, 6, m7, m6, 7, 7♭9, 7♯9, 7alt, 7sus, ø7, °7, mΔ7 —
+or **Type…** one (Δ or ^ for maj, - for minor, ø or h for half-diminished, which is m7♭5, ° for
+diminished). It's as written, like the notes, and transposed with them. Notation plays through the iPhone's silent switch.
 
 **Today's instance can be changed**, before or after you've played it (what you logged changes
 too): an exercise's details opened from today's set have **Today's keys** — tap keys to add or

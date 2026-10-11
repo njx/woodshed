@@ -15,7 +15,7 @@ import { kvGet, kvSet, kvFallback } from './db.js';
 //             tune:     { seedName?, style, keys [concert key, 0–23], mine, recordings?, chart?,
 //                         chartEdited? } (chart: chord chart, see chords.js and charts.js)
 //             exercise: { category, keyMode, keysPerSession, keys [roots 0–11, for 'fixed'],
-//                         abc (notation written in C), meter,
+//                         abc (notation, written in `home` — C if unset), meter,
 //                         vary: null | { kind 'scale'|'chord', types [ids], shape, pattern },
 //                         fromTune? (its chords come from a tune: only a warm-up) }
 //             all items may have tempo (working BPM), goalTempo, tempoSetAt (see tempo.js)

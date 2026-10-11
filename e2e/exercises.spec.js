@@ -330,12 +330,26 @@ test('notation editor: arrows step through notes; Chord adds a symbol over the n
   expect(await caret()).toBe(7); // after B
   await page.click('#ne-pad [data-move="-1"]');
   expect(await caret()).toBe(5);
-  page.once('dialog', (d) => d.accept('G7'));
+  // A chord symbol: its root, then its type.
   await page.click('#ne-pad [data-chord]');
+  await expect(page.locator('#ne-chord')).toBeVisible();
+  await page.click('#ne-pad [data-croot="G"]');
+  await page.click('#ne-pad [data-cq="7"]');
+  await expect(page.locator('#ne-chord')).toBeHidden();
   await expect(area).toHaveValue('"C7"c"G7" B _B A G F E D | C8 |');
   await expect(page.locator('#ne-preview .abcjs-chord')).toHaveText(['C7', 'G7']);
   await page.click('#ne-pad [data-back]'); // the symbol goes in one go
   await expect(area).toHaveValue('"C7"c B _B A G F E D | C8 |');
+  // B♭ half-diminished; and one typed (Δ for maj).
+  await page.click('#ne-pad [data-chord]');
+  await page.click('#ne-pad [data-croot="B"]');
+  await page.click('#ne-pad [data-cacc="b"]');
+  await page.click('#ne-pad [data-cq="m7b5"]');
+  await expect(area).toHaveValue('"C7"c"Bbm7b5" B _B A G F E D | C8 |');
+  page.once('dialog', (d) => d.accept('EbΔ7'));
+  await page.click('#ne-pad [data-chord]');
+  await page.click('#ne-pad [data-cother]');
+  await expect(area).toHaveValue('"C7"c"Bbm7b5""EbΔ7" B _B A G F E D | C8 |');
 });
 
 test('notation full screen, turned sideways on a phone held upright, plays, and closes @narrow', async ({ page, ui }) => {

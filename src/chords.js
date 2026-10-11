@@ -23,7 +23,9 @@ function noteNum(s) {
 export function parseChord(s) {
   const m = /^([A-G][b#♭♯]?)([^/]*)(?:\/([A-G][b#♭♯]?))?$/.exec(String(s).trim());
   if (!m) return null;
-  const q = m[2].replace(/♭/g, 'b').replace(/♯/g, '#').replace(/^(maj|Δ|\^)$/, 'maj7').replace(/^-/, 'm').replace(/^ø7?$/, 'm7b5').replace(/^[°o]7$/, '07').replace(/^[°o]$/, '0');
+  // As written in charts and by hand: Δ or ^ (maj), M7, - (minor), ø or h (half-diminished), ° or o.
+  const q = m[2].replace(/♭/g, 'b').replace(/♯/g, '#').replace(/^(maj|Δ|\^)$/, 'maj7').replace(/^(Δ|\^|M)(?=\d)/, 'maj').replace(/^-/, 'm')
+    .replace(/^[øØh]7?$/, 'm7b5').replace(/^[øØh](?=\d)/, 'm7b5').replace(/^[°o]7$/, '07').replace(/^[°o]$/, '0').replace(/Δ/g, 'maj');
   if (!/^[\w#()+/]*$/.test(q)) return null;
   return { root: noteNum(m[1]), q, ...(m[3] ? { bass: noteNum(m[3]) } : {}) };
 }
