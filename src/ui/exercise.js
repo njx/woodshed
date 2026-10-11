@@ -5,9 +5,10 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, tryWithTune, todayItem } from '../plan.js';
+import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { mountChart } from './chart.js';
+import { pickTune } from './pickers.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey, lastNote, nearestOctave, moveLastNote } from '../abc.js';
@@ -566,12 +567,7 @@ ${t.fromTune ? '' : `
       commit();
     };
     const tryBtn = $('#x-try', sheet);
-    if (tryBtn) tryBtn.onclick = () => {
-      const tune = tryWithTune(t);
-      if (!tune) return toast('No tune with a chart to try it with');
-      toast(`Added ${tune.name} to today’s set, with ${t.name} before it`);
-      render();
-    };
+    if (tryBtn) tryBtn.onclick = () => goTo(() => pickTune(t, { back }));
     const useTunes = $('#x-tunes', sheet);
     if (useTunes) useTunes.onchange = () => {
       if (useTunes.checked) delete t.solo;

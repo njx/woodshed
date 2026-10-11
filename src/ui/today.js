@@ -6,7 +6,7 @@ import {
   itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel, tempoSource,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, addWarmups, pickFocus } from '../plan.js';
+import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
   levelLabel, bindTransposeToggle, suggestionHtml,
@@ -14,6 +14,7 @@ import {
 import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
+import { pickWarmup } from './pickers.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText, rootName, takeLabel } from './exercise.js';
 import { entriesFor } from '../diary.js';
@@ -224,10 +225,7 @@ function bindCard(card) {
   const warmBtn = $('[data-add-warm]', card);
   if (warmBtn) warmBtn.onclick = (e) => {
     e.stopPropagation();
-    const t = itemById(item.itemId);
-    if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);
-    render();
-    toast(`Added a warm-up for ${t.name}`);
+    pickWarmup(itemById(item.itemId));
   };
   const noteBtn = $('.note-chip', card);
   if (noteBtn) noteBtn.onclick = (e) => {

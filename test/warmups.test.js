@@ -435,3 +435,16 @@ describe('a lick written in its own key', () => {
     }
   });
 });
+
+describe('swapping a warm-up', () => {
+  it('goes to another exercise first, not Through the changes on its next progression', () => {
+    buildPlan(true);
+    const t = byName('Autumn Leaves');
+    addWarmups(t, 3);
+    const plan = store.state.plan;
+    const through = byName('Through the changes');
+    const i = plan.items.findIndex((x) => x.warmup === t.id && x.itemId === through.id);
+    expect(swapWarmup(i)).toBe(true);
+    expect(plan.items[i].itemId).not.toBe(through.id);
+  });
+});

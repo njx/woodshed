@@ -52,6 +52,7 @@ test('a short swipe left shows Swap and Remove on every card; a long one removes
 
   // A warm-up: swap it for another, or remove it.
   await page.locator('[data-add-warm]').first().click();
+  await page.locator('.pick-list [data-pick]').first().click();
   const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
   const forTune = await warm.locator('.style').textContent();
   const was = `${await warm.locator('h2').textContent()}|${await warm.locator('.keychip').textContent()}`;

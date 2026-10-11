@@ -182,6 +182,11 @@ test('try an exercise through a tune: it goes before the tune, with the tune’s
   await page.locator('#tune-list .row', { hasText: 'Cross-arpeggios' }).click();
   await expect(page.locator('#x-tunes')).toBeChecked();
   await page.click('#x-try');
+  // Pick the tune: today's first, or search.
+  await expect(page.locator('.sheet .section-label').first()).toHaveText('In today’s set');
+  await page.fill('#pick-q', 'blue bossa');
+  await expect(page.locator('.pick-list [data-pick]:visible')).toHaveCount(1);
+  await page.locator('.pick-list [data-pick]:visible').click();
   await expect(page.locator('#toast')).toContainText('with Cross-arpeggios before it');
   const tune = (await page.locator('#toast').textContent()).match(/^Added (.+) to today’s set/)[1];
   await ui.backdrop();
@@ -388,6 +393,7 @@ test('add a tune to today’s set from its details', async ({ page, ui }) => {
 test('a warm-up opened from today says what it’s for, and has full screen', async ({ page, ui }) => {
   await ui.start();
   await page.locator('[data-add-warm]').first().click();
+  await page.locator('.pick-list [data-pick]').first().click();
   const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
   const forTune = (await warm.locator('.style').textContent()).replace(/^for /, '');
   await warm.locator('h2').click();

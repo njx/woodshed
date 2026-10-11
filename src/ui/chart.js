@@ -7,7 +7,7 @@ import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
 import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
 import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
-import { addWarmups } from '../plan.js';
+import { pickWarmup } from './pickers.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
 
 // The chord chart in a tune's details: shown in the key it's played in today (or its usual
@@ -160,11 +160,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
       };
       if (bassMine()) follow();
       if (!compact) $('#chart-edit', box).onclick = () => openChartEditor(t, { key: shown, back });
-      if (!compact) $('#chart-warmup', box).onclick = () => {
-        if (!addWarmups(t)) return toast(`No more warm-ups for ${t.name}`);
-        render();
-        toast(`Added a warm-up for ${t.name} to today’s set`);
-      };
+      if (!compact) $('#chart-warmup', box).onclick = () => pickWarmup(t, { back }); // (in place of this sheet; back reopens it)
     }
     const add = $('#chart-add', box);
     if (add) add.onclick = () => openChartEditor(t, { key: todaysKey(t) ?? 0, back });

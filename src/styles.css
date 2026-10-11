@@ -1128,3 +1128,7 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .kp-row.chord-mods { grid-template-columns: 1fr 1fr 1.6fr 1.4fr 1fr; align-items: center; }
 .kp-row.qualities { grid-template-columns: repeat(4, 1fr); }
 .kp-row.qualities button { font-size: 15px; }
+
+/* Pickers: a warm-up for a tune, a tune for an exercise. */
+.pick-search { width: 100%; font-size: 16px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin: 4px 0 6px; }
+.pick-list .row { cursor: pointer; }

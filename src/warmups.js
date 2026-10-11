@@ -189,9 +189,22 @@ export function altWarmup(t, it, { key = null, have = [] } = {}) {
   const { setup, changes } = candidates(t, { key });
   const list = it.slot === 'setup' || it.types || (!it.prog && !it.over && !it.form) ? setup.map((c) => c.item) : changes;
   const at = list.findIndex((x) => same(x, it));
-  for (let i = 1; i <= list.length; i++) {
-    const next = list[(at + i) % list.length];
-    if (!same(next, it) && !have.some((h) => same(h, next))) return { ...next, slot: it.slot };
-  }
-  return null;
+  const free = (x) => !same(x, it) && !have.some((h) => same(h, x));
+  const after = list.slice(at + 1).concat(list.slice(0, at + 1));
+  // Another exercise first (not just Through the changes on its next progression), then any.
+  const next = after.find((x) => free(x) && x.itemId !== it.itemId) || after.find(free);
+  return next ? { ...next, slot: it.slot } : null;
+}
+
+// Every warm-up that could go before tune t, to pick from, best first in each group, none it
+// already has: over its changes (licks and patterns that fit, Through the changes), on its chords
+// (arpeggios, scales, one-chord ones), and through the form (any other exercise).
+export function warmupChoices(t, { key = null, have = [] } = {}) {
+  const { setup, changes } = candidates(t, { key });
+  const keep = (slot) => (x) => (have.some((h) => same(h, x)) ? null : { ...x, slot });
+  return {
+    changes: changes.filter((x) => !x.form).map(keep('changes')).filter(Boolean),
+    chords: setup.map((c) => c.item).map(keep('setup')).filter(Boolean),
+    form: changes.filter((x) => x.form).map(keep('changes')).filter(Boolean),
+  };
 }

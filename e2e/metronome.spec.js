@@ -88,6 +88,7 @@ test('started from a card, the metronome can be stopped from the Today circle', 
 test('a warm-up’s tempo is its tune’s', async ({ page, ui }) => {
   await ui.start();
   await page.locator('[data-add-warm]').first().click();
+  await page.locator('.pick-list [data-pick]').first().click();
   const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
   const tuneName = (await warm.locator('.style').textContent()).replace(/^for /, '');
   await warm.locator('.tempo-chip').click();

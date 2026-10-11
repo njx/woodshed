@@ -70,7 +70,11 @@ test('warm up for a tune from its chart, or with + Warm-up on its card', async (
   await openTune(page, ui, 'Autumn Leaves');
   await expect(page.locator('.chart')).toBeVisible();
   await page.click('#chart-warmup');
-  await expect(page.locator('#toast')).toContainText('warm-up for Autumn Leaves');
+  // A list to pick from: over its changes, on its chords, through the form.
+  await expect(page.locator('.sheet .section-label')).toHaveText(['Over its changes', 'On its chords', 'Through the form — bend it to the changes']);
+  await expect(page.locator('.pick-list [data-pick]').first()).toContainText('Over ii–V7–I in B♭');
+  await page.locator('.pick-list [data-pick]').first().click();
+  await expect(page.locator('#toast')).toContainText('before Autumn Leaves');
   await ui.backdrop();
   await ui.tab('today');
   const warm = page.locator('.card', { hasText: 'for Autumn Leaves' });
@@ -83,8 +87,10 @@ test('warm up for a tune from its chart, or with + Warm-up on its card', async (
   await expect(page.locator('.sheet .fine', { hasText: 'Today:' })).toContainText('over ii–V7–I in B♭');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await ui.backdrop();
-  // + Warm-up on the tune's card adds the next: arpeggios on its chords, just before the tune.
+  // + Warm-up on the tune's card: arpeggios on its chords, just before the tune.
   await page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) }).locator('[data-add-warm]').click();
+  await expect(page.locator('.pick-list [data-pick]', { hasText: 'ii–V–I, 1-2-3-5' }).filter({ hasText: /Over ii–V7–I in B♭$/ })).toHaveCount(0); // (it has that one)
+  await page.locator('.pick-list [data-pick]', { hasText: 'Seventh-chord arpeggios' }).first().click(); // (on its chords; it's also there through the form)
   await expect(warm).toHaveCount(2);
   await expect(warm.nth(1).locator('h2')).toHaveText('Seventh-chord arpeggios');
   await expect(warm.nth(1).locator('.keychip')).toContainText(/m6|m7|ø7|7/);
@@ -94,6 +100,7 @@ test('warm up for a tune from its chart, or with + Warm-up on its card', async (
   await ui.backdrop();
   // A third: through its changes, with a walking bass to play against.
   await page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) }).locator('[data-add-warm]').click();
+  await page.locator('.pick-list [data-pick]', { hasText: 'Through the changes' }).first().click();
   const changes = warm.filter({ hasText: 'Through the changes' });
   await changes.locator('h2').click();
   await page.click('#x-bass');

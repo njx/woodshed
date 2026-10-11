@@ -262,7 +262,8 @@ export function addWarmups(t, n = 1) {
 // Try exercise x through a tune: adds the next tune to try it with to today's set (if it isn't
 // there), with x as a warm-up just before it. Suggested: one of today's tunes, else one whose chords
 // it fits, else one you know; not one it's already before today. Returns the tune, or null.
-export function tryWithTune(x) {
+// tune: the one to try it with (picked), or null to have one suggested.
+export function tryWithTune(x, tune = null) {
   ensurePlan();
   const plan = store.state.plan;
   const stats = itemStats();
@@ -272,7 +273,7 @@ export function tryWithTune(x) {
   const fit = tunes.filter((t) => fitsTune(x, t));
   const known = tunes.filter((t) => t.level >= 1);
   const pool = fit.length ? fit : known.length ? known : tunes;
-  const t = today[0] || weightedPick(pool, (u) => weightFor(u, stats, bucketOf(u))) || randomOf(pool);
+  const t = tune || today[0] || weightedPick(pool, (u) => weightFor(u, stats, bucketOf(u))) || randomOf(pool);
   if (!t) return null;
   if (!todayItem(t)) addToToday(t);
   const item = warmupOf(t, x, { key: todayItem(t)?.key ?? null });
@@ -281,6 +282,28 @@ export function tryWithTune(x) {
   orderPlan(plan);
   save();
   return t;
+}
+
+// Tunes to try exercise x with, best first: today's, then ones whose chords it fits, then ones you
+// know, then the rest (each by name); none it's already before today.
+export function tunesToTry(x) {
+  const plan = store.state.plan;
+  const has = (t) => plan?.items.some((i) => i.itemId === x.id && i.warmup === t.id);
+  const tunes = store.state.items.filter((t) => t.type === 'tune' && !t.off && chartFor(t) && !has(t)).sort((a, b) => a.name.localeCompare(b.name));
+  const today = tunes.filter((t) => todayItem(t));
+  const fit = tunes.filter((t) => !todayItem(t) && fitsTune(x, t));
+  const rest = tunes.filter((t) => !todayItem(t) && !fit.includes(t));
+  return { today, fit, known: rest.filter((t) => t.level >= 1), other: rest.filter((t) => !(t.level >= 1)) };
+}
+
+// Puts warm-up `item` (from warmupChoices) before tune t in today's set (adding the tune if need be).
+export function addWarmup(t, item) {
+  ensurePlan();
+  const plan = store.state.plan;
+  if (!todayItem(t)) addToToday(t);
+  plan.items.push({ ...item, pid: uid() });
+  orderPlan(plan);
+  save();
 }
 
 export function excludedIds() {
