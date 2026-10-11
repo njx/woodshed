@@ -135,8 +135,9 @@ it's used and then kept for offline use), or a synth that needs no download. It 
 lightly swung, or swung (2:1); 6/8 is never swung.
 
 The notation editor has a tap keypad: pick a note length (whole to sixteenth, dotted, triplet),
-an accidental (applies to the next note) and an octave (stays until you change it), then tap note
-names. Under the hood it's [ABC notation](https://abcnotation.com) with an eighth note as the unit:
+an accidental (applies to the next note), then tap note names. Each note goes in the octave nearest
+the one before it (C after B goes up; B after C goes down); **↑8** and **↓8** move the note before
+the cursor an octave, and the next notes follow on from it. Under the hood it's [ABC notation](https://abcnotation.com) with an eighth note as the unit:
 `C` eighth, `C2` quarter, `C3` dotted quarter, `C4` half, `C8` whole, `C/` sixteenth, `(3CDE`
 triplet, `z2` quarter rest, `C2-C2` tie, `|` bar line; `^` sharp, `_` flat, `=` natural; lowercase
 is the octave up and `,` / `'` go further down / up. Tap ⌨ to type ABC directly.

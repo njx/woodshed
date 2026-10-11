@@ -17,3 +17,20 @@ describe('a lick written in its own key', () => {
     expect(homeShift(0, 0)).toBe(0);
   });
 });
+
+describe('the notation editor: notes nearest the one before', async () => {
+  const { lastNote, nearestOctave, moveLastNote } = await import('../src/abc.js');
+  it('puts a note in the octave nearest the last one', () => {
+    expect(nearestOctave('C', lastNote('A B'))).toBe(5); // B up to C
+    expect(nearestOctave('B', lastNote('c'))).toBe(4); // C down to B
+    expect(nearestOctave('G', lastNote('"Dm7"d2 ^f'))).toBe(5);
+    expect(nearestOctave('E', null)).toBe(4);
+    expect(nearestOctave('F', lastNote("b'"))).toBe(6);
+  });
+  it('moves the last note up or down an octave', () => {
+    expect(moveLastNote('C D E2', 1)).toEqual({ text: 'C D e2', delta: 0, octave: 5 });
+    expect(moveLastNote('^c', 1).text).toBe("^c'");
+    expect(moveLastNote('C', -1).text).toBe('C,');
+    expect(moveLastNote('"Cmaj7"', 1)).toBe(null); // no note
+  });
+});

@@ -35,13 +35,17 @@ test('write a new exercise with the keypad', async ({ page, ui }) => {
   const tap = (sel) => page.click(`#ne-pad ${sel}`);
   await tap('[data-dur="quarter"]'); await tap('[data-note="G"]');
   await tap('[data-dur="eighth"]'); await tap('[data-acc="_"]'); await tap('[data-note="B"]'); await tap('[data-note="A"]');
-  await tap('[data-oct="1"]'); await tap('[data-note="C"]');
+  await tap('[data-note="C"]'); // up from A: the nearest C
   await tap('[data-ins=" | "]');
-  await tap('[data-oct="-1"]'); await tap('[data-dur="half"]'); await tap('[data-dot]'); await tap('[data-note="G"]');
+  await tap('[data-dur="half"]'); await tap('[data-dot]'); await tap('[data-note="G"]'); // down from C
   await tap('[data-dur="quarter"]'); await tap('[data-rest]');
   await tap('[data-back]'); await tap('[data-rest]');
   // Quarter G, eighths B♭ A and high C; dotted half G, quarter rest (lengths in eighths).
   await expect(page.locator('#ne-abc')).toHaveValue('G2_BAc | G6z2');
+  await expect(page.locator('#ne-oct')).toHaveText('G4'); // the last note
+  await tap('[data-oct="1"]'); // moved up an octave
+  await expect(page.locator('#ne-abc')).toHaveValue('G2_BAc | g6z2');
+  await tap('[data-oct="-1"]');
   await expect(page.locator('#ne-preview svg').first()).toBeVisible();
   await page.click('#ne-save');
   // Back on the exercise, with its notation, saved with its two fixed keys.
@@ -277,7 +281,7 @@ test('notation saves as you write it; Undo changes puts it back', async ({ page,
   // An edit, then closing without anything else: kept.
   await page.click('#ne-pad [data-note="A"]');
   await ui.backdrop();
-  await expect.poll(abc).toMatch(/A$/);
+  await expect.poll(abc).toMatch(/A,$/); // the A nearest the C before it
 });
 
 test('add an exercise or tune to today’s set from its details', async ({ page, ui }) => {

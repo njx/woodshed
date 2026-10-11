@@ -10,7 +10,7 @@ import { chartFor } from '../charts.js';
 import { mountChart } from './chart.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
-import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey } from '../abc.js';
+import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey, lastNote, nearestOctave, moveLastNote } from '../abc.js';
 import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
@@ -641,7 +641,6 @@ export function openNotationEditor(t, back) {
   let duration = 'eighth';
   let dotted = false;
   let accidental = '';
-  let octave = 4;
   let typing = false;
   let stopFn = null;
   const original = { abc: t.abc || '', meter: t.meter || '4/4', home: t.home };
@@ -664,9 +663,9 @@ export function openNotationEditor(t, back) {
         <button data-acc="^" aria-label="Sharp">♯</button>
         <button data-acc="_" aria-label="Flat">♭</button>
         <button data-acc="=" aria-label="Natural">♮</button>
-        <button data-oct="-1" aria-label="Octave down">8vb</button>
+        <button data-oct="-1" aria-label="Last note down an octave">↓8</button>
         <span class="oct" id="ne-oct"></span>
-        <button data-oct="1" aria-label="Octave up">8va</button>
+        <button data-oct="1" aria-label="Last note up an octave">↑8</button>
         <button data-chord aria-label="Chord symbol">Chord</button>
       </div>
       <div class="kp-row notes">${['C', 'D', 'E', 'F', 'G', 'A', 'B'].map((n) => `<button data-note="${n}">${n}</button>`).join('')}</div>
@@ -685,7 +684,7 @@ export function openNotationEditor(t, back) {
       <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
       ${playbackOptionsHtml()}
     </div>
-    <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up. <b>Chord</b> adds a chord symbol over the next note (<code>"Dm7"</code>).</p>
+    <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, each note goes in the octave nearest the one before it; <b>↑8</b> <b>↓8</b> move the note before the cursor (lowercase = octave up, <code>'</code> and <code>,</code> another octave). <b>Chord</b> adds a chord symbol over the next note (<code>"Dm7"</code>).</p>
     <button class="primary-btn" id="ne-save">Done</button>
     <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
   `, () => {
@@ -715,7 +714,9 @@ export function openNotationEditor(t, back) {
     $$('[data-dur]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.dur === duration));
     $('[data-dot]', sheet).classList.toggle('on', dotted);
     $$('[data-acc]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.acc === accidental));
-    $('#ne-oct', sheet).textContent = `C${octave}–B${octave}`;
+    // The note before the cursor (the next one goes nearest it; ↑8 ↓8 move it).
+    const n = lastNote(body.slice(0, area.selectionStart ?? body.length));
+    $('#ne-oct', sheet).textContent = n ? `${n.letter}${n.octave}` : '';
   };
 
   // Insert at the cursor, or at the end.
@@ -726,6 +727,16 @@ export function openNotationEditor(t, back) {
     area.value = body;
     const pos = start + text.length;
     area.setSelectionRange(pos, pos);
+    draw();
+  };
+  // Move the note before the cursor up or down an octave.
+  const moveLast = (d) => {
+    const pos = area.selectionStart ?? body.length;
+    const r = moveLastNote(body.slice(0, pos), d);
+    if (!r) return;
+    body = r.text + body.slice(pos);
+    area.value = body;
+    area.setSelectionRange(pos + r.delta, pos + r.delta);
     draw();
   };
   // Remove the token before the cursor (a note with its accidental and length, a bar, a space…).
@@ -770,8 +781,10 @@ export function openNotationEditor(t, back) {
     else if (b.hasAttribute('data-dot')) dotted = !dotted;
     else if (b.hasAttribute('data-trip')) insert('(3');
     else if (b.dataset.acc != null) accidental = accidental === b.dataset.acc ? '' : b.dataset.acc;
-    else if (b.dataset.oct) octave = Math.max(2, Math.min(6, octave + Number(b.dataset.oct)));
+    else if (b.dataset.oct) moveLast(Number(b.dataset.oct));
     else if (b.dataset.note) {
+      // In the octave nearest the note before it (move it after with ↑8 ↓8).
+      const octave = nearestOctave(b.dataset.note, lastNote(body.slice(0, area.selectionStart ?? body.length)));
       insert(noteToken({ letter: b.dataset.note, accidental, octave, duration, dotted }));
       accidental = ''; // accidentals apply to one note
       haptic();
@@ -790,7 +803,8 @@ export function openNotationEditor(t, back) {
   // Keep the keypad from stealing the cursor position.
   $('#ne-pad', sheet).onpointerdown = (e) => e.preventDefault();
 
-  area.oninput = () => { body = area.value; draw(); };
+  area.oninput = () => { body = area.value; draw(); showMods(); };
+  area.onclick = showMods; // (the note before the cursor)
   $('#ne-type', sheet).onclick = () => {
     typing = !typing;
     area.setAttribute('inputmode', typing ? 'text' : 'none');

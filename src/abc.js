@@ -31,10 +31,48 @@ export function unitsFor(duration, dotted = false) {
 // One note: letter A–G, accidental '' | '^' (sharp) | '_' (flat) | '=' (natural),
 // octave 4 = the octave from middle C up.
 export function noteToken({ letter, accidental = '', octave = 4, duration = 'eighth', dotted = false }) {
+  return `${accidental}${noteName(letter, octave)}${lengthSuffix(unitsFor(duration, dotted))}`;
+}
+
+// ---------- Notes near the one before ----------
+const LETTERS = 'CDEFGAB';
+const noteName = (letter, octave) => {
   let name = octave >= 5 ? letter.toLowerCase() : letter.toUpperCase();
   if (octave > 5) name += "'".repeat(octave - 5);
   if (octave < 4) name += ','.repeat(4 - octave);
-  return `${accidental}${name}${lengthSuffix(unitsFor(duration, dotted))}`;
+  return name;
+};
+const octaveOf = (letter, marks) => (letter === letter.toLowerCase() ? 5 + (marks.match(/'/g) || []).length : 4 - (marks.match(/,/g) || []).length);
+
+// The last note in `text` (e.g. the notation before the cursor), skipping chord symbols and
+// decorations: { index, length (of the letter and octave marks), letter, octave }, or null.
+export function lastNote(text) {
+  const plain = String(text).replace(/"[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\]/g, (m) => ' '.repeat(m.length));
+  let found = null;
+  for (const m of plain.matchAll(/([A-Ga-g])([,']*)/g)) found = m;
+  if (!found) return null;
+  return { index: found.index, length: found[0].length, letter: found[1].toUpperCase(), octave: octaveOf(found[1], found[2]) };
+}
+
+// The octave for `letter` that puts it nearest the note before (`prev`, from lastNote): C after B
+// goes up, B after C goes down. Without one, octave 4.
+export function nearestOctave(letter, prev) {
+  if (!prev) return 4;
+  const from = prev.octave * 7 + LETTERS.indexOf(prev.letter);
+  let best = 4;
+  for (let o = 2; o <= 6; o++) if (Math.abs(o * 7 + LETTERS.indexOf(letter) - from) < Math.abs(best * 7 + LETTERS.indexOf(letter) - from)) best = o;
+  return best;
+}
+
+// `text` with its last note moved an octave up (d = 1) or down (-1), if there's room; and how
+// many characters longer it got. (For moving the note before the cursor.)
+export function moveLastNote(text, d) {
+  const n = lastNote(text);
+  if (!n) return null;
+  const octave = Math.max(2, Math.min(6, n.octave + d));
+  if (octave === n.octave) return null;
+  const name = noteName(n.letter, octave);
+  return { text: text.slice(0, n.index) + name + text.slice(n.index + n.length), delta: name.length - n.length, octave };
 }
 
 export function restToken(duration = 'eighth', dotted = false) {
