@@ -314,15 +314,18 @@ export function buildPlan(keepPlayed = false) {
   save();
 }
 
-// Focus on or off (in today's set straight away, or out of it if not played).
+// Focus on or off. Turned on, it's in today's set straight away (whatever the daily number).
 export function setFocus(t, on) {
   t.focus = !!on;
   if (store.state.plan?.date !== dateStr()) return;
-  if (t.focus) store.state.plan.focusSkipped = (store.state.plan.focusSkipped || []).filter((x) => x !== t.id);
+  if (t.focus) {
+    store.state.plan.focusSkipped = (store.state.plan.focusSkipped || []).filter((x) => x !== t.id);
+    addToToday(t);
+  }
   syncFocus();
 }
 
-// A tune or exercise is 'focus' (in every day's set), 'on' (can be picked) or 'off' (left out:
+// A tune or exercise is 'focus' (comes up first, a few a day), 'on' (can be picked) or 'off' (left out:
 // not picked, nor offered as a warm-up), for practicing from a smaller pool for a while.
 export const itemStatus = (t) => (t.focus ? 'focus' : t.off ? 'off' : 'on');
 export function setItemStatus(t, status) {
@@ -342,10 +345,16 @@ export function syncFocus() {
     if (t.focus) it.bucket = 'focus';
     else if (it.bucket === 'focus') it.bucket = bucketOf(t);
   }
-  for (const t of store.state.items) {
-    if (t.focus && !plan.focusSkipped.includes(t.id) && !plan.items.some((i) => i.itemId === t.id && !i.warmup)) {
-      plan.items.push(makePlanItem(t, stats, 'focus'));
-    }
+  // Up to the daily number of each (Settings), taking turns: least recently played first.
+  const s = store.state.settings;
+  for (const [type, max] of [['tune', s.focusTunes ?? 3], ['exercise', s.focusExercises ?? 2]]) {
+    // (Ones taken out for today count: their place isn't filled by another.)
+    const inSet = plan.items.filter((i) => i.bucket === 'focus' && !i.warmup && itemById(i.itemId)?.type === type).length
+      + plan.focusSkipped.filter((id) => itemById(id)?.type === type && itemById(id).focus).length;
+    const next = store.state.items
+      .filter((t) => t.type === type && t.focus && !plan.focusSkipped.includes(t.id) && !plan.items.some((i) => i.itemId === t.id && !i.warmup))
+      .sort((a, b) => (stats.get(a.id)?.last || '').localeCompare(stats.get(b.id)?.last || ''));
+    for (const t of next.slice(0, Math.max(0, max - inSet))) plan.items.push(makePlanItem(t, stats, 'focus'));
   }
   orderPlan(plan);
 }

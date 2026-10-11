@@ -185,5 +185,11 @@ test('a tune can be focus, on, or off (left out of the pool) @narrow', async ({ 
   await ui.backdrop();
   await expect(row).toHaveClass(/\boff\b/);
   await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Solar').off).toBe(true);
+  // Focused: counted by the Focus filter.
+  await row.click();
+  await page.click('#item-status [data-v="focus"]');
+  await expect(page.locator('#item-status-hint')).toContainText('a few focus items a day');
+  await ui.backdrop();
+  await expect(page.locator('.chip[data-f="focus"] .count')).toHaveText('1');
   await ui.expectNoSideScroll();
 });

@@ -477,7 +477,7 @@ export const TOOLS = [
       item_id: { type: 'string' },
       level: nullable({ type: 'string', enum: ["don't know", 'familiar', 'proficient', 'mastered'] }),
       priority: nullable({ type: 'string', enum: ['critical', 'high', 'medium', 'low'] }),
-      focus: nullable({ type: 'boolean', description: 'Focus items are in the set every day until turned off' }),
+      focus: nullable({ type: 'boolean', description: 'Focus items come first in the set: up to a few a day (Settings), taking turns, until turned off' }),
       enabled: nullable({ type: 'boolean', description: 'false leaves it out of the pool (not picked for the set; for exercises, not offered as a warm-up either); true puts it back' }),
       tempo: nullable({ type: 'integer', description: 'Working tempo' }),
       goal_tempo: nullable({ type: 'integer' }),

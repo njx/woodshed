@@ -59,6 +59,12 @@ export function renderTunes(root) {
   const filters = exercises ? EXERCISE_FILTERS : FILTERS;
   const filterKey = exercises ? 'exFilter' : 'filter';
   const items = () => store.state.items.filter((t) => t.type === kind);
+  // How many are focused, next to the Focus filter (more than a day's worth take turns).
+  const focusCount = () => {
+    const n = items().filter((t) => t.focus).length;
+    const max = store.state.settings[exercises ? 'focusExercises' : 'focusTunes'];
+    return n ? ` <span class="count ${n > max ? 'over' : ''}" title="${n > max ? `${max} a day, taking turns` : ''}">${n}</span>` : '';
+  };
   root.innerHTML = `
     <header class="top">
       <div>
@@ -72,7 +78,7 @@ export function renderTunes(root) {
       ${ICON.search}
       <input id="q" type="search" placeholder="Search ${exercises ? 'exercises' : 'tunes'}" value="${esc(ui.query)}" autocomplete="off" enterkeyhint="search">
     </div>
-    <div class="chips" role="tablist">${filters.map((f) => `<button class="chip ${(ui[filterKey] || 'all') === f.id ? 'on' : ''}" data-f="${f.id}">${f.label}</button>`).join('')}</div>
+    <div class="chips" role="tablist">${filters.map((f) => `<button class="chip ${(ui[filterKey] || 'all') === f.id ? 'on' : ''}" data-f="${f.id}">${f.label}${f.id === 'focus' ? focusCount() : ''}</button>`).join('')}</div>
     <div class="list-head">
       <span id="count"></span>
       ${transposeToggle()}

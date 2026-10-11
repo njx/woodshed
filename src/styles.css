@@ -1117,3 +1117,4 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .bar.pick { box-shadow: inset 0 0 0 2px var(--exercise); }
 .loop-row .chip { min-height: 32px; padding: 4px 12px; font-size: 14px; }
 .loop-row .chips { gap: 6px; }
+.chip[data-f="focus"] .count { background: var(--focus); color: #fff; }

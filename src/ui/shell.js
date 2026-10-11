@@ -363,7 +363,7 @@ Object.assign(ICON, {
 
 // Focus / On / Off for a tune or exercise (see plan.js itemStatus), with what it means.
 const STATUS_HINTS = {
-  focus: 'In your set every day until you change it.',
+  focus: 'Comes up first: a few focus items a day (Settings), taking turns.',
   on: { tune: 'Picked for your set when it’s due.', exercise: 'Picked for your set now and then, and offered as a warm-up.' },
   off: { tune: 'Left out for now: not picked for your set.', exercise: 'Left out for now: not picked, and not offered as a warm-up.' },
 };

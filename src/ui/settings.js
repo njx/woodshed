@@ -46,9 +46,11 @@ export function renderSettings(root) {
       ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
       ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
       ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
+      ${stepper('focusTunes', 'Focus tunes', 'At most, a day; they take turns')}
+      ${stepper('focusExercises', 'Focus exercises', 'At most, a day; they take turns')}
       <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
         ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']])}</div>
-      <p class="fine">Focus tunes come on top of this mix, every day. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
+      <p class="fine">Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
     </section>
 

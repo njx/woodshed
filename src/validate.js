@@ -169,7 +169,7 @@ function plan(p, ids) {
 
 function settings(s) {
   s = { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
-  for (const k of ['exercises', 'hone', 'learn', 'fresh']) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
+  for (const k of ['exercises', 'hone', 'learn', 'fresh', 'focusTunes', 'focusExercises']) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
   s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x) => x in TRANSPOSITIONS);
   if (!s.instruments.length) s.instruments = ['c'];
   if (!s.instruments.includes(s.view)) s.view = s.instruments[0];

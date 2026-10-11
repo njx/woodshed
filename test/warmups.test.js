@@ -379,3 +379,21 @@ describe('the bass over part of a chart', () => {
     expect(two.chords.map((c) => c.family)).toEqual(['m7', 'dom7']); // Cm7 | F7
   });
 });
+
+describe('focus', () => {
+  it('a few focus tunes a day, taking turns (least recently played first); one turned on today is in', () => {
+    store.state.settings.focusTunes = 2;
+    const tunes = store.state.items.filter((t) => t.type === 'tune' && chartFor(t)).slice(0, 4);
+    for (const t of tunes) t.focus = true;
+    // The first two were played lately; the others never.
+    store.state.log.push({ id: 'l1', itemId: tunes[0].id, date: '2020-01-01', key: null }, { id: 'l2', itemId: tunes[1].id, date: '2020-01-02', key: null });
+    buildPlan(true);
+    const focus = () => store.state.plan.items.filter((i) => i.bucket === 'focus' && store.state.items.find((x) => x.id === i.itemId).type === 'tune').map((i) => i.itemId);
+    expect(focus().sort()).toEqual([tunes[2].id, tunes[3].id].sort());
+    // Turned on today: in straight away, over the number.
+    const more = store.state.items.find((t) => t.type === 'tune' && !t.focus && chartFor(t) && !todayItem(t));
+    setItemStatus(more, 'focus');
+    expect(focus()).toContain(more.id);
+    expect(focus()).toHaveLength(3);
+  });
+});

@@ -77,6 +77,8 @@ export const DEFAULT_SETTINGS = {
   hone: 1,
   learn: 2,
   fresh: 1,
+  focusTunes: 3, // focus tunes a day, at most (they take turns: least recently played first)
+  focusExercises: 2, // and focus exercises
   priority: 'some',
   newKeys: 'mastered', // 'mastered' | 'proficient' | 'never'
   instruments: ['c'], // transpositions you play, in toggle order

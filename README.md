@@ -9,8 +9,10 @@ Each day it hands you a short set of tunes to play:
 - **Learn**: tunes you're familiar with, to get them under your fingers
 - **New**: one tune you don't know yet
 
-A tune or exercise is **Focus**, **On** or **Off** (at the top of its details). Focus puts it in
-your set every day, on top of the regular mix, until you change it; swipe a Focus card left to skip
+A tune or exercise is **Focus**, **On** or **Off** (at the top of its details). Focus puts it first
+in your set, on top of the regular mix: up to 3 focus tunes and 2 focus exercises a day (Settings →
+*Daily mix*), taking turns, least recently played first; one turned on today is in today's set
+straight away. The Focus filter in the library shows how many there are. Swipe a Focus card left to skip
 it for just today. On (the default) means it can be picked for the set (and, for an exercise,
 offered as a warm-up). Off leaves it out of the pool for now, to work from a smaller set of tunes
 or exercises for a while. The library filters by each.
@@ -265,7 +267,7 @@ which don't cover it. The Anthropic console has the official numbers.
   set, ratings, tempos and diary notes all stay with the evening you started.
 
 - **The daily mix** (Settings → Daily mix): by default 2 exercises and 4 tunes — 1 to hone
-  (proficient or mastered), 2 you're learning, 1 new — plus any focus tunes. The tunes come in a
+  (proficient or mastered), 2 you're learning, 1 new — plus focus tunes (up to 3 a day). The tunes come in a
   **mixed-up order** each day (focus tunes first), or **by group** (hone, learn, new) if you prefer;
   either way you can play them in any order.
 
