@@ -9,9 +9,10 @@ import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayK
 import { chartFor } from '../charts.js';
 import { mountChart } from './chart.js';
 import { pickTune } from './pickers.js';
+import { harmonyOf } from '../warmups.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
-import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey, lastNote, nearestOctave, moveLastNote } from '../abc.js';
+import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey, lastNote, nearestOctave, moveLastNote, chordTimes } from '../abc.js';
 import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords, parseChord } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
@@ -100,14 +101,29 @@ export function openExercise(id, opts = {}) {
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
   const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
   const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
-  // A walking bass through a progression (a bar a chord): the metronome with a bass line.
+  // A walking bass through its chords, in the key shown: a progression (a bar a chord), or the
+  // chord symbols in its notation (timed by the notes under them), or else the chords typed for it
+  // (a bar each). The metronome with a bass line.
   const bassOwner = `prog:${t.id}`;
   const bassMine = () => metronome.state.running && metronome.state.bass?.owner === bassOwner;
+  const bassChords = () => {
+    if (prog) return prog.chords.map((c) => ({ root: (previewRoot + c.d) % 12, family: c.family, beats: 4 }));
+    const abc = notationFor(t, previewType, null, partFor(previewRoot));
+    const timed = abc ? chordTimes(abc, t.meter || '4/4') : [];
+    const list = timed.length ? timed : harmonyOf(t).map((c) => ({ ...c, beats: 4 }));
+    // Written as read (in the key it's written in); sounding in the key shown — or, shown only as
+    // written, in today's key (the one you're transposing it to).
+    const root = asWritten() && todayKeys.length ? todayKeys[0] : previewRoot;
+    const up = homeShift(root, homeKey(t), view()) + soundingShift(view());
+    return list.map((c) => ({ root: (((c.root + up) % 12) + 12) % 12, family: c.family, beats: c.beats }));
+  };
   const startBass = () => {
-    const chords = prog.chords.map((c) => ({ root: (previewRoot + c.d) % 12, family: c.family, beats: 4 }));
+    const chords = bassChords();
+    if (!chords.length) return;
+    const beats = Number(String(t.meter || '4/4').split('/')[0]) || 4;
     metronome.start({
-      bpm: tempoFrom.tempo || 100, beats: 4, itemId: tempoFrom.id,
-      bass: { chords, owner: bassOwner, label: `${prog.name}` }, click: store.state.settings.bassClick,
+      bpm: tempoFrom.tempo || 100, beats: prog ? 4 : beats, itemId: tempoFrom.id,
+      bass: { chords, owner: bassOwner, label: prog ? prog.name : t.name }, click: store.state.settings.bassClick,
     });
   };
   // A written exercise can be shown only as written (in its own key), to transpose in your head.
@@ -157,7 +173,7 @@ export function openExercise(id, opts = {}) {
           </div>
           <div class="play-row">
             <button class="pill-btn" id="x-play">${ICON.play}<span>Play</span></button>
-            ${prog ? `<button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="x-bass" aria-label="Walking bass">${bassMine() ? ICON.stop : ICON.play}<span>Bass</span></button>` : ''}
+            ${prog || bassChords().length ? `<button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="x-bass" aria-label="Walking bass">${bassMine() ? ICON.stop : ICON.play}<span>Bass</span></button>` : ''}
             ${playbackOptionsHtml()}
           </div>
           ${!t.vary && !prog && t.abc ? `<label class="as-written"><input type="checkbox" id="x-as-written" ${t.asWritten ? 'checked' : ''}>
@@ -353,13 +369,14 @@ ${t.fromTune ? '' : `
       $$('[data-root]', sheet).forEach((x) => x.classList.toggle('on', x === b));
       $$('[data-type]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.type === previewType));
       stopPlaying();
-      if (prog && bassMine()) startBass(); // on in the new key
+      if (bassMine()) startBass(); // on in the new key
       tune = await drawNotation();
     }));
     $$('[data-type]', sheet).forEach((b) => (b.onclick = async () => {
       previewType = b.dataset.type;
       $$('[data-type]', sheet).forEach((x) => x.classList.toggle('on', x === b));
       stopPlaying();
+      if (bassMine()) startBass(); // its chord changes with the type
       tune = await drawNotation();
     }));
     const play = $('#x-play', sheet);

@@ -46,3 +46,13 @@ describe('chord symbols as written by hand', async () => {
     expect(fam('Cm(maj7)')).toBe('mMaj7');
   });
 });
+
+describe('chords in notation, timed', async () => {
+  const { chordTimes } = await import('../src/abc.js');
+  it('gives each chord symbol the beats of the notes under it', () => {
+    const t = chordTimes('"Dm7"D E F A "G7"G A B d | "Cmaj7"c8 |');
+    expect(t.map((c) => [c.family, c.beats])).toEqual([['m7', 2], ['dom7', 2], ['maj7', 4]]);
+    expect(chordTimes('"Dm7"d2 "Dm9"f2 z4 | "G7"(3BcB A2 z2 |').map((c) => c.beats)).toEqual([4, 3]);
+    expect(chordTimes('C D "^swing" E F')).toEqual([]);
+  });
+});

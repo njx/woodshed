@@ -228,6 +228,24 @@ test('a lick can be written in any key (A minor, say), keeping its notes when th
   await ui.expectNoSideScroll();
 });
 
+test('an exercise with chords has a walking bass through them, looping @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Long tones' }).click();
+  await expect(page.locator('#x-bass')).toHaveCount(0); // no chords
+  await ui.backdrop();
+  await page.locator('#tune-list .row', { hasText: 'ii–V–I, 1-2-3-5' }).click();
+  await page.click('#x-bass');
+  await expect(page.locator('#x-bass')).toHaveClass(/\bon\b/);
+  await page.locator('.key-strip [data-root]').nth(5).click(); // another key: still on, in that key
+  await expect(page.locator('#x-bass')).toHaveClass(/\bon\b/);
+  await ui.backdrop();
+  await expect(page.locator('.metro-pill')).toContainText('Bass · ii–V–I, 1-2-3-5');
+  await page.click('.metro-pill .mp-stop');
+  await expect(page.locator('.metro-pill')).toBeHidden();
+});
+
 test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
   const fetched = [];
   page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });

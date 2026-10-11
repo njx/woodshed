@@ -1,4 +1,5 @@
 import { TRANSPOSITIONS } from './constants.js';
+import { parseChord, chordFamily } from './chords.js';
 
 // Notation for exercises is ABC (abcnotation.com) with an eighth note as the unit (L:1/8),
 // written as if in C. To show it in another key it's shifted up 0–11 semitones, so a pattern
@@ -167,4 +168,37 @@ export function writtenShift(root, view = 'c') {
 // notes: B♭ instruments sound a step lower, E♭ ones a sixth lower, F ones a fifth lower.
 export function soundingShift(view = 'c') {
   return -TRANSPOSITIONS[view].offset;
+}
+
+// ---------- The chords in notation, with how long each lasts ----------
+// The chord symbols in notation (L:1/8) with their length in beats (quarter notes, or the
+// meter's beat), from the notes and rests under each up to the next symbol: [{ root, q, family,
+// beats }], a chord repeated in a row counted once. Notes before the first symbol go to it.
+export function chordTimes(body, meter = '4/4') {
+  const [, den] = String(meter).split('/').map(Number);
+  const perBeat = den === 8 ? 1 : 2; // eighths a beat
+  const out = [];
+  let pending = 0; // eighths before the first chord symbol
+  let triplet = 0;
+  const re = /"([^"]*)"|![^!]*!|\{[^}]*\}|\((\d)|[_^=]*[A-Ga-gzx][,']*(\d*)(\/*)(\d*)/g;
+  for (const m of String(body).matchAll(re)) {
+    if (m[1] != null) {
+      const c = parseChord(m[1]);
+      if (!c) continue;
+      const prev = out.at(-1);
+      const family = chordFamily(c.q);
+      if (prev && prev.root === c.root && prev.family === family) continue;
+      out.push({ root: c.root, q: c.q, family, beats: 0 });
+      continue;
+    }
+    if (m[2]) { triplet = Number(m[2]); continue; }
+    if (m[0].startsWith('!') || m[0].startsWith('{')) continue;
+    let len = m[3] ? Number(m[3]) : 1;
+    if (m[4]) len /= m[5] ? Number(m[5]) : 2 ** m[4].length;
+    if (triplet > 0) { len *= 2 / 3; triplet--; }
+    if (out.length) out.at(-1).beats += len / perBeat;
+    else pending += len / perBeat;
+  }
+  if (out.length) out[0].beats += pending;
+  return out.filter((c) => c.beats > 0);
 }
