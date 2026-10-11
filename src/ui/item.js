@@ -76,7 +76,7 @@ export function openItem(id, opts) {
     return `
       <textarea class="title-input" id="f-name" rows="1" placeholder="Tune name" aria-label="Tune name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
       ${isNew ? '' : statusHtml(t, itemStatus(t))}
-      ${isNew || t.focus ? '' : inToday(t)
+      ${isNew ? '' : inToday(t)
         ? `<p class="in-today">${ICON.check}In today’s set</p>`
         : `<button class="ghost-btn add-today" id="f-today">${ICON.plus}<span>Add to today’s set</span></button>`}
       ${isNew ? '' : todayKeyHtml()}

@@ -132,7 +132,7 @@ export function openExercise(id, opts = {}) {
     return `
       <textarea class="title-input" id="x-name" rows="1" placeholder="Exercise name" aria-label="Exercise name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
       ${isNew ? '' : statusHtml(t, itemStatus(t))}
-      ${isNew || t.focus ? '' : planItem?.warmup
+      ${isNew ? '' : planItem?.warmup
         ? `<p class="in-today">${ICON.check}In today’s set, as a warm-up for ${esc(itemById(planItem.warmup)?.name || 'a tune')}</p>`
         : inToday(t)
         ? `<p class="in-today">${ICON.check}In today’s set</p>`

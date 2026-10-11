@@ -117,6 +117,7 @@ export function addToToday(t) {
   if (inToday(t)) return false;
   plan.items.push(makePlanItem(t, itemStats(), t.focus ? 'focus' : bucketOf(t)));
   plan.skipped = (plan.skipped || []).filter((id) => id !== t.id);
+  plan.focusSkipped = (plan.focusSkipped || []).filter((id) => id !== t.id); // (a focus one taken out earlier)
   orderPlan(plan);
   save();
   return true;

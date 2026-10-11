@@ -396,6 +396,17 @@ describe('focus', () => {
     expect(focus()).toContain(more.id);
     expect(focus()).toHaveLength(3);
   });
+  it('one not picked today can be added to today, as a focus item', () => {
+    store.state.settings.focusTunes = 1;
+    const tunes = store.state.items.filter((t) => t.type === 'tune').slice(0, 3);
+    for (const t of tunes) t.focus = true;
+    buildPlan(true);
+    const out = tunes.find((t) => !todayItem(t));
+    store.state.plan.focusSkipped.push(out.id); // even one taken out earlier today
+    expect(addToToday(out)).toBe(true);
+    expect(todayItem(out).bucket).toBe('focus');
+    expect(store.state.plan.focusSkipped).not.toContain(out.id);
+  });
   it('one swaps for another focus one (of the same kind) not in the set', () => {
     store.state.settings.focusTunes = 1;
     const tunes = store.state.items.filter((t) => t.type === 'tune').slice(0, 3);
