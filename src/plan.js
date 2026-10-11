@@ -180,6 +180,15 @@ export function swapWarmup(i, plan = store.state.plan) {
   return true;
 }
 
+// Another focus tune or exercise (same type as t) for today's set, at random: one not in it or
+// taken out today. Null if there's none.
+export function pickFocus(t) {
+  const plan = store.state.plan;
+  const pool = store.state.items.filter((x) => x.type === t.type && x.focus && x.id !== t.id
+    && !(plan.focusSkipped || []).includes(x.id) && !plan.items.some((i) => i.itemId === x.id && !i.warmup));
+  return pool.length ? randomOf(pool) : null;
+}
+
 // Unplayed warm-ups for tunes no longer in today's set go (in any setting).
 export function dropOrphanWarmups(plan = store.state.plan) {
   const tunes = new Set(plan.items.filter((it) => !it.warmup).map((it) => it.itemId));

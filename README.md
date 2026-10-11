@@ -57,7 +57,7 @@ Each card has a **note** button (with today's count) that opens a new note on it
 under its name shows its level, when you last played it (not once it's today) and how many times.
 
 Swiping a card: right marks it played; a short swipe left shows **Swap** and **Remove** (out of
-today's set; a focus item only has Remove), and a long one removes it.
+today's set; a focus item swaps for another focus one, at random), and a long one removes it.
 
 ### Exercises on a day
 

@@ -6,7 +6,7 @@ import {
   itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel, tempoSource,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, addWarmups } from '../plan.js';
+import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, addWarmups, pickFocus } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
   levelLabel, bindTransposeToggle, suggestionHtml,
@@ -186,17 +186,24 @@ function bindCard(card) {
       render();
       return toast(`Swapped the ${was} warm-up`);
     }
-    const t = pickItem(item.bucket, excludedIds(), itemStats());
-    if (!t) { render(); return toast(item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest'); }
+    const focus = item.bucket === 'focus';
+    const was = itemById(item.itemId);
+    // A focus item swaps for another focus one; anything else, for a pick from its group.
+    const t = focus ? pickFocus(was) : pickItem(item.bucket, excludedIds(), itemStats());
+    if (!t) {
+      render();
+      return toast(focus ? `No other focus ${was.type === 'exercise' ? 'exercises' : 'tunes'} to swap in` : item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
+    }
     withUndo(`Swapped out ${name()}`, () => {
-      state.plan.skipped.push(item.itemId);
+      if (focus) state.plan.focusSkipped.push(item.itemId);
+      else state.plan.skipped.push(item.itemId);
       state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
       dropOrphanWarmups();
     });
   };
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
   const swapBtn = $('.swap', card);
-  if (swapBtn) swapBtn.onclick = (e) => { e.stopPropagation(); (item.bucket === 'focus' ? skip : swap)(); };
+  if (swapBtn) swapBtn.onclick = (e) => { e.stopPropagation(); swap(); };
   $$('.rating button', card).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
     rate(item.itemId, b.dataset.v, item);
@@ -339,7 +346,7 @@ function cardHtml(it, i, stats) {
       <div class="card-sub">${pips(t.level)}<span>${esc([levelLabel(t.level), s?.last !== dateStr() && ago(s?.last), s?.count && `${s.count}×`].filter(Boolean).join(' · '))}${late ? ' · <em>overdue</em>' : ''}</span>${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}</div>
       <div class="card-actions">
         ${keyChip(it, t)}
-        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? 'Skip for today' : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${focus ? ICON.skip : ICON.swap}</button>`}
+        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? `Swap for another focus ${t.type}` : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${ICON.swap}</button>`}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
       ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? `<button class="link-btn add-warm" data-add-warm>${ICON.plus}Warm-up</button>` : ''}
@@ -363,9 +370,9 @@ function recChip(t) {
 }
 
 // What a left swipe offers, the same on every card: Swap, and Remove (for today) at the edge, which
-// a long swipe does. Focus items are chosen, so they can only be removed for today.
-function leftActions(it) {
-  return it.bucket === 'focus' ? ['remove'] : ['swap', 'remove'];
+// a long swipe does. (A focus item swaps for another focus one.)
+function leftActions() {
+  return ['swap', 'remove'];
 }
 
 function progressRing(done, total) {

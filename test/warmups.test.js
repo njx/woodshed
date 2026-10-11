@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { nextWarmups, altWarmup, harmonyOf, warmupOf } from '../src/warmups.js';
-import { buildPlan, addWarmups, swapWarmup, setItemStatus, pickItem, tryWithTune, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
+import { buildPlan, addWarmups, swapWarmup, setItemStatus, pickItem, tryWithTune, pickFocus, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
 import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
 import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
@@ -395,5 +395,20 @@ describe('focus', () => {
     setItemStatus(more, 'focus');
     expect(focus()).toContain(more.id);
     expect(focus()).toHaveLength(3);
+  });
+  it('one swaps for another focus one (of the same kind) not in the set', () => {
+    store.state.settings.focusTunes = 1;
+    const tunes = store.state.items.filter((t) => t.type === 'tune').slice(0, 3);
+    for (const t of tunes) t.focus = true;
+    buildPlan(true);
+    const inSet = store.state.plan.items.find((i) => i.bucket === 'focus');
+    const was = store.state.items.find((x) => x.id === inSet.itemId);
+    const other = pickFocus(was);
+    expect(tunes).toContain(other);
+    expect(other).not.toBe(was);
+    store.state.plan.focusSkipped.push(was.id);
+    store.state.plan.items.find((i) => i === inSet).itemId = other.id; // (as a swap does)
+    const last = pickFocus(other);
+    expect(last && [was.id, other.id].includes(last.id)).toBe(false);
   });
 });
