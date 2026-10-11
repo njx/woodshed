@@ -10,7 +10,7 @@ import { chartFor } from '../charts.js';
 import { mountChart } from './chart.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
-import { DURATIONS, noteToken, restToken, writtenShift, soundingShift } from '../abc.js';
+import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey } from '../abc.js';
 import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
@@ -28,6 +28,8 @@ import {
 const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
 export const rootName = (r) => keyName(r % 12, view());
+// A key for an exercise: "Dm" for a lick written in a minor key.
+export const keyLabel = (r, t) => `${rootName(r)}${homeKey(t) >= 12 ? 'm' : ''}`;
 
 // A progression's chords in a key: "Am7 · D7 · Gm7 · C7".
 export function progressionChords(prog, key) {
@@ -39,7 +41,7 @@ export function progressionChords(prog, key) {
 export function exerciseKeysText(keys = [], t = null, types = null, prog = null) {
   if (prog?.name) return `${prog.name}${keys.length ? ` in ${rootName(keys[0])}` : ''}`;
   const kind = t?.vary?.kind;
-  if (!kind || !types?.length) return keys.map(rootName).join(' · ');
+  if (!kind || !types?.length) return keys.map((k) => keyLabel(k, t)).join(' · ');
   if (!keys.length) return types.map((id) => typeInfo(kind, id)?.label || id).join(' · ');
   return keys.map((k, i) => variantName(rootName(k), kind, types[i])).join(' · ');
 }
@@ -109,7 +111,7 @@ export function openExercise(id, opts = {}) {
   };
   // A written exercise can be shown only as written, in C, to transpose in your head.
   const asWritten = () => !!t.asWritten && !t.vary && !prog && !!t.abc;
-  const writtenC = () => writtenToConcert(0, view());
+  const writtenC = () => writtenToConcert(homeKey(t) % 12, view()); // (the key it's written in)
   let previewRoot = asWritten() ? writtenC() : todayKeys[0] ?? 0;
   // The scale or chord type shown: today's for the key shown, or the first one turned on.
   const typeFor = (root) => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
@@ -144,7 +146,7 @@ export function openExercise(id, opts = {}) {
         <div class="notation-card">
           ${asWritten() ? '' : `<div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
             const r = writtenToConcert(w, view());
-            return `<button class="${r === previewRoot ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root="${r}">${esc(rootName(r))}</button>`;
+            return `<button class="${r === previewRoot ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root="${r}">${esc(keyLabel(r, t))}</button>`;
           }).join('')}</div>`}
           ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${stripTypes().map((id) => `
             <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary.kind, id).short)}</button>`).join('')}</div>` : ''}
@@ -158,12 +160,12 @@ export function openExercise(id, opts = {}) {
             ${playbackOptionsHtml()}
           </div>
           ${!t.vary && !prog && t.abc ? `<label class="as-written"><input type="checkbox" id="x-as-written" ${t.asWritten ? 'checked' : ''}>
-            <span>Only as written, in C — transpose it in your head</span></label>` : ''}
+            <span>Only as written, in ${esc(homeName(homeKey(t)))} — transpose it in your head</span></label>` : ''}
           ${planItem?.form ? `<p class="fine">${esc(formText())}</p>`
             : planItem?.over ? `<p class="fine">${esc(overText())}</p>`
             : prog ? `<p class="fine">Today: ${esc(prog.name)} in ${esc(rootName(previewRoot))} — ${esc(progressionChords(prog, previewRoot))}</p>`
             : t.vary && todayTypes().length ? `<p class="fine">Today: ${esc(exerciseKeysText(todayKeys, t, todayTypes()))}</p>`
-            : todayKeys.length && asWritten() ? `<p class="fine">Today: ${esc(todayKeys.map((k) => rootName(k)).join(', '))}</p>`
+            : todayKeys.length && asWritten() ? `<p class="fine">Today: ${esc(todayKeys.map((k) => keyLabel(k, t)).join(', '))}</p>`
             : todayKeys.length ? '<p class="fine">Underlined: today’s keys.</p>' : ''}
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
       ${planItem?.warmup && !prog && chartFor(tempoFrom) ? '<div class="x-tune-chart" id="x-tune-chart"></div>' : ''}
@@ -278,7 +280,7 @@ ${t.fromTune ? '' : `
         <input id="x-harmony" value="${esc(t.harmony ?? g)}" placeholder="e.g. Dm7 G7 Cmaj7" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <p class="fine" id="x-harmony-msg">${t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).'
         : g ? 'From the chord symbols in its notation — change them here if they’re not right.'
-        : 'Type the chords it goes over, in C like the notes (or add chord symbols to its notation), so it can come up as a warm-up for tunes with those chords.'}</p>`;
+        : 'Type the chords it goes over, as written, like the notes (or add chord symbols to its notation), so it can come up as a warm-up for tunes with those chords.'}</p>`;
   }
 
   const outerBack = opts.back;
@@ -328,7 +330,7 @@ ${t.fromTune ? '' : `
     const el = $('#x-notation', sheet);
     const abc = notationFor(t, previewType, prog, partFor(previewRoot));
     if (!el || !abc) return null;
-    return renderNotation(el, abc, { shift: writtenShift(previewRoot, view()), meter: t.meter, tempo: tempoFrom.tempo || 100 })
+    return renderNotation(el, abc, { shift: homeShift(previewRoot, homeKey(t), view()), key: homeKey(t), meter: t.meter, tempo: tempoFrom.tempo || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });
   }
 
@@ -367,7 +369,7 @@ ${t.fromTune ? '' : `
       $('span', play).textContent = '…'; // the first time, the sound loads
       try {
         stopFn = await playNotation(tune, {
-          transpose: writtenShift(previewRoot, view()) + soundingShift(view()),
+          transpose: homeShift(previewRoot, homeKey(t), view()) + soundingShift(view()),
           ...playbackFor(t.meter),
           onEnded: () => { stopFn = null; play.classList.remove('on'); $('span', play).textContent = 'Play'; },
           onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
@@ -434,12 +436,12 @@ ${t.fromTune ? '' : `
       stopPlaying();
       const abc = notationFor(t, previewType, prog, partFor(previewRoot));
       if (!abc) return;
-      const shift = writtenShift(previewRoot, view());
+      const shift = homeShift(previewRoot, homeKey(t), view());
       const what = prog ? `${prog.name} in ${rootName(previewRoot)}` : exerciseKeysText([previewRoot], t, previewType ? [previewType] : null);
       let fullTune = null;
       openFullNotation({
         title: `${t.name} · ${what}`,
-        draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, meter: t.meter, tempo: tempoFrom.tempo || 100, wide: true }).catch(() => null); },
+        draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, key: homeKey(t), meter: t.meter, tempo: tempoFrom.tempo || 100, wide: true }).catch(() => null); },
         play: async (onEnded) => {
           if (!fullTune) return null;
           try {
@@ -642,11 +644,12 @@ export function openNotationEditor(t, back) {
   let octave = 4;
   let typing = false;
   let stopFn = null;
-  const original = { abc: t.abc || '', meter: t.meter || '4/4' };
+  const original = { abc: t.abc || '', meter: t.meter || '4/4', home: t.home };
   let tune = null;
 
   const sheet = openSheet(`
     <p class="eyebrow">Notation · ${esc(t.name)}</p>
+    <label class="ne-home">Written in <select id="ne-home" aria-label="Key it's written in">${[...Array(24).keys()].map((k) => `<option value="${k}" ${k === (t.home ?? 0) ? 'selected' : ''}>${esc(homeName(k))}</option>`).join('')}</select></label>
     <div class="notation editor-preview" id="ne-preview"></div>
     <div class="ne-text">
       <textarea id="ne-abc" rows="3" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Notation (ABC)">${esc(body)}</textarea>
@@ -682,7 +685,7 @@ export function openNotationEditor(t, back) {
       <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
       ${playbackOptionsHtml()}
     </div>
-    <p class="fine">Write it in C — it’s transposed into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up. <b>Chord</b> adds a chord symbol over the next note (<code>"Dm7"</code>).</p>
+    <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, lowercase = octave up. <b>Chord</b> adds a chord symbol over the next note (<code>"Dm7"</code>).</p>
     <button class="primary-btn" id="ne-save">Done</button>
     <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
   `, () => {
@@ -699,13 +702,13 @@ export function openNotationEditor(t, back) {
     t.abc = body.trim();
     t.meter = meter;
     save();
-    $('#ne-revert', sheet).hidden = t.abc === original.abc.trim() && t.meter === original.meter;
+    $('#ne-revert', sheet).hidden = t.abc === original.abc.trim() && t.meter === original.meter && t.home === original.home;
   };
   const draw = () => {
     keep();
     clearTimeout(drawTimer);
     drawTimer = setTimeout(async () => {
-      tune = await renderNotation(preview, body, { meter, tempo: t.tempo || 100 }).catch(() => null);
+      tune = await renderNotation(preview, body, { meter, tempo: t.tempo || 100, key: t.home ?? 0 }).catch(() => null);
     }, 120);
   };
   const showMods = () => {
@@ -750,6 +753,15 @@ export function openNotationEditor(t, back) {
     area.setSelectionRange(to, to);
   };
 
+  // The key it's written in: the key signature changes, the notes keep their pitches.
+  $('#ne-home', sheet).onchange = (e) => {
+    const k = Number(e.target.value);
+    body = rekey(body, t.home ?? 0, k);
+    area.value = body;
+    if (k) t.home = k;
+    else delete t.home;
+    draw();
+  };
   $('#ne-pad', sheet).onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -811,8 +823,11 @@ export function openNotationEditor(t, back) {
   $('#ne-revert', sheet).onclick = () => {
     body = original.abc;
     meter = original.meter;
+    if (original.home) t.home = original.home;
+    else delete t.home;
     area.value = body;
     $('#ne-meter', sheet).value = meter;
+    $('#ne-home', sheet).value = t.home ?? 0;
     draw();
     toast('Back to how it was');
   };

@@ -11,9 +11,9 @@ const loadAbcjs = () => (abcjsPromise ||= import('abcjs').then((m) => m.default 
 // Draws notation (written in C) shifted up `shift` semitones, one bar per line. Returns the abcjs
 // tune object. The narrow staff width makes notes bigger once scaled to the screen.
 // wide: more bars to a line (full screen, sideways).
-export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo = 100, wide = false } = {}) {
+export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo = 100, wide = false, key = 0 } = {}) {
   const ABCJS = await loadAbcjs();
-  const [tune] = ABCJS.renderAbc(el, buildAbc(barPerLine(body, wide ? 2 : 1), { meter, tempo }), {
+  const [tune] = ABCJS.renderAbc(el, buildAbc(barPerLine(body, wide ? 2 : 1), { meter, tempo, key }), {
     visualTranspose: shift,
     responsive: 'resize',
     add_classes: true,

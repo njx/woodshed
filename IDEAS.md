@@ -55,9 +55,6 @@ sessions), L (a big piece, or needs a native app).
 - **Licks over related progressions** (M, to think about). A lick could also fit progressions that
   aren't the same chord kinds: a minor ii–V–i lick over its relative major, a ii–V lick starting a
   minor 3rd up, and so on. Not every lick works this way — maybe offered only for ones marked so.
-- **Licks written in any key** (S–M, parked). Enter a lick in the key it was learned in (not only
-  in C), so seeing it "as written" makes the transposing even more of a workout.
-
 ## Listening and slowing down
 
 - **YouTube loop / slow-downer** (M). Play a recording's YouTube video inside the app with A–B

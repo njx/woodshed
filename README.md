@@ -83,10 +83,16 @@ A lick fits where its chords have the same kinds and the same root movement, tra
 lick in C goes over Cm7 F7 B♭maj7 in B♭. Over a longer progression it's used as a sequence: a ii–V
 lick over iii–VI–ii–V plays up a step, then in the key; a ii–V–I lick plays just its ii–V on the
 iii–VI, then all of it (its notation is cut to those chords). A lick's chords come from the chord
-symbols in its notation, or are typed in its details under **Chords it goes with** (in C, like
+symbols in its notation, or are typed in its details under **Chords it goes with** (as written, like
 the notes).
 
-A written exercise's notation can be shown **Only as written, in C** (a box under it): the key strip
+Write a lick in whatever key you learned it in: **Written in** at the top of the notation editor
+(any major or minor key, as you read it on your instrument) sets its key signature, and it's
+transposed from there. A lick in a minor key has its keys named as minor (Dm, Gm…). Changing the
+key it's written in keeps the notes you've written (accidentals are added or dropped to fit the new
+signature). Its chords (typed, or chord symbols in the notation) are as written too.
+
+A written exercise's notation can be shown **Only as written**, in the key it's written in (a box under it): the key strip
 goes, and you transpose into today's keys in your head.
 
 After the ones that fit come **through the form**: any exercise, in the tune's key, shown with the

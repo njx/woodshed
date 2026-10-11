@@ -46,6 +46,7 @@ function item(t, ids) {
     t.fromTune = !!t.fromTune;
     if (t.harmony != null) t.harmony = str(t.harmony, 200) || undefined; // chords it goes with (see warmups.js)
     if (t.harmony === undefined) delete t.harmony;
+    if (int(t.home, 1, 23) == null) delete t.home; // the key it's written in (see abc.js homeKey)
     if (t.asWritten) t.asWritten = true; // notation shown only in C (see ui/exercise.js)
     else delete t.asWritten;
   } else {

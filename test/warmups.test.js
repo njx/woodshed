@@ -412,3 +412,15 @@ describe('focus', () => {
     expect(last && [was.id, other.id].includes(last.id)).toBe(false);
   });
 });
+
+describe('a lick written in its own key', () => {
+  it('fits the same, written in A minor or C minor: played in G minor over Autumn Leaves', () => {
+    const t = byName('Autumn Leaves');
+    const am = lick('"Bm7b5"B d f a "E7"^g e d B | "Am6"A8 |'); am.home = 21;
+    const cm = lick('"Dm7b5"d f _a c\' "G7"B G F D | "Cm6"C8 |'); cm.home = 12;
+    for (const x of [am, cm]) {
+      const fit = nextWarmups(t, { key: 19, n: 30 }).find((w) => w.itemId === x.id && w.over === 'iiø–V7–i');
+      expect(fit.keys).toEqual([7]);
+    }
+  });
+});

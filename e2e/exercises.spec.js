@@ -194,6 +194,31 @@ test('try an exercise through a tune: it goes before the tune, with the tune’s
   await ui.expectNoSideScroll();
 });
 
+test('a lick can be written in any key (A minor, say), keeping its notes when the key changes @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'ii–V–I, 1-2-3-5' }).click();
+  await page.click('#x-edit-abc');
+  await expect(page.locator('#ne-home')).toHaveValue('0');
+  await page.selectOption('#ne-home', '5'); // F: its Bs stay B natural
+  await expect(page.locator('#ne-abc')).toHaveValue(/=B/);
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'ii–V–I, 1-2-3-5').home).toBe(5);
+  await page.click('#ne-save');
+  await expect(page.locator('#x-as-written + span')).toContainText('Only as written, in F');
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  // A new lick, written in A minor: its keys read as minor.
+  await ui.backdrop();
+  await page.click('#add');
+  await page.click('[data-cat="lick"]');
+  await page.click('#x-add-abc');
+  await page.selectOption('#ne-home', '21');
+  await page.click('#ne-pad [data-note="A"]');
+  await page.click('#ne-save');
+  await expect(page.locator('.key-strip button').first()).toHaveText(/m$/);
+  await ui.expectNoSideScroll();
+});
+
 test('playback with recorded instruments, and swing @narrow', async ({ page, ui }) => {
   const fetched = [];
   page.on('request', (r) => { if (r.url().includes('/samples/')) fetched.push(r.url().split('/samples/')[1]); });

@@ -1,4 +1,5 @@
 import { store } from './store.js';
+import { homeKey } from './abc.js';
 import { chartFor } from './charts.js';
 import { mainChords, scaleFor, progressions, chordKind, chordsInAbc, chordsFromText, chordChanges, chordName, roman, usesSharps } from './chords.js';
 import { itemStats } from './practice.js';
@@ -37,6 +38,7 @@ export function harmonyOf(x) {
 // for one chord, one of its main chords. Each fit: { keys: [the key to play it in], over, overKey? }.
 function fitsIn(x, chart, up, sharps) {
   const h = harmonyOf(x);
+  const home = homeKey(x) % 12; // keys are the keys it's played in, counted from the one it's written in
   if (!h.length) return [];
   const out = [];
   const seen = new Set();
@@ -47,7 +49,7 @@ function fitsIn(x, chart, up, sharps) {
   if (h.length === 1) {
     for (const c of mainChords(chart, 6)) {
       if (chordKind(c.family) !== chordKind(h[0].family)) continue;
-      add({ keys: [(up(c.root) - h[0].root + 12) % 12], over: chordName({ root: up(c.root), q: c.q }, { sharps }) });
+      add({ keys: [(up(c.root) - h[0].root + home + 12) % 12], over: chordName({ root: up(c.root), q: c.q }, { sharps }) });
     }
     return out;
   }
@@ -58,7 +60,7 @@ function fitsIn(x, chart, up, sharps) {
     const pc = p.chords[w + i];
     return chordKind(c.family) === chordKind(pc.family) && (((c.root - h[0].root - (pc.d - p.chords[w].d)) % 12) + 12) % 12 === 0;
   });
-  const keyAt = (p, w) => (((up(p.target) + p.chords[w].d - h[0].root) % 12) + 12) % 12;
+  const keyAt = (p, w) => (((up(p.target) + p.chords[w].d - h[0].root + home) % 12) + 12) % 12;
   const overOf = (p, from, to) => ({ over: p.chords.slice(from, to).map((c) => roman(c.d, c.family)).join('–'), overKey: up(p.target) + (p.minor ? 12 : 0) });
   for (const p of progs) {
     // Through the progression as a sequence: the whole lick where it fits, else its first part

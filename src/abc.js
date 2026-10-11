@@ -71,8 +71,52 @@ export function barPerLine(body, perLine = 1) {
   }).join('\n');
 }
 
-export function buildAbc(body, { meter = '4/4', tempo = 100 } = {}) {
-  return ['X:1', `M:${meter}`, 'L:1/8', `Q:1/4=${tempo}`, 'K:C', body.trim() || 'z8|'].join('\n');
+// key: the key it's written in (0–11 major, 12–23 minor), for the key signature.
+export function buildAbc(body, { meter = '4/4', tempo = 100, key = 0 } = {}) {
+  return ['X:1', `M:${meter}`, 'L:1/8', `Q:1/4=${tempo}`, `K:${abcKey(key)}`, body.trim() || 'z8|'].join('\n');
+}
+
+// ---------- The key a written exercise is in ----------
+// A written exercise (a lick, a riff) is written in a key of your choosing (`home`: 0–11 major,
+// 12–23 minor; C if not set), as you read it on your instrument; it's transposed from there.
+// (Generated notation — scales, arpeggios, progressions — is always in C.)
+export const homeKey = (t) => (t?.vary || t?.fromTune ? 0 : t?.home ?? 0);
+const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
+export const abcKey = (k) => (k >= 12 ? `${MINOR[k % 12]}m` : MAJOR[k % 12]);
+// For showing: B♭, F♯m.
+export const homeName = (k) => abcKey(k).replace('b', '♭').replace('#', '♯');
+// Semitones to shift an exercise written in `home` so it shows in concert key `root`.
+export const homeShift = (root, home, view = 'c') => (((writtenShift(root, view) - (home % 12)) % 12) + 12) % 12;
+
+// Sharps (+) or flats (−) in a key's signature, and what it does to each letter.
+const SIG_COUNT = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5]; // major keys C…B
+function signature(k) {
+  const n = SIG_COUNT[(k >= 12 ? k + 3 : k) % 12]; // a minor key: its relative major's
+  const out = { C: 0, D: 0, E: 0, F: 0, G: 0, A: 0, B: 0 };
+  for (const l of [...(n > 0 ? 'FCGDAEB' : 'BEADGCF')].slice(0, Math.abs(n))) out[l] = Math.sign(n);
+  return out;
+}
+const ACC = { '^^': 2, '^': 1, '=': 0, _: -1, __: -2 };
+const accText = (a) => ({ 2: '^^', 1: '^', 0: '=', '-1': '_', '-2': '__' })[a];
+
+// The same notes under another key signature: accidentals added or dropped so every note keeps
+// its pitch (an accidental lasts to the end of its bar, as in ABC). Chord symbols are untouched.
+export function rekey(body, from, to) {
+  const [a, b] = [signature(from), signature(to)];
+  if (Object.keys(a).every((l) => a[l] === b[l])) return body;
+  let oldBar = {}, newBar = {};
+  return String(body).replace(/"[^"]*"|![^!]*!|\||(\^\^|\^|__|_|=)?([A-Ga-g])([,']*)/g, (m, acc, letter, oct) => {
+    if (m === '|') { oldBar = {}; newBar = {}; return m; }
+    if (!letter) return m;
+    const id = letter + oct;
+    const L = letter.toUpperCase();
+    let pitch;
+    if (acc) { pitch = ACC[acc]; oldBar[id] = pitch; } else pitch = oldBar[id] ?? a[L];
+    if (pitch === (newBar[id] ?? b[L])) return letter + oct;
+    newBar[id] = pitch;
+    return accText(pitch) + letter + oct;
+  });
 }
 
 // Semitones to shift notation written in C so it shows in concert key `root`, written for an

@@ -1118,3 +1118,7 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .loop-row .chip { min-height: 32px; padding: 4px 12px; font-size: 14px; }
 .loop-row .chips { gap: 6px; }
 .chip[data-f="focus"] .count { background: var(--focus); color: #fff; }
+
+/* The key a lick is written in, in the notation editor. */
+.ne-home { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; color: var(--ink-2); }
+.ne-home select { font: inherit; font-size: 16px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
