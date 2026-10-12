@@ -9,11 +9,30 @@ import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
-import { $, $$, ICON, render, toast, goTo, moreHtml, bindMore, info } from './shell.js';
+import { $, $$, ICON, render, toast, goTo, info, settingRowsHtml, openChoice } from './shell.js';
 
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
   day: 'One or two keys of the day — weak keys come up more — for every exercise that picks keys by weak keys or at random.',
+};
+
+// Less-used choices: a row each in Settings, picked in a sheet.
+const CHOICES = {
+  exerciseFocus: {
+    setting: 'exerciseFocus', label: 'Exercises on a day', title: 'Exercises on a day',
+    options: [['own', 'Each its own', EX_FOCUS_HINTS.own], ['day', 'Key of the day', EX_FOCUS_HINTS.day]],
+    after: () => { refreshExercises(); toast('Today’s exercises picked again'); },
+  },
+  priority: {
+    setting: 'priority', label: 'Priority matters', title: 'How much should priority matter?',
+    help: 'Tunes are picked mostly by when they’re due for review. Each time you play one and rate it, its next review is pushed further out — “Solid” pushes it further, “Rough” brings it back tomorrow. Priority tips the balance among tunes that are due.',
+    options: [['off', 'Not at all'], ['some', 'Some'], ['strong', 'A lot']],
+  },
+  newKeys: {
+    setting: 'newKeys', label: 'Other keys for', title: 'Practice in other keys for',
+    help: 'Other tunes rotate through their usual keys. Keys you’ve practiced less come up first.',
+    options: [['mastered', 'Mastered tunes'], ['proficient', 'Proficient and mastered'], ['never', 'Never']],
+  },
 };
 
 export function renderSettings(root) {
@@ -59,24 +78,10 @@ export function renderSettings(root) {
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
     </section>
 
-    ${moreHtml('settings', 'Exercises on a day · priority · other keys', `
     <section class="panel">
-      <h3 class="section-label">Exercises on a day</h3>
-      <div class="seg" id="ex-focus">${[['own', 'Each its own'], ['day', 'Key of the day']].map(([v, l]) => `<button class="${s.exerciseFocus === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>
-      <p class="fine" id="ex-focus-hint">${EX_FOCUS_HINTS[s.exerciseFocus]}</p>
+      <h3 class="section-label">Picking</h3>
+      ${settingRowsHtml(Object.entries(CHOICES).map(([key, c]) => ({ key, label: c.label, value: c.options.find(([v]) => v === s[c.setting])?.[1] })))}
     </section>
-
-    <section class="panel">
-      ${heading('How much should priority matter?', 'Tunes are picked mostly by when they’re due for review. Each time you play one and rate it, its next review is pushed further out — “Solid” pushes it further, “Rough” brings it back tomorrow. Priority tips the balance among tunes that are due.')}
-      ${seg('priority', [['off', 'Not at all'], ['some', 'Some'], ['strong', 'A lot']])}
-    </section>
-
-    <section class="panel">
-      ${heading('Practice in other keys for', 'Other tunes rotate through their usual keys. Keys you’ve practiced less come up first.')}
-      ${seg('newKeys', [['mastered', 'Mastered'], ['proficient', 'Proficient +'], ['never', 'Never']])}
-    </section>
-
-    `, 'More settings')}
 
     <section class="panel">
       ${heading('Open recordings in', 'Recording links in a tune’s details search this service for that recording.')}
@@ -143,15 +148,20 @@ export function renderSettings(root) {
       save();
     };
   });
-  $('#ex-focus', root).onclick = async (e) => {
-    const b = e.target.closest('button');
-    if (!b || s.exerciseFocus === b.dataset.v) return;
-    s.exerciseFocus = b.dataset.v;
-    $$('#ex-focus button', root).forEach((x) => x.classList.toggle('on', x === b));
-    $('#ex-focus-hint', root).textContent = EX_FOCUS_HINTS[s.exerciseFocus];
-    refreshExercises();
-    toast('Today’s exercises picked again');
-  };
+  // Rows for the less-used choices, each picked in a sheet with what it does.
+  $$('[data-open]', root).forEach((row) => (row.onclick = () => {
+    const c = CHOICES[row.dataset.open];
+    openChoice({
+      title: c.title, help: c.help, options: c.options, value: s[c.setting],
+      onPick: (v) => {
+        if (s[c.setting] === v) return;
+        s[c.setting] = v;
+        save();
+        c.after?.();
+        render();
+      },
+    });
+  }));
   $('#rebuild').onclick = () => {
     buildPlan(true);
     goTo('today');
@@ -197,7 +207,6 @@ export function renderSettings(root) {
       toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);
     };
   });
-  bindMore(root);
   $('#export').onclick = exportData;
   $('#import').onchange = importData;
   $('#reset').onclick = async () => {

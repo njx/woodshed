@@ -45,9 +45,14 @@ function helpers(page) {
       await expect(page.locator(`.tab[data-tab="${name}"]`)).toHaveClass(/\bon\b/);
     },
     // Open a details sheet's collapsed Details (set-once fields).
-    async more() {
-      const d = page.locator('.sheet details.more');
-      if (!(await d.evaluate((el) => el.open))) await d.locator('summary').click();
+    // Open one of a details sheet's settings (its row) in the panel over the sheet.
+    async setting(key) {
+      await page.locator(`.sheet [data-open="${key}"]`).click();
+      await page.locator('.sub-panel').waitFor();
+    },
+    async panelDone() {
+      await page.locator('.sub-panel .sub-done').click();
+      await page.locator('.sub-panel').waitFor({ state: 'detached' });
     },
     // Pick from a details sheet's ⋯ menu.
     async menu(label) {

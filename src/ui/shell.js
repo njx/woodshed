@@ -12,7 +12,7 @@ const UI_KEY = 'woodshed.ui';
 export const ui = { tab: 'today', query: '', filter: 'all', sort: 'priority' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch {}
 export function saveUi() {
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, exFilter: ui.exFilter, sort: ui.sort, library: ui.library, moreOpen: ui.moreOpen })); } catch {}
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, exFilter: ui.exFilter, sort: ui.sort, library: ui.library })); } catch {}
 }
 
 // ---------- Rendering ----------
@@ -283,8 +283,9 @@ export function attachSwipe(card, { right, actions = [] }) {
     fn?.();
   }));
 
+  // (A swipe can start on one of the card's buttons, its chips; then it isn't a tap on it.)
+  card.addEventListener('click', (e) => { if (card._swiped && e.target.closest('button')) { e.stopPropagation(); e.preventDefault(); } }, true);
   card.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button')) return;
     sx = e.clientX; sy = e.clientY; dx = 0;
     base = wrap.classList.contains('open') ? -openW : 0;
     active = true; decided = false; horiz = false; pid = e.pointerId;
@@ -445,18 +446,6 @@ export function closeMenu() {
   document.removeEventListener('pointerdown', outside, true);
 }
 
-// A collapsed section of set-once fields ("Details"), remembered open or shut per kind of sheet.
-export function moreHtml(key, summary, inner, title = 'Details') {
-  const open = (ui.moreOpen || []).includes(key);
-  return `<details class="more" data-more="${key}" ${open ? 'open' : ''}><summary><b>${esc(title)}</b><span>${esc(summary)}</span></summary><div class="more-body">${inner}</div></details>`;
-}
-export function bindMore(root) {
-  root.querySelectorAll('details.more').forEach((d) => d.addEventListener('toggle', () => {
-    const k = d.dataset.more;
-    ui.moreOpen = [...new Set([...(ui.moreOpen || []).filter((x) => x !== k), ...(d.open ? [k] : [])])];
-    saveUi();
-  }));
-}
 
 // ---------- Help behind an ⓘ ----------
 // An explanation that isn't needed every time: info(html) gives the ⓘ button (to put by a heading
@@ -479,3 +468,45 @@ document.addEventListener('click', (e) => {
   el.hidden = !el.hidden;
   b.setAttribute('aria-expanded', String(!el.hidden));
 }, true);
+
+// ---------- Settings as rows, each edited in a panel ----------
+// A list of a sheet's settings: each row shows what it's set to; tapping it opens a panel over the
+// sheet with the controls for that one (see settingPanel). rows: [{ key, label, value, html? }]
+// (html: a control in the row itself, like a switch, instead of a panel).
+export function settingRowsHtml(rows) {
+  return `<div class="set-list">${rows.filter(Boolean).map((r) => (r.html
+    ? `<div class="set-row">${r.html}</div>`
+    : `<button class="set-row" data-open="${r.key}"><span class="set-label">${esc(r.label)}</span><span class="set-value">${esc(r.value || '')}</span><span class="set-go" aria-hidden="true">›</span></button>`)).join('')}</div>`;
+}
+// The panel for one setting, over the sheet (it stays there through the sheet's redraws: the
+// caller fills .sub-body). Returns the panel element; Done (or closePanel) removes it.
+export function settingPanel(sheet, title, onDone) {
+  closePanel(sheet);
+  const p = document.createElement('div');
+  p.className = 'sub-panel';
+  p.setAttribute('role', 'dialog');
+  p.setAttribute('aria-label', title);
+  p.innerHTML = `<div class="sub-head"><b>${esc(title)}</b><button class="pill-btn sub-done">Done</button></div><div class="sub-body"></div>`;
+  sheet.appendChild(p);
+  p.querySelector('.sub-done').onclick = () => { closePanel(sheet); onDone?.(); };
+  return p;
+}
+export function closePanel(sheet) {
+  sheet.querySelector('.sub-panel')?.remove();
+}
+
+// A sheet to pick one option, with what the setting does: { title, help, options: [[value,
+// label, hint?]], value, onPick(value) }. Picking closes it.
+export function openChoice({ title, help = '', options, value, onPick }) {
+  const sheet = openSheet(`
+    <p class="eyebrow">Settings</p>
+    <h2 class="sheet-title">${esc(title)}</h2>
+    ${help ? `<p class="fine">${help}</p>` : ''}
+    <div class="set-list choice-list" role="radiogroup">${options.map(([v, label, hint]) => `
+      <button class="set-row ${v === value ? 'on' : ''}" role="radio" aria-checked="${v === value}" data-pick="${esc(v)}">
+        <span class="set-label">${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ''}</span><span class="set-check" aria-hidden="true">${v === value ? '✓' : ''}</span></button>`).join('')}</div>`);
+  sheet.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => {
+    closeSheet();
+    onPick(b.dataset.pick);
+  }));
+}

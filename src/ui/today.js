@@ -335,6 +335,10 @@ function cardHtml(it, i, stats) {
   const s = stats.get(t.id);
   const entry = planEntry(it);
   const played = !!entry;
+  // The key (or, once played, the rating) beside the ✓; with neither, the name is.
+  const chip = played
+    ? `<div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>`
+    : keyChip(it, t);
   const late = !played && (it.bucket === 'hone' || it.bucket === 'learn') && s?.count && overdue(t, stats) >= 1.5;
   return `
   <li class="card-wrap">
@@ -349,13 +353,13 @@ function cardHtml(it, i, stats) {
         <span class="style">${esc(it.warmup ? `for ${itemById(it.warmup)?.name || 'a tune'}` : t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style)}</span>
         ${late ? '<em class="late">overdue</em>' : ''}
         ${priBadge(t.priority)}
+        <span class="card-tools">${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}</span>
       </div>
-      <h2>${esc(t.name)}</h2>
-      <div class="card-sub">${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}
-        <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button></div>
-      ${played
-        ? `<div class="card-actions"><div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div></div>`
-        : keyChip(it, t) ? `<div class="card-actions">${keyChip(it, t)}</div>` : ''}
+      ${chip ? `<h2>${esc(t.name)}</h2>` : ''}
+      <div class="card-actions">
+        ${chip || `<h2>${esc(t.name)}</h2>`}
+        <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
+      </div>
       ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? `<button class="link-btn add-warm" data-add-warm>${ICON.plus}Warm-up</button>` : ''}
       ${played ? suggestionHtml(t, levelSuggestion(t)) : ''}
       ${played && !it.warmup ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}

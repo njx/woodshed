@@ -123,7 +123,7 @@ test('a lick’s chords: guessed from its chord symbols, or typed; then it comes
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.locator('#tune-list .row', { hasText: 'ii–V–I, 1-2-3-5' }).click();
-  await ui.more();
+  await ui.setting('harmony');
   await expect(page.locator('#x-harmony')).toHaveValue('Dm7 G7 Cmaj7'); // from its notation
   await page.fill('#x-harmony', 'Dm7 G7 Cmaj7 nonsense');
   await expect(page.locator('#x-harmony-msg')).toHaveClass(/\berror\b/);
@@ -177,7 +177,6 @@ test('try an exercise through a tune: it goes before the tune, with the tune’s
   await page.click('[data-lib="exercises"]');
   // Technical ones aren't for tunes.
   await page.locator('#tune-list .row', { hasText: 'Long tones' }).click();
-  await ui.more();
   await expect(page.locator('#x-tunes')).not.toBeChecked();
   await page.click('#item-menu');
   await expect(page.locator('.menu-pop button', { hasText: 'Try it through a tune' })).toHaveCount(0);

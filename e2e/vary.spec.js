@@ -10,17 +10,20 @@ async function openExercise(page, ui, name) {
 test('a scale exercise shows each scale type, and settings change what comes up @narrow', async ({ page, ui }) => {
   await ui.start({ instruments: ['bb'] });
   await openExercise(page, ui, 'Scales: major and minors');
-  await ui.more(); // its settings, under Details
-  await expect(page.locator('#x-vary [data-vary="scale"]')).toHaveClass(/on/);
+  await expect(page.locator('.sheet [data-open="vary"] .set-value')).toContainText('maj dor aeol');
   await expect(page.locator('.type-strip button')).toHaveText(['maj', 'dor', 'aeol', 'harm min', 'mel min', 'dim H/W']);
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await page.locator('.type-strip button', { hasText: 'harm min' }).click();
   await expect(page.locator('.type-strip button.on')).toHaveText('harm min');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
-  await page.locator('.pattern-card').scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('scales.png') });
   await ui.expectNoSideScroll();
 
+  // Its settings, in a panel over the sheet.
+  await ui.setting('vary');
+  await expect(page.locator('#x-vary [data-vary="scale"]')).toHaveClass(/on/);
+  await page.locator('.pattern-card').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('scales-panel.png') });
   // Turn off aeolian; turn on lydian.
   await page.locator('[data-vtype="aeolian"]').click();
   await page.locator('[data-vtype="lydian"]').click();
@@ -52,14 +55,15 @@ test('a scale exercise shows each scale type, and settings change what comes up 
 test('chord types; a written exercise can be switched to vary @narrow', async ({ page, ui }) => {
   await ui.start();
   await openExercise(page, ui, 'Seventh-chord arpeggios');
-  await ui.more();
   await expect(page.locator('.type-strip button')).toHaveText(['maj7', 'm7', '7', 'ø7', '°7']);
+  await ui.setting('vary');
   await expect(page.locator('[data-shape]')).toHaveText(['Up and down', 'Two octaves', 'Inversions', 'Custom']);
   await expect(page.locator('#x-pattern')).toHaveText('1 3 5 7 8 7 5 3 1');
   await page.locator('[data-shape="custom"]').click();
   await expect(page.locator('#x-pattern')).toHaveText('1 3 5 7 8 7 5 3 1');
   await expect(page.locator('[data-pn]')).toHaveText(['1', '3', '5', '7', '8', '10', '12', '14', '15', '⌫', 'Clear']);
   await page.locator('[data-shape="updown"]').click();
+  await ui.panelDone();
   await page.locator('.type-strip button', { hasText: '°7' }).click();
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('chords.png') });
@@ -68,13 +72,15 @@ test('chord types; a written exercise can be switched to vary @narrow', async ({
   // "Major scale" is written out; switching it to vary by scale uses generated notation.
   await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
   await expect(page.locator('#x-edit-abc')).toHaveCount(1);
-  await ui.more();
+  await ui.setting('vary');
   await page.click('#x-vary [data-vary="scale"]');
+  await ui.panelDone();
   await expect(page.locator('#x-edit-abc')).toHaveCount(0);
-  await page.click('#x-to-pattern');
-  await expect(page.locator('.pattern-card')).toBeInViewport();
   await expect(page.locator('.type-strip button')).toHaveCount(6);
+  await page.click('#x-to-pattern'); // opens its settings, at the pattern
+  await expect(page.locator('.pattern-card')).toBeInViewport();
   await page.click('#x-vary [data-vary=""]');
+  await ui.panelDone();
   await expect(page.locator('.type-strip')).toHaveCount(0);
   await expect(page.locator('#x-edit-abc')).toHaveCount(1); // its own notation is still there
 });

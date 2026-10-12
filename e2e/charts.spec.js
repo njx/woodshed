@@ -180,9 +180,9 @@ test('loop a section, or bars tapped, with the bass going round just those @narr
 test('exercises on a day: each its own, or key of the day @narrow', async ({ page, ui }) => {
   await ui.start();
   await ui.tab('settings');
-  await page.locator('details.more[data-more="settings"] > summary').click(); // under More settings
-  await expect(page.locator('#ex-focus button')).toHaveCount(2);
-  await page.click('#ex-focus [data-v="day"]');
+  await page.click('[data-open="exerciseFocus"]'); // a choice, in its own sheet
+  await expect(page.locator('.choice-list [data-pick]')).toHaveCount(2);
+  await page.click('.choice-list [data-pick="day"]');
   await ui.tab('today');
   await expect(page.locator('.day-note')).toContainText('of the day');
   const dayKeys = (await page.locator('.day-note b').textContent()).split(' · ');

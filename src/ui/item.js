@@ -19,7 +19,7 @@ import { swapInToday, removeFromToday } from './today.js';
 import { canRecord } from '../media.js';
 import { autoStart } from '../practicetime.js';
 import {
-  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml, statusHtml, openMenu, moreHtml, bindMore, keysText,
+  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml, statusHtml, openMenu, keysText, settingRowsHtml, settingPanel,
 } from './shell.js';
 
 // Detail sheet for a tune: edit it, listen to recordings, see its history. id null = new tune.
@@ -85,7 +85,7 @@ export function openItem(id, opts) {
         <span class="field-label">Notes</span>
         <textarea id="f-notes" rows="2" placeholder="Tricky bars, ideas…">${esc(t.notes)}</textarea>
       </label>
-      ${isNew ? detailsHtml() : moreHtml('tune', [LEVELS[t.level ?? 0].label, `${PRIORITIES[(t.priority || 3) - 1].label} priority`, keysText(t), t.style].filter(Boolean).join(' · '), detailsHtml())}
+      ${isNew ? detailsHtml() : settingRowsHtml(Object.entries(PANELS).map(([key, x]) => ({ key, label: x.label, value: x.value() })))}
       ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
       ${isNew ? `<button class="primary-btn" id="save-new">Add tune</button>` : `
         <div class="history">
@@ -110,22 +110,31 @@ export function openItem(id, opts) {
     `;
   };
 
-  // Set once and seldom changed: under Details (open for a new tune).
+  // Set once and seldom changed: a row for each (what it's set to), opening a panel with its
+  // controls. A new tune shows the controls themselves, all at once.
+  const PANELS = {
+    level: { label: 'How well you know it', value: () => LEVELS[t.level ?? 0].label,
+      html: () => `<div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>` },
+    priority: { label: 'Priority', value: () => PRIORITIES[(t.priority || 3) - 1].label,
+      html: () => `<div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>` },
+    keys: { label: 'Usual keys', value: () => keysText(t) || 'None yet',
+      html: () => {
+        const tr = TRANSPOSITIONS[view];
+        return `<p class="fine">${esc(tr.label)}${tr.offset ? '' : ' pitch'} · the first is the most common.</p><div id="keygrids">${keyGrid()}</div>`;
+      } },
+    style: { label: 'Style', value: () => t.style,
+      html: () => `<div class="field"><input id="f-style" list="styles" value="${esc(t.style)}" aria-label="Style">
+        <datalist id="styles">${styles.map((s) => `<option value="${esc(s)}">`).join('')}</datalist></div>` },
+  };
   function detailsHtml() {
-    const tr = TRANSPOSITIONS[view];
-    return `
-      <label class="field-label">How well do you know it?</label>
-      <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
-      <label class="field-label">Priority</label>
-      <div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>
-      <div class="field-label row-label"><span>Usual keys</span><small>${esc(tr.label)}${tr.offset ? '' : ' pitch'} · first = most common</small></div>
-      <div id="keygrids">${keyGrid()}</div>
-      <label class="field">
-        <span class="field-label">Style</span>
-        <input id="f-style" list="styles" value="${esc(t.style)}">
-        <datalist id="styles">${styles.map((s) => `<option value="${esc(s)}">`).join('')}</datalist>
-      </label>`;
+    return Object.values(PANELS).map((x) => `<label class="field-label">${x.label}</label>${x.html()}`).join('');
   }
+  let panel = null; // the panel open over the sheet (a key of PANELS), if any
+  const fillPanel = () => {
+    const el = sheet.querySelector('.sub-panel');
+    if (!el || !panel) { panel = null; return; }
+    el.querySelector('.sub-body').innerHTML = PANELS[panel].html();
+  };
 
   // Today's key, changeable (the chart and its warm-ups follow).
   function todayKeyHtml() {
@@ -158,6 +167,7 @@ export function openItem(id, opts) {
     const y = $('.sheet-body', sheet).scrollTop;
     $('.sheet-body', sheet).innerHTML = body();
     $('.sheet-body', sheet).scrollTop = y;
+    fillPanel();
     bind();
   };
 
@@ -208,9 +218,11 @@ export function openItem(id, opts) {
       t.name = nameEl.value;
       if (!isNew && t.name.trim()) commit();
     };
-    $('#f-style', sheet).onchange = (e) => { t.style = e.target.value.trim() || 'Standard'; commit(); };
+    const style = $('#f-style', sheet);
+    if (style) style.onchange = (e) => { t.style = e.target.value.trim() || 'Standard'; commit(); };
     $('#f-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
-    $('#keygrids', sheet).onclick = (e) => {
+    const grids = $('#keygrids', sheet);
+    if (grids) grids.onclick = (e) => {
       const b = e.target.closest('button');
       if (!b) return;
       const k = Number(b.dataset.k);
@@ -238,7 +250,12 @@ export function openItem(id, opts) {
       setTodayKey(todayItem(t), Number(keySel.value));
       refresh();
     };
-    bindMore(sheet);
+    // A setting's row opens its panel over the sheet; Done goes back to the rows.
+    $$('[data-open]', sheet).forEach((b) => (b.onclick = () => {
+      panel = b.dataset.open;
+      settingPanel(sheet, PANELS[panel].label, () => { panel = null; refresh(); });
+      refresh();
+    }));
     // ⋯: add to today, delete.
     const menu = $('#item-menu', sheet);
     // (From its card in today's set: swap it or take it out, as a swipe left does.)

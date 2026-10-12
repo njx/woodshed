@@ -25,7 +25,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
 import {
-  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, moreHtml, bindMore, hintHtml, info,
+  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, hintHtml, info, settingRowsHtml, settingPanel,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -200,7 +200,7 @@ export function openExercise(id, opts = {}) {
         ${takes.length ? `<ul class="notes panel-list" id="x-takes">${takes.slice(0, 3).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>
           ${takes.length > 3 ? `<p class="fine">${takes.length - 3} more in the Diary.</p>` : ''}`
           : hintHtml('takes', 'Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.', 'fine')}`}
-      ${isNew ? settingsHtml() : moreHtml('exercise', [CATEGORIES[t.category] || 'Other', t.vary ? `varies the ${t.vary.kind} type` : '', t.keyMode === 'none' ? 'no key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''}, ${KEY_MODES[t.keyMode].label.toLowerCase()}`, LEVELS[t.level ?? 0].label].filter(Boolean).join(' · '), settingsHtml())}
+      ${settingsHtml()}
 
       ${isNew ? `<button class="primary-btn" id="x-save">Add exercise</button>` : `
         <div class="history">
@@ -219,28 +219,19 @@ export function openExercise(id, opts = {}) {
     `;
   };
 
-  // How it's set up, seldom changed: under Details (open for a new exercise).
-  function settingsHtml() {
-    // Explanations behind an ⓘ by each heading.
-    const help = {
-      tunes: info('As a warm-up before a tune, or through a tune’s form. Off for technical work like long tones or interval drills.'),
-      vary: info(t.vary ? `Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.` : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'),
-      keys: info(esc(KEY_MODES[t.keyMode].hint)),
-    };
-    return `
-      ${harmonyHtml()}
-      ${isNew || t.fromTune ? '' : `<label class="as-written use-tunes"><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}>
-        <span>Use with tunes${help.tunes.btn}</span></label>${help.tunes.text}`}
-      <label class="field-label">Kind</label>
-      <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
-
-${t.fromTune ? '' : `
-      <div class="field-label">Each session, vary the${help.vary.btn}</div>${help.vary.text}
+  // How it's set up: a row for each (showing what it's set to), opening a panel with its controls.
+  // A new exercise shows the controls themselves, all at once.
+  const tunesHelp = 'As a warm-up before a tune, or through a tune’s form. Off for technical work like long tones or interval drills.';
+  const levelSeg = () => `<div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>`;
+  const prioritySeg = () => `<div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>`;
+  const kindChips = () => `<div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>`;
+  const varyHtml = () => `
       <div class="seg" id="x-vary">
         <button class="${!t.vary ? 'on' : ''}" data-vary="">Key only</button>
         <button class="${t.vary?.kind === 'scale' ? 'on' : ''}" data-vary="scale">Scale type</button>
         <button class="${t.vary?.kind === 'chord' ? 'on' : ''}" data-vary="chord">Chord type</button>
       </div>
+      <p class="fine">${t.vary ? `Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.` : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'}</p>
       ${t.vary ? `
         <div class="chips wrap" id="x-types">${Object.entries(typesOf(t.vary.kind)).map(([id, x]) => `
           <button class="chip ${t.vary.types.includes(id) ? 'on' : ''}" data-vtype="${id}" aria-pressed="${t.vary.types.includes(id)}">${esc(x.label)}</button>`).join('')}</div>
@@ -252,10 +243,10 @@ ${t.fromTune ? '' : `
           ${t.vary.shape === 'custom' ? `<div class="keypad pattern-pad" id="x-pad">${PATTERN_PAD[t.vary.kind].map((n) => `<button data-pn="${n}">${n}</button>`).join('')}
             <button data-pn="back" aria-label="Delete the last number">⌫</button><button data-pn="clear">Clear</button></div>
           <p class="fine" id="x-pattern-msg">${patternHint(t.vary.kind)}</p>` : ''}
-        </div>` : ''}
-
-      <div class="field-label">Choose keys by${help.keys.btn}</div>${help.keys.text}
+        </div>` : ''}`;
+  const keysHtml = () => `
       <div class="chips wrap" id="x-mode">${Object.entries(KEY_MODES).map(([k, m]) => `<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode="${k}">${m.label}</button>`).join('')}</div>
+      <p class="fine">${esc(KEY_MODES[t.keyMode].hint)}</p>
       ${t.keyMode === 'fixed' ? `<div class="keygrid" id="x-fixed">${[...Array(12).keys()].map((w) => {
         const r = writtenToConcert(w, view());
         return `<button class="${t.keys.includes(r) ? 'on' : ''}" data-fixed="${r}">${esc(rootName(r))}</button>`;
@@ -264,15 +255,38 @@ ${t.fromTune ? '' : `
         <div class="setting">
           <div><b>Keys per session</b><span>How many keys to play it in each time</span></div>
           <div class="stepper" id="x-kps"><button data-d="-1" aria-label="Fewer">−</button><output>${t.keysPerSession}</output><button data-d="1" aria-label="More">+</button></div>
-        </div>` : ''}
-
-`}
-      <label class="field-label">How well do you know it?</label>
-      <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
-      <label class="field-label">Priority</label>
-      <div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>
-`;
+        </div>` : ''}`;
+  const tunesSwitch = (btn) => `<label class="as-written use-tunes"><span>Use with tunes${btn}</span><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}></label>`;
+  // key: { label, value (shown in its row), html (its controls), shown? }
+  const PANELS = {
+    harmony: { label: 'Chords it goes with', value: () => (t.harmony ?? guessed()) || 'None yet', html: harmonyHtml, shown: () => !isNew && !t.vary && !t.fromTune },
+    kind: { label: 'Kind', value: () => CATEGORIES[t.category] || 'Other', html: kindChips },
+    vary: { label: 'Each session', shown: () => !t.fromTune, html: varyHtml,
+      value: () => (!t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`) },
+    keys: { label: 'Keys', shown: () => !t.fromTune, html: keysHtml,
+      value: () => (t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} · ${KEY_MODES[t.keyMode].label.toLowerCase()}${t.keyMode === 'fixed' && t.keys.length ? `: ${t.keys.map((k) => rootName(k)).join(' ')}` : ''}`) },
+    level: { label: 'How well you know it', value: () => LEVELS[t.level ?? 0].label, html: levelSeg },
+    priority: { label: 'Priority', value: () => PRIORITIES[(t.priority || 3) - 1].label, html: prioritySeg },
+  };
+  const panels = () => Object.entries(PANELS).filter(([, x]) => !x.shown || x.shown());
+  function settingsHtml() {
+    if (isNew) {
+      return `${panels().map(([, x]) => `<label class="field-label">${x.label}</label>${x.html()}`).join('')}`;
+    }
+    const help = info(tunesHelp);
+    return settingRowsHtml([
+      ...panels().slice(0, 2).map(([key, x]) => ({ key, label: x.label, value: x.value() })),
+      !t.fromTune && { html: tunesSwitch(help.btn) },
+      ...panels().slice(2).map(([key, x]) => ({ key, label: x.label, value: x.value() })),
+    ]) + (t.fromTune ? '' : help.text);
   }
+  // The panel open over the sheet (a key of PANELS), if any.
+  let panel = null;
+  const fillPanel = () => {
+    const el = sheet.querySelector('.sub-panel');
+    if (!el || !panel || !PANELS[panel]) { panel = null; return; }
+    el.querySelector('.sub-body').innerHTML = PANELS[panel].html();
+  };
 
   // Today's keys (and types) for this exercise, changeable: not for a warm-up (its come from its
   // tune), or one without keys.
@@ -300,12 +314,11 @@ ${t.fromTune ? '' : `
   function harmonyHtml() {
     if (isNew || t.vary || t.fromTune) return '';
     const g = guessed();
-    const help = info('The chords it goes over, as written, like the notes — so it comes up as a warm-up for tunes with those chords. Read from the chord symbols in its notation, or typed here.');
     return `
-      <div class="field-label">Chords it goes with${help.btn}</div>${help.text}
       <div class="field"><input id="x-harmony" value="${esc(t.harmony ?? g)}" placeholder="e.g. Dm7 G7 Cmaj7" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Chords it goes with"></div>
       <p class="fine" id="x-harmony-msg">${t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).'
-        : g ? 'From the chord symbols in its notation.' : ''}</p>`;
+        : g ? 'From the chord symbols in its notation.' : ''}</p>
+      <p class="fine">The chords it goes over, as written, like the notes — so it comes up as a warm-up for tunes with those chords. Read from the chord symbols in its notation, or typed here.</p>`;
   }
 
   const outerBack = opts.back;
@@ -342,6 +355,7 @@ ${t.fromTune ? '' : `
     const y = bodyEl.scrollTop;
     bodyEl.innerHTML = body();
     bodyEl.scrollTop = y;
+    fillPanel(); // (a setting's panel, if one's open, shows the change too)
     bind();
   };
   // Leave this sheet for another (note, recorder, editor) and come back after.
@@ -536,12 +550,13 @@ ${t.fromTune ? '' : `
       commit();
       refresh();
     }));
-    // Varying exercises are written out from their pattern, further down.
+    // Varying exercises are written out from their pattern: Edit pattern opens its panel.
     const toPattern = $('#x-to-pattern', sheet);
     if (toPattern) toPattern.onclick = () => {
-      const more = $('details.more', sheet);
-      if (more) more.open = true; // (the pattern is under Details)
-      $('#x-shape', sheet)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      panel = 'vary';
+      settingPanel(sheet, PANELS.vary.label, () => { panel = null; refresh(); });
+      refresh();
+      $('.sub-panel .pattern-card', sheet)?.scrollIntoView({ block: 'start' });
     };
     // The number pad edits the pattern; changing a preset makes it your own.
     $$('[data-pn]', sheet).forEach((b) => (b.onclick = async () => {
@@ -610,7 +625,12 @@ ${t.fromTune ? '' : `
     };
     const tuneChart = $('#x-tune-chart', sheet);
     if (tuneChart) mountChart(tuneChart, tempoFrom, { key: todayItem(tempoFrom)?.key ?? (planItem.form ? planItem.overKey : null), compact: true }); // in the tune's key
-    bindMore(sheet);
+    // A setting's row opens its panel over the sheet; Done goes back to the rows.
+    $$('[data-open]', sheet).forEach((b) => (b.onclick = () => {
+      panel = b.dataset.open;
+      settingPanel(sheet, PANELS[panel].label, () => { panel = null; refresh(); });
+      refresh();
+    }));
     // ⋯: add to today, try it through a tune, delete.
     const menu = $('#item-menu', sheet);
     // (From its card in today's set: swap it or take it out, as a swipe left does.)
