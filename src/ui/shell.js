@@ -436,9 +436,9 @@ export function closeMenu() {
 }
 
 // A collapsed section of set-once fields ("Details"), remembered open or shut per kind of sheet.
-export function moreHtml(key, summary, inner) {
+export function moreHtml(key, summary, inner, title = 'Details') {
   const open = (ui.moreOpen || []).includes(key);
-  return `<details class="more" data-more="${key}" ${open ? 'open' : ''}><summary><b>Details</b><span>${esc(summary)}</span></summary><div class="more-body">${inner}</div></details>`;
+  return `<details class="more" data-more="${key}" ${open ? 'open' : ''}><summary><b>${esc(title)}</b><span>${esc(summary)}</span></summary><div class="more-body">${inner}</div></details>`;
 }
 export function bindMore(root) {
   root.querySelectorAll('details.more').forEach((d) => d.addEventListener('toggle', () => {

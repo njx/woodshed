@@ -95,7 +95,8 @@ export function renderTunes(root) {
     const list = items()
       .filter((t) => f.fn(t, stats) && (!q || t.name.toLowerCase().includes(q) || (t.style || t.category || '').toLowerCase().includes(q)))
       .sort((a, b) => (SORTS[ui.sort] || SORTS.priority).fn(a, b, stats));
-    $('#count').textContent = `${list.length} shown`;
+    // (Only when it isn't all of them: the total is in the header.)
+    $('#count').textContent = list.length === items().length ? '' : `${list.length} shown`;
     const row = exercises ? exerciseRowHtml : rowHtml;
     $('#tune-list').innerHTML = list.length ? list.map((t) => row(t, stats)).join('') : '<li class="empty">Nothing matches.</li>';
   };

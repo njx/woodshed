@@ -1153,3 +1153,26 @@ details.more > summary span { color: var(--ink-3); font-size: 14px; min-width: 0
 .chart-box .row-links { flex-wrap: nowrap; gap: 8px; align-items: center; }
 .chart-box .bass-btn { min-height: 34px; padding: 0 12px; }
 .chart-box .loop-row { margin: 4px 0 8px; }
+/* The notation editor: the chord picker in place of the note keys; the help behind a toggle. */
+#ne-pad.chording > .kp-row { display: none; }
+.ne-help { margin-top: 10px; }
+.ne-help > summary { cursor: pointer; font-size: 14px; color: var(--ink-3); list-style: none; }
+.ne-help > summary::before { content: 'ⓘ '; }
+.ne-help > summary::-webkit-details-marker { display: none; }
+.metro-beats .chips { flex-wrap: nowrap; gap: 6px; }
+.metro-beats .chip { flex: 1; min-width: 0; padding-left: 0; padding-right: 0; justify-content: center; }
+/* Settings' less-used groups, collapsed: the panels inside sit flush. */
+details.more[data-more="settings"] { margin: 0 0 14px; }
+details.more[data-more="settings"] .panel { box-shadow: none; padding-left: 0; padding-right: 0; background: transparent; }
+/* Narrow phones: segment labels a touch smaller (so "Don't know", "Every beat" stay on a line);
+   a warm-up's "for …" can take two lines rather than being cut off. */
+@media (max-width: 380px) { .seg button { font-size: 12.5px; letter-spacing: -.01em; } }
+.card-top .style { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+/* With a Bass button too: Play, Bass (always labelled, so the two ▶ aren't mistaken), then the
+   sound and feel menus, wrapping as they need. */
+.play-row:has(.bass-btn) { display: flex; flex-wrap: wrap; gap: 6px; }
+.play-row:has(.bass-btn) .pb-select { flex: 1 1 96px; min-width: 0; }
+.play-row .bass-btn { width: auto !important; padding: 0 12px !important; gap: 4px; }
+.play-row .bass-btn span { position: static !important; width: auto !important; height: auto !important; overflow: visible !important; clip: auto !important; }
+details.more > summary b { white-space: nowrap; }
+#m-tap { white-space: nowrap; }

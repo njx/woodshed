@@ -24,7 +24,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
 import {
-  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, moreHtml, bindMore,
+  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, moreHtml, bindMore, hintHtml,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -198,7 +198,7 @@ export function openExercise(id, opts = {}) {
           <button class="link-btn" id="x-rec">${ICON.rec}Record</button></span></div>
         ${takes.length ? `<ul class="notes panel-list" id="x-takes">${takes.slice(0, 3).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>
           ${takes.length > 3 ? `<p class="fine">${takes.length - 3} more in the Diary.</p>` : ''}`
-          : '<p class="fine">Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.</p>'}`}
+          : hintHtml('takes', 'Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.', 'fine')}`}
       ${isNew ? settingsHtml() : moreHtml('exercise', [CATEGORIES[t.category] || 'Other', t.vary ? `varies the ${t.vary.kind} type` : '', t.keyMode === 'none' ? 'no key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''}, ${KEY_MODES[t.keyMode].label.toLowerCase()}`, LEVELS[t.level ?? 0].label].filter(Boolean).join(' · '), settingsHtml())}
 
       ${isNew ? `<button class="primary-btn" id="x-save">Add exercise</button>` : `
@@ -727,7 +727,9 @@ export function openNotationEditor(t, back) {
       <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
       ${playbackOptionsHtml()}
     </div>
-    <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, each note goes in the octave nearest the one before it; <b>↑8</b> <b>↓8</b> move the note before the cursor (lowercase = octave up, <code>'</code> and <code>,</code> another octave). <b>Chord</b> adds a chord symbol over the next note: tap its root, then its type (<code>"Dm7"</code>; ø7 is <code>m7b5</code>).</p>
+    <details class="ne-help"><summary>How to write it</summary>
+      <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, each note goes in the octave nearest the one before it; <b>↑8</b> <b>↓8</b> move the note before the cursor (lowercase = octave up, <code>'</code> and <code>,</code> another octave). <b>Chord</b> adds a chord symbol over the next note: tap its root, then its type (<code>"Dm7"</code>; ø7 is <code>m7b5</code>).</p>
+    </details>
     <button class="primary-btn" id="ne-save">Done</button>
     <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
   `, () => {
@@ -758,6 +760,7 @@ export function openNotationEditor(t, back) {
     $('[data-dot]', sheet).classList.toggle('on', dotted);
     $$('[data-acc]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.acc === accidental));
     $('#ne-chord', sheet).hidden = !chord.open;
+    $('#ne-pad', sheet).classList.toggle('chording', chord.open); // (in place of the note keys)
     $('[data-chord]', sheet).classList.toggle('on', chord.open);
     $$('[data-croot]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.croot === chord.root));
     $$('[data-cacc]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.cacc === chord.acc));

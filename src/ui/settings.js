@@ -9,7 +9,7 @@ import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
-import { $, $$, ICON, render, toast, goTo } from './shell.js';
+import { $, $$, ICON, render, toast, goTo, moreHtml, bindMore } from './shell.js';
 
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
@@ -55,6 +55,7 @@ export function renderSettings(root) {
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
     </section>
 
+    ${moreHtml('settings', 'Exercises on a day · priority · other keys', `
     <section class="panel">
       <h3 class="section-label">Exercises on a day</h3>
       <div class="seg" id="ex-focus">${[['own', 'Each its own'], ['day', 'Key of the day']].map(([v, l]) => `<button class="${s.exerciseFocus === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>
@@ -72,6 +73,8 @@ export function renderSettings(root) {
       ${seg('newKeys', [['mastered', 'Mastered'], ['proficient', 'Proficient +'], ['never', 'Never']])}
       <p class="fine">Other tunes rotate through their usual keys. Keys you’ve practiced less come up first.</p>
     </section>
+
+    `, 'More settings')}
 
     <section class="panel">
       <h3 class="section-label">Open recordings in</h3>
@@ -193,6 +196,7 @@ export function renderSettings(root) {
       toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);
     };
   });
+  bindMore(root);
   $('#export').onclick = exportData;
   $('#import').onchange = importData;
   $('#reset').onclick = async () => {

@@ -5,7 +5,7 @@ import { todayItem } from '../plan.js';
 import { chartChords } from '../bass.js';
 import { metronome, takeAwayStop } from '../metronome.js';
 import { setTempo, clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
-import { $, $$, ICON, render, toast, openSheet } from './shell.js';
+import { $, $$, ICON, render, toast, openSheet, hintHtml } from './shell.js';
 
 // Metronome sheet. Opened for a tune or exercise (opts.itemId), its tempo is that item's working
 // tempo: changing it here changes the item's.
@@ -37,7 +37,7 @@ export function openMetronome(opts = {}) {
     <div id="m-bass"></div>
     <div class="metro-beats" id="m-beats">
       <span class="field-label">Beats per bar</span>
-      <div class="chips wrap">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<button class="chip ${n === beats ? 'on' : ''}" data-beats="${n}">${n === 1 ? 'No accent' : n}</button>`).join('')}</div>
+      <div class="chips wrap">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<button class="chip ${n === beats ? 'on' : ''}" data-beats="${n}" ${n === 1 ? 'aria-label="1, no accent"' : ''}>${n}</button>`).join('')}</div>
     </div>
     <div class="metro-actions">
       <button class="ghost-btn" id="m-tap">Tap tempo</button>
@@ -48,8 +48,8 @@ export function openMetronome(opts = {}) {
         <div><b>Goal tempo</b><span>Optional. Suggestions to speed up stop here.</span></div>
         <input class="goal-input" id="m-goal" type="number" inputmode="numeric" min="${MIN_BPM}" max="${MAX_BPM}" placeholder="—" value="${item.goalTempo || ''}">
       </div>
-      <p class="fine">This is the working tempo for ${esc(item.name)}: when you log it, this tempo is saved with the session.</p>`
-      : '<p class="fine">Tip: open the metronome from a tune or exercise (the tempo button on its card) to save its tempo with your practice.</p>'}
+      <p class="fine">${esc(item.name)}’s working tempo, saved with the session when you log it.</p>`
+      : hintHtml('metro-tip', 'Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice.', 'fine')}
   `, () => {
     cancelAnimationFrame(raf);
     unsubscribe();
