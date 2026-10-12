@@ -124,7 +124,7 @@ export function renderTunes(root: HTMLElement): void {
   }));
   $('#tune-list').onclick = (e) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>('.row');
-    if (row) openItem(row.dataset.id);
+    if (row) openItem(row.dataset.id!); // (every row has its item's id)
   };
   $('#add').onclick = () => (exercises ? openExercise(null) : openItem(null));
 }

@@ -248,7 +248,7 @@ Tap **Tuner** on Today. The dial shows the note you're playing and how many cent
 it is (green within 5 cents); underneath, a trace of the last 10 seconds shows how your pitch moves
 — useful for long tones, where it shows the pitch sagging as a breath runs out. Notes are named as
 written for the transposition you're viewing (B♭, E♭, F), with concert pitch underneath. The
-reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.js`),
+reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.ts`),
 which finds the fundamental even when overtones are louder, as they often are on sax.
 
 **Mini tuner** (in the tuner's top corner) keeps it listening while you go through today's set: the
@@ -268,7 +268,7 @@ make changes for you, for example:
 - "Note for my teacher: ask about altissimo", "Mark Solar proficient and set it to 140"
 - general music questions
 
-It works through a set of tools over the app's data (`src/assistant/tools.js`): search the library,
+It works through a set of tools over the app's data (`src/assistant/tools.ts`): search the library,
 read today's set, an item's history, practice stats and the diary; add to or remove from today;
 update, create or delete tunes and exercises; add diary notes. Every change it makes is listed under its
 reply with an **Undo** button. When you ask for something the tools can't do, it says so and
@@ -283,7 +283,7 @@ Needs a connection; the rest of the app works offline.
 
 **Cost:** each reply shows what it cost, the chat header shows the conversation's total, and
 Settings → Assistant shows today, this month and all time. Figures are worked out from the token
-counts each API response reports, at Anthropic's list prices (`src/assistant/cost.js`), including
+counts each API response reports, at Anthropic's list prices (`src/assistant/cost.ts`), including
 cache reads/writes and any fallback model. API use is billed separately from Claude Pro/Max plans,
 which don't cover it. The Anthropic console has the official numbers.
 
@@ -365,12 +365,12 @@ Each tune's detail sheet has a **Listen** section with classic recordings of it:
 plain search link. Tapping a recording searches Apple Music, Spotify or YouTube (your choice in
 Settings) for that tune by that artist. Links are searches rather than direct track links, because
 linking to exact tracks would need each service's developer API (and for Spotify, logging in). The
-list is in `src/data/recordings.js`. It was compiled from well-known discographies, with a sample
+list is in `src/data/recordings.ts`. It was compiled from well-known discographies, with a sample
 of album track lists checked online.
 
 ## Data
 
-- The starting list (`src/data/tunes.js`) was imported from the spreadsheet: the "My List" column
+- The starting list (`src/data/tunes.ts`) was imported from the spreadsheet: the "My List" column
   (A–D) became the familiarity level, and the priority column became the priority. The usual keys
   come from the iReal Pro jazz collection via
   [mikeoliphant/JazzStandards](https://github.com/mikeoliphant/JazzStandards), with a few hand
@@ -378,7 +378,7 @@ of album track lists checked online.
 - All your data (edits, practice log, settings) is stored in IndexedDB on your device. Data saved
   by the first version (in `localStorage`) is picked up automatically. Use **Settings → Export
   backup** now and then, and before switching phones.
-- Saved and imported data is checked on every load (`src/validate.js`): fields get the types the
+- Saved and imported data is checked on every load (`src/validate.ts`): fields get the types the
   app expects, and unsafe ids or values are replaced. If saved data can't be read, the app says so
   and offers to retry rather than starting over.
 - Recordings are files kept apart from the rest; a note points to each. One no note points to (its
@@ -391,14 +391,17 @@ of album track lists checked online.
 
 ## Development
 
-It's a small Vite project in plain JavaScript, with Vitest for unit tests and Playwright for end-to-end tests.
+It's a small Vite project in TypeScript (strict; `npm run typecheck`, which runs before every
+deploy), with Vitest for unit tests and Playwright for end-to-end tests. `src/types.ts` has the
+app's data model (what `store.state` holds).
 The screens are moving over to [Lit](https://lit.dev) components, one at a time (Settings so
-far; `src/ui/lit.js` has the shared pieces); the rest build HTML from template strings.
+far; `src/ui/lit.ts` has the shared pieces); the rest build HTML from template strings.
 
 ```sh
 git submodule update --init   # chord charts (vendor/JazzStandards)
 npm install
 npm run dev      # local dev server
+npm run typecheck # type check (Vite strips types without checking them)
 npm test         # unit tests
 npm run coverage # unit tests with a coverage report
 npm run test:e2e # end-to-end tests in a phone-sized Chromium (builds first)
@@ -407,22 +410,22 @@ npm run build    # production build in dist/
 
 Layout:
 
-- `src/practice.js`: practice log, spaced-repetition scheduling, level suggestions
-- `src/plan.js`: picking the daily set and the key for each item
-- `src/theory.js`: scale and chord types, generated notation for them, and choosing types
-- `src/chords.js`: chord charts — reading, naming and transposing chords, editing as text, and
-  what's in a chart (main chords, progressions, scales for chords); `src/standards.js` matches tune
-  titles to JazzStandards at build time (`virtual:seed-charts` in `vite.config.js`), `src/charts.js`
-  seeds tunes with them; `src/warmups.js` picks warm-ups from them
-- `src/store.js`, `src/db.js`: app state, schema migrations, IndexedDB persistence
-- `src/keys.js`, `src/dates.js`: key names and transposition, calendar-day helpers
-- `src/keystats.js`: key familiarity and choosing exercise keys
-- `src/tempo.js`, `src/metronome.js`: working tempos and suggestions; the metronome engine
-- `src/assistant/`: the assistant's tools (`tools.js`), conversation loop (`agent.js`) and cost tracking (`cost.js`)
-- `src/abc.js`: building notation (ABC), note lengths, transposition
-- `src/diary.js`: practice notes and flagged to-dos
-- `src/media.js`: recorded clips (formats, storage, cleanup)
-- `src/listen.js`, `src/data/`: recordings and search links; the seed tunes and exercises
+- `src/practice.ts`: practice log, spaced-repetition scheduling, level suggestions
+- `src/plan.ts`: picking the daily set and the key for each item
+- `src/theory.ts`: scale and chord types, generated notation for them, and choosing types
+- `src/chords.ts`: chord charts — reading, naming and transposing chords, editing as text, and
+  what's in a chart (main chords, progressions, scales for chords); `src/standards.ts` matches tune
+  titles to JazzStandards at build time (`virtual:seed-charts` in `vite.config.js`), `src/charts.ts`
+  seeds tunes with them; `src/warmups.ts` picks warm-ups from them
+- `src/store.ts`, `src/db.ts`: app state, schema migrations, IndexedDB persistence
+- `src/keys.ts`, `src/dates.ts`: key names and transposition, calendar-day helpers
+- `src/keystats.ts`: key familiarity and choosing exercise keys
+- `src/tempo.ts`, `src/metronome.ts`: working tempos and suggestions; the metronome engine
+- `src/assistant/`: the assistant's tools (`tools.ts`), conversation loop (`agent.ts`) and cost tracking (`cost.ts`)
+- `src/abc.ts`: building notation (ABC), note lengths, transposition
+- `src/diary.ts`: practice notes and flagged to-dos
+- `src/media.ts`: recorded clips (formats, storage, cleanup)
+- `src/listen.ts`, `src/data/`: recordings and search links; the seed tunes and exercises
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
   sheet (`item`), exercises and the notation editor (`exercise`, `notation`), the recorder
   (`recorder`), the metronome (`metronome`), the assistant chat (`assistant`), and shared pieces

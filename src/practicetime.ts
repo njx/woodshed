@@ -1,3 +1,4 @@
+import type { DateStr } from './types.js';
 import { store, save, flush } from './store.js';
 import { today } from './dates.js';
 import { uid } from './util.js';
@@ -83,8 +84,8 @@ export function practicedMs(date = today(), now = Date.now()) {
 }
 
 // Milliseconds practiced per day: Map date → ms.
-export function practicedByDay(now = Date.now()) {
-  const m = new Map();
+export function practicedByDay(now = Date.now()): Map<DateStr, number> {
+  const m = new Map<DateStr, number>();
   for (const s of sessions()) {
     const end = s.id === store.state.timing ? Math.max(s.end, now) : s.end;
     m.set(s.date, (m.get(s.date) || 0) + end - s.start);

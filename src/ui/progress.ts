@@ -56,7 +56,7 @@ export function renderProgress(root: HTMLElement): void {
   const hasKeys = fam.some((x) => x > 0);
   const maxCount = Math.max(...levelCounts.map((c) => c.n), 1);
   const byDate = [...new Set([...perDay.keys(), ...time.keys()])].sort().reverse().slice(0, 10);
-  const timeOn = (day: DateStr) => (time.get(day) ? fmtDuration(time.get(day)) : '');
+  const timeOn = (day: DateStr) => { const ms = time.get(day); return ms ? fmtDuration(ms) : ''; };
   const namesOn = (day: DateStr) => state.log.filter((e) => e.date === day).map((e) => itemById(e.itemId)?.name).filter(Boolean);
 
   root.innerHTML = `
