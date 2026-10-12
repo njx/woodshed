@@ -9,7 +9,7 @@ import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
-import { $, $$, ICON, render, toast, goTo, moreHtml, bindMore } from './shell.js';
+import { $, $$, ICON, render, toast, goTo, moreHtml, bindMore, info } from './shell.js';
 
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
@@ -27,12 +27,17 @@ export function renderSettings(root) {
     </div>`;
   const seg = (key, opts) => `<div class="seg" data-setting="${key}">${opts.map(([v, l]) => `<button class="${s[key] === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`;
 
+  // A section's heading, with what it's about behind an ⓘ.
+  const heading = (label, help) => {
+    const h = info(help);
+    return `<h3 class="section-label">${label}${h.btn}</h3>${h.text}`;
+  };
+
   root.innerHTML = `
     <header class="top"><div><p class="eyebrow">Woodshed</p><h1>Settings</h1></div></header>
 
     <section class="panel">
-      <h3 class="section-label">Instruments you play</h3>
-      <p class="fine">Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.</p>
+      ${heading('Instruments you play', 'Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.')}
       <ul class="instruments">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => `
         <li><label>
           <input type="checkbox" data-ins="${id}" ${s.instruments.includes(id) ? 'checked' : ''}>
@@ -42,7 +47,7 @@ export function renderSettings(root) {
     </section>
 
     <section class="panel">
-      <h3 class="section-label">Daily mix</h3>
+      ${heading('Daily mix', 'Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.')}
       ${stepper('exercises', 'Exercises', 'Scales, arpeggios, patterns, licks')}
       ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
       ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
@@ -51,7 +56,6 @@ export function renderSettings(root) {
       ${stepper('focusExercises', 'Focus exercises', 'At most, a day; they take turns')}
       <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
         ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']])}</div>
-      <p class="fine">Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.</p>
       <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
     </section>
 
@@ -63,27 +67,24 @@ export function renderSettings(root) {
     </section>
 
     <section class="panel">
-      <h3 class="section-label">How much should priority matter?</h3>
+      ${heading('How much should priority matter?', 'Tunes are picked mostly by when they’re due for review. Each time you play one and rate it, its next review is pushed further out — “Solid” pushes it further, “Rough” brings it back tomorrow. Priority tips the balance among tunes that are due.')}
       ${seg('priority', [['off', 'Not at all'], ['some', 'Some'], ['strong', 'A lot']])}
-      <p class="fine">Tunes are picked mostly by when they’re due for review. Each time you play one and rate it, its next review is pushed further out — “Solid” pushes it further, “Rough” brings it back tomorrow. Priority tips the balance among tunes that are due.</p>
     </section>
 
     <section class="panel">
-      <h3 class="section-label">Practice in other keys for</h3>
+      ${heading('Practice in other keys for', 'Other tunes rotate through their usual keys. Keys you’ve practiced less come up first.')}
       ${seg('newKeys', [['mastered', 'Mastered'], ['proficient', 'Proficient +'], ['never', 'Never']])}
-      <p class="fine">Other tunes rotate through their usual keys. Keys you’ve practiced less come up first.</p>
     </section>
 
     `, 'More settings')}
 
     <section class="panel">
-      <h3 class="section-label">Open recordings in</h3>
+      ${heading('Open recordings in', 'Recording links in a tune’s details search this service for that recording.')}
       ${seg('listen', Object.entries(LISTEN_SERVICES).map(([v, x]) => [v, x.label]))}
-      <p class="fine">Recording links in a tune’s details search this service for that recording.</p>
     </section>
 
     <section class="panel">
-      <h3 class="section-label">Assistant</h3>
+      ${heading('Assistant', 'The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures.')}
       <div class="setting">
         <div><b>Anthropic API key</b><span id="key-status">Checking…</span></div>
         <button class="pill-btn" id="key-btn">Set</button>
@@ -92,7 +93,6 @@ export function renderSettings(root) {
         <div><b>Spent</b><span id="spend-text"></span></div>
         <button class="pill-btn" id="spend-reset">Reset</button>
       </div>
-      <p class="fine">The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures.</p>
       ${(store.state.assistantWishes || []).length ? `
         <div class="field-label">Things it couldn’t do yet</div>
         <ul class="wishes">${store.state.assistantWishes.slice(-10).reverse().map((w) => `<li><span>${esc(w.request)}</span><small>${esc(w.date)}</small></li>`).join('')}</ul>` : ''}

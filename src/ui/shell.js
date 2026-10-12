@@ -453,3 +453,25 @@ export function bindMore(root) {
     saveUi();
   }));
 }
+
+// ---------- Help behind an ⓘ ----------
+// An explanation that isn't needed every time: info(html) gives the ⓘ button (to put by a heading
+// or label) and the text it shows and hides (to put under it). Wired once, globally.
+let infoN = 0;
+export function info(html) {
+  const id = `info-${++infoN}`;
+  return {
+    btn: `<button type="button" class="info-btn" aria-controls="${id}" aria-expanded="false" aria-label="What’s this?">i</button>`,
+    text: `<p class="fine info-text" id="${id}" hidden>${html}</p>`,
+  };
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('.info-btn');
+  if (!b) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const el = document.getElementById(b.getAttribute('aria-controls'));
+  if (!el) return;
+  el.hidden = !el.hidden;
+  b.setAttribute('aria-expanded', String(!el.hidden));
+}, true);

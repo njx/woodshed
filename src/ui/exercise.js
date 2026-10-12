@@ -25,7 +25,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
 import {
-  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, moreHtml, bindMore, hintHtml,
+  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, moreHtml, bindMore, hintHtml, info,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -221,22 +221,27 @@ export function openExercise(id, opts = {}) {
 
   // How it's set up, seldom changed: under Details (open for a new exercise).
   function settingsHtml() {
+    // Explanations behind an ⓘ by each heading.
+    const help = {
+      tunes: info('As a warm-up before a tune, or through a tune’s form. Off for technical work like long tones or interval drills.'),
+      vary: info(t.vary ? `Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.` : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'),
+      keys: info(esc(KEY_MODES[t.keyMode].hint)),
+    };
     return `
       ${harmonyHtml()}
       ${isNew || t.fromTune ? '' : `<label class="as-written use-tunes"><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}>
-        <span>Use with tunes — as a warm-up, or through a tune’s form. Off for technical work like long tones.</span></label>`}
+        <span>Use with tunes${help.tunes.btn}</span></label>${help.tunes.text}`}
       <label class="field-label">Kind</label>
       <div class="chips wrap" id="x-cat">${Object.entries(CATEGORIES).map(([k, l]) => `<button class="chip ${t.category === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>
 
 ${t.fromTune ? '' : `
-      <label class="field-label">Each session, vary the</label>
+      <div class="field-label">Each session, vary the${help.vary.btn}</div>${help.vary.text}
       <div class="seg" id="x-vary">
         <button class="${!t.vary ? 'on' : ''}" data-vary="">Key only</button>
         <button class="${t.vary?.kind === 'scale' ? 'on' : ''}" data-vary="scale">Scale type</button>
         <button class="${t.vary?.kind === 'chord' ? 'on' : ''}" data-vary="chord">Chord type</button>
       </div>
       ${t.vary ? `
-        <p class="fine">Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.</p>
         <div class="chips wrap" id="x-types">${Object.entries(typesOf(t.vary.kind)).map(([id, x]) => `
           <button class="chip ${t.vary.types.includes(id) ? 'on' : ''}" data-vtype="${id}" aria-pressed="${t.vary.types.includes(id)}">${esc(x.label)}</button>`).join('')}</div>
         <label class="field-label">Pattern</label>
@@ -249,9 +254,8 @@ ${t.fromTune ? '' : `
           <p class="fine" id="x-pattern-msg">${patternHint(t.vary.kind)}</p>` : ''}
         </div>` : ''}
 
-      <label class="field-label">Choose keys by</label>
+      <div class="field-label">Choose keys by${help.keys.btn}</div>${help.keys.text}
       <div class="chips wrap" id="x-mode">${Object.entries(KEY_MODES).map(([k, m]) => `<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode="${k}">${m.label}</button>`).join('')}</div>
-      <p class="fine">${esc(KEY_MODES[t.keyMode].hint)}</p>
       ${t.keyMode === 'fixed' ? `<div class="keygrid" id="x-fixed">${[...Array(12).keys()].map((w) => {
         const r = writtenToConcert(w, view());
         return `<button class="${t.keys.includes(r) ? 'on' : ''}" data-fixed="${r}">${esc(rootName(r))}</button>`;
@@ -278,16 +282,16 @@ ${t.fromTune ? '' : `
     const keys = planItem.keys || [];
     const types = t.vary ? planItem.types || [] : [];
     const played = isPlanItemPlayed(planItem);
+    const help = info(`Tap keys to play ${t.vary ? 'it in (and pick the type for each)' : 'it in'} today${played ? ' — the session you logged changes too' : ''}.`);
     return `
-      <div class="field-label row-label"><span>Today’s keys</span></div>
+      <div class="field-label row-label"><span>Today’s keys${help.btn}</span></div>${help.text}
       <div class="today-keys" role="group" aria-label="Today’s keys">${[...Array(12).keys()].map((w) => {
         const k = writtenToConcert(w, view());
         return `<button class="${keys.includes(k) ? 'on' : ''}" data-tk="${k}" aria-pressed="${keys.includes(k)}">${esc(rootName(k))}</button>`;
       }).join('')}</div>
       ${t.vary && keys.length ? `<ul class="today-types">${keys.map((k, i) => `
         <li><b>${esc(rootName(k))}</b><select data-tt="${i}" aria-label="${esc(VARY[t.vary.kind].label)} in ${esc(rootName(k))}">${Object.entries(VARY[t.vary.kind].types).map(([id, x]) => `
-          <option value="${id}" ${types[i] === id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></li>`).join('')}</ul>` : ''}
-      <p class="fine">Tap keys to play ${t.vary ? 'it in (and pick the type for each)' : 'it in'} today${played ? ' — the session you logged changes too' : ''}.</p>`;
+          <option value="${id}" ${types[i] === id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></li>`).join('')}</ul>` : ''}`;
   }
 
   // The chords a written exercise goes with (so it can be a warm-up over them in tunes): typed
@@ -296,12 +300,12 @@ ${t.fromTune ? '' : `
   function harmonyHtml() {
     if (isNew || t.vary || t.fromTune) return '';
     const g = guessed();
+    const help = info('The chords it goes over, as written, like the notes — so it comes up as a warm-up for tunes with those chords. Read from the chord symbols in its notation, or typed here.');
     return `
-      <label class="field"><span class="field-label">Chords it goes with</span>
-        <input id="x-harmony" value="${esc(t.harmony ?? g)}" placeholder="e.g. Dm7 G7 Cmaj7" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="field-label">Chords it goes with${help.btn}</div>${help.text}
+      <div class="field"><input id="x-harmony" value="${esc(t.harmony ?? g)}" placeholder="e.g. Dm7 G7 Cmaj7" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Chords it goes with"></div>
       <p class="fine" id="x-harmony-msg">${t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).'
-        : g ? 'From the chord symbols in its notation — change them here if they’re not right.'
-        : 'Type the chords it goes over, as written, like the notes (or add chord symbols to its notation), so it can come up as a warm-up for tunes with those chords.'}</p>`;
+        : g ? 'From the chord symbols in its notation.' : ''}</p>`;
   }
 
   const outerBack = opts.back;

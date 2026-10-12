@@ -18,8 +18,10 @@ offered as a warm-up). Off leaves it out of the pool for now, to work from a sma
 or exercises for a while. The library filters by each.
 
 Swipe a card **right** (or tap ✓) when you've played it, and **left** to swap in a different
-suggestion. Once it's played, rate how it went (Rough / OK / Solid) on the card, next to the ✓.
-Cards show a priority badge only for critical and high priority.
+suggestion. Once it's played, rate how it went (Rough / OK / Solid) on the card, under the ✓.
+A card shows just the name, its note / record / tempo buttons and ✓, and its key; how well you
+know it, when you last played it and how often are in its details. A priority badge shows only
+for critical and high priority, and "overdue" when a tune is well past its review.
 
 ## Exercises
 
@@ -211,7 +213,8 @@ you know it, priority, usual keys and style; for an exercise its kind, the chord
 with tunes, what it varies, its pattern and how keys are chosen — is under a collapsed **Details**
 (with a summary; open or shut, it's remembered). An exercise's **How to practice it** sits under
 its notation. Hints (swiping cards, looping bars, the metronome tip, recording takes) show until
-you dismiss them (×) or do the thing; Settings' less-used groups are under **More settings**.
+you dismiss them (×) or do the thing; longer explanations are behind an **ⓘ** by their heading
+(in Settings and an exercise's Details); Settings' less-used groups are under **More settings**.
 
 The metronome stops when the app goes into the background (the phone slows it down there, so it
 would drift); coming back, a message offers **Start again**. A warm-up is played at its tune's

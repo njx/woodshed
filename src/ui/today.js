@@ -1,6 +1,6 @@
 import { store, save } from '../store.js';
 import { BUCKETS, RATINGS, SHIFTS, LEVELS, TRANSPOSITIONS } from '../constants.js';
-import { dateStr, niceDate, ago } from '../dates.js';
+import { dateStr, niceDate } from '../dates.js';
 import { esc, randomOf } from '../util.js';
 import {
   itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel, tempoSource,
@@ -8,8 +8,8 @@ import {
 } from '../practice.js';
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
 import {
-  $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
-  levelLabel, bindTransposeToggle, suggestionHtml, hintHtml, hintDone,
+  $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, priBadge, kn, keysText,
+  bindTransposeToggle, suggestionHtml, hintHtml, hintDone,
 } from './shell.js';
 import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
@@ -347,16 +347,15 @@ function cardHtml(it, i, stats) {
       <div class="card-top">
         <span class="bucket"><i></i>${it.warmup ? 'Warm-up' : BUCKETS[it.bucket].label}</span>
         <span class="style">${esc(it.warmup ? `for ${itemById(it.warmup)?.name || 'a tune'}` : t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style)}</span>
+        ${late ? '<em class="late">overdue</em>' : ''}
         ${priBadge(t.priority)}
       </div>
       <h2>${esc(t.name)}</h2>
-      <div class="card-sub">${pips(t.level)}<span>${esc([levelLabel(t.level), s?.last !== dateStr() && ago(s?.last), s?.count && `${s.count}×`].filter(Boolean).join(' · '))}${late ? ' · <em>overdue</em>' : ''}</span>${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}</div>
-      <div class="card-actions">
-        ${played
-          ? `<div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>`
-          : keyChip(it, t)}
-        <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
-      </div>
+      <div class="card-sub">${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}
+        <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button></div>
+      ${played
+        ? `<div class="card-actions"><div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div></div>`
+        : keyChip(it, t) ? `<div class="card-actions">${keyChip(it, t)}</div>` : ''}
       ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? `<button class="link-btn add-warm" data-add-warm>${ICON.plus}Warm-up</button>` : ''}
       ${played ? suggestionHtml(t, levelSuggestion(t)) : ''}
       ${played && !it.warmup ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}

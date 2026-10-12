@@ -217,3 +217,18 @@ test('a card’s Swap and Remove are also in its details’ ⋯ menu (no swipe n
   await page.keyboard.press('Escape');
   await expect(page.locator('.menu-pop')).toHaveCount(0);
 });
+
+test('cards show just the name and chips; explanations are behind ⓘ @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await expect(page.locator('.card .pips')).toHaveCount(0); // how well you know it is in its details
+  await ui.tab('settings');
+  const btn = page.locator('.section-label', { hasText: 'Daily mix' }).locator('.info-btn');
+  const text = page.locator(`#${await btn.getAttribute('aria-controls')}`);
+  await expect(text).toBeHidden();
+  await btn.click();
+  await expect(text).toBeVisible();
+  await expect(text).toContainText('Focus tunes and exercises come first');
+  await btn.click();
+  await expect(text).toBeHidden();
+  await ui.expectNoSideScroll();
+});
