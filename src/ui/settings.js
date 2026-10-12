@@ -1,7 +1,7 @@
 import { store, save, flush, seedState, migrate } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
-import { esc, clone } from '../util.js';
+import { clone } from '../util.js';
 import { buildPlan, refreshExercises, orderPlan } from '../plan.js';
 import { loadSeedCharts } from '../charts.js';
 import { mediaStats, fmtSize, strayClips, restoreStrayClips } from '../media.js';
@@ -9,7 +9,8 @@ import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
-import { $, $$, ICON, render, toast, goTo, info, settingRowsHtml, openChoice } from './shell.js';
+import { ICON, render, toast, goTo, openChoice } from './shell.js';
+import { View, mount, html, nothing, live, raw, infoParts, settingRows } from './lit.js';
 
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
@@ -36,121 +37,143 @@ const CHOICES = {
 };
 
 export function renderSettings(root) {
-  const s = store.state.settings;
-  const stepper = (key, label, hint) => `
-    <div class="setting">
-      <div><b>${label}</b><span>${hint}</span></div>
-      <div class="stepper" data-key="${key}">
-        <button data-d="-1" aria-label="Fewer">−</button><output>${s[key]}</output><button data-d="1" aria-label="More">+</button>
-      </div>
-    </div>`;
-  const seg = (key, opts) => `<div class="seg" data-setting="${key}">${opts.map(([v, l]) => `<button class="${s[key] === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  mount(root, 'ws-settings');
+}
 
-  // A section's heading, with what it's about behind an ⓘ.
-  const heading = (label, help) => {
-    const h = info(help);
-    return `<h3 class="section-label">${label}${h.btn}</h3>${h.text}`;
-  };
+// The Settings screen.
+class SettingsView extends View {
+  static properties = { key: { state: true }, usage: { state: true }, stray: { state: true } };
 
-  root.innerHTML = `
-    <header class="top"><div><p class="eyebrow">Woodshed</p><h1>Settings</h1></div></header>
+  constructor() {
+    super();
+    this.key = null; // the assistant's API key (null: still checking)
+    this.usage = null; // what the assistant has cost
+    this.stray = []; // recordings in no note
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this.load();
+  }
+  refresh() {
+    super.refresh();
+    this.load();
+  }
+  // What's kept outside the app's state.
+  load() {
+    getApiKey().then((k) => (this.key = k || ''));
+    getUsage().then((u) => (this.usage = u));
+    strayClips().then((ids) => (this.stray = ids));
+  }
 
-    <section class="panel">
-      ${heading('Instruments you play', 'Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.')}
-      <ul class="instruments">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => `
-        <li><label>
-          <input type="checkbox" data-ins="${id}" ${s.instruments.includes(id) ? 'checked' : ''}>
-          <span class="ins-name">${esc(tr.label)}${id === 'c' ? '' : ' instruments'}</span>
-          <span class="ins-hint">${esc(tr.hint)}</span>
-        </label></li>`).join('')}</ul>
-    </section>
-
-    <section class="panel">
-      ${heading('Daily mix', 'Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.')}
-      ${stepper('exercises', 'Exercises', 'Scales, arpeggios, patterns, licks')}
-      ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
-      ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
-      ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
-      ${stepper('focusTunes', 'Focus tunes', 'At most, a day; they take turns')}
-      ${stepper('focusExercises', 'Focus exercises', 'At most, a day; they take turns')}
-      <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
-        ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']])}</div>
-      <button class="ghost-btn" id="rebuild">${ICON.shuffle}<span>Rebuild today’s set</span></button>
-    </section>
-
-    <section class="panel">
-      <h3 class="section-label">Picking</h3>
-      ${settingRowsHtml(Object.entries(CHOICES).map(([key, c]) => ({ key, label: c.label, value: c.options.find(([v]) => v === s[c.setting])?.[1] })))}
-    </section>
-
-    <section class="panel">
-      ${heading('Open recordings in', 'Recording links in a tune’s details search this service for that recording.')}
-      ${seg('listen', Object.entries(LISTEN_SERVICES).map(([v, x]) => [v, x.label]))}
-    </section>
-
-    <section class="panel">
-      ${heading('Assistant', 'The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures.')}
+  render() {
+    const s = store.state.settings;
+    // A change to a setting: saved, and shown.
+    const set = (k, v) => { s[k] = v; save(); this.requestUpdate(); };
+    const stepper = (key, label, hint) => html`
       <div class="setting">
-        <div><b>Anthropic API key</b><span id="key-status">Checking…</span></div>
-        <button class="pill-btn" id="key-btn">Set</button>
-      </div>
-      <div class="setting" id="spend" hidden>
-        <div><b>Spent</b><span id="spend-text"></span></div>
-        <button class="pill-btn" id="spend-reset">Reset</button>
-      </div>
-      ${(store.state.assistantWishes || []).length ? `
-        <div class="field-label">Things it couldn’t do yet</div>
-        <ul class="wishes">${store.state.assistantWishes.slice(-10).reverse().map((w) => `<li><span>${esc(w.request)}</span><small>${esc(w.date)}</small></li>`).join('')}</ul>` : ''}
-    </section>
+        <div><b>${label}</b><span>${hint}</span></div>
+        <div class="stepper" data-key=${key}>
+          <button data-d="-1" aria-label="Fewer" @click=${() => set(key, Math.max(0, s[key] - 1))}>−</button><output>${s[key]}</output><button data-d="1" aria-label="More" @click=${() => set(key, Math.min(8, s[key] + 1))}>+</button>
+        </div>
+      </div>`;
+    const seg = (key, opts, after) => html`<div class="seg" data-setting=${key}>${opts.map(([v, l]) => html`
+      <button class=${s[key] === v ? 'on' : ''} data-v=${v} @click=${() => { set(key, v); after?.(); }}>${l}</button>`)}</div>`;
+    // A section's heading, with what it's about behind an ⓘ.
+    const heading = (id, label, help) => {
+      const h = infoParts(`info-settings-${id}`, help);
+      return html`<h3 class="section-label">${label}${h.btn}</h3>${h.text}`;
+    };
+    const m = mediaStats(store.state);
+    const wishes = store.state.assistantWishes || [];
+    const spent = this.usage && Object.keys(this.usage.days).length ? summarize(this.usage) : null;
 
-    <section class="panel">
-      <h3 class="section-label">Your data</h3>
-      <p class="fine">Everything is stored on this device only. Export a backup now and then — and before switching phones.</p>
-      ${(() => {
-        const m = mediaStats(store.state);
-        return m.count ? `<p class="fine">Recordings: ${m.count} (${fmtSize(m.bytes)}). They aren’t included in backups — save the ones you want to keep from their diary notes.</p>` : '';
-      })()}
-      <div id="stray" hidden><p class="fine" id="stray-text"></p><button class="ghost-btn" id="stray-restore">Restore them as notes</button></div>
-      <div class="btn-row">
-        <button class="ghost-btn" id="export">Export backup</button>
-        <label class="ghost-btn file-btn">Import backup<input type="file" id="import" accept="application/json,.json"></label>
-      </div>
-      <button class="danger-btn" id="reset">Reset everything</button>
-    </section>
-  `;
+    return html`
+      <header class="top"><div><p class="eyebrow">Woodshed</p><h1>Settings</h1></div></header>
 
-  $$('[data-ins]', root).forEach((cb) => (cb.onchange = () => {
-    const picked = $$('[data-ins]', root).filter((x) => x.checked).map((x) => x.dataset.ins);
-    if (!picked.length) { cb.checked = true; return toast('Pick at least one'); }
+      <section class="panel">
+        ${heading('instruments', 'Instruments you play', 'Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.')}
+        <ul class="instruments">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => html`
+          <li><label>
+            <input type="checkbox" data-ins=${id} .checked=${live(s.instruments.includes(id))} @change=${(e) => this.toggleInstrument(id, e.target.checked)}>
+            <span class="ins-name">${tr.label}${id === 'c' ? '' : ' instruments'}</span>
+            <span class="ins-hint">${tr.hint}</span>
+          </label></li>`)}</ul>
+      </section>
+
+      <section class="panel">
+        ${heading('mix', 'Daily mix', 'Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.')}
+        ${stepper('exercises', 'Exercises', 'Scales, arpeggios, patterns, licks')}
+        ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
+        ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
+        ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
+        ${stepper('focusTunes', 'Focus tunes', 'At most, a day; they take turns')}
+        ${stepper('focusExercises', 'Focus exercises', 'At most, a day; they take turns')}
+        <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
+          ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']], () => {
+            // The tune order applies to today's set straight away.
+            if (store.state.plan?.date === dateStr()) { orderPlan(store.state.plan); save(); }
+          })}</div>
+        <button class="ghost-btn" id="rebuild" @click=${() => { buildPlan(true); goTo('today'); toast('Today’s set rebuilt'); }}>${raw(ICON.shuffle)}<span>Rebuild today’s set</span></button>
+      </section>
+
+      <section class="panel">
+        <h3 class="section-label">Picking</h3>
+        ${settingRows(Object.entries(CHOICES).map(([key, c]) => ({ key, label: c.label, value: c.options.find(([v]) => v === s[c.setting])?.[1] })), (key) => this.choose(key))}
+      </section>
+
+      <section class="panel">
+        ${heading('listen', 'Open recordings in', 'Recording links in a tune’s details search this service for that recording.')}
+        ${seg('listen', Object.entries(LISTEN_SERVICES).map(([v, x]) => [v, x.label]))}
+      </section>
+
+      <section class="panel">
+        ${heading('assistant', 'Assistant', 'The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures.')}
+        <div class="setting">
+          <div><b>Anthropic API key</b><span id="key-status">${this.key == null ? 'Checking…' : this.key ? `Set (…${this.key.slice(-4)})` : 'Not set'}</span></div>
+          <button class="pill-btn" id="key-btn" @click=${() => this.keyButton()}>${this.key ? 'Remove' : 'Set'}</button>
+        </div>
+        ${spent ? html`
+          <div class="setting" id="spend">
+            <div><b>Spent</b><span id="spend-text">Today ${fmtCost(spent.today)} · this month ${fmtCost(spent.month)} · ${fmtCost(spent.total)} since ${niceDate(spent.since, { month: 'short', day: 'numeric' })}</span></div>
+            <button class="pill-btn" id="spend-reset" @click=${() => this.resetSpend()}>Reset</button>
+          </div>` : nothing}
+        ${wishes.length ? html`
+          <div class="field-label">Things it couldn’t do yet</div>
+          <ul class="wishes">${wishes.slice(-10).reverse().map((w) => html`<li><span>${w.request}</span><small>${w.date}</small></li>`)}</ul>` : nothing}
+      </section>
+
+      <section class="panel">
+        <h3 class="section-label">Your data</h3>
+        <p class="fine">Everything is stored on this device only. Export a backup now and then — and before switching phones.</p>
+        ${m.count ? html`<p class="fine">Recordings: ${m.count} (${fmtSize(m.bytes)}). They aren’t included in backups — save the ones you want to keep from their diary notes.</p>` : nothing}
+        ${this.stray.length ? html`
+          <div id="stray">
+            <p class="fine" id="stray-text">${this.stray.length} recording${this.stray.length > 1 ? 's aren’t' : ' isn’t'} in any note (from a deleted note, or one that didn’t get saved). ${this.stray.length > 1 ? 'They’re' : 'It’s'} kept for 30 days.</p>
+            <button class="ghost-btn" id="stray-restore" @click=${(e) => this.restoreStray(e.currentTarget)}>Restore them as notes</button>
+          </div>` : nothing}
+        <div class="btn-row">
+          <button class="ghost-btn" id="export" @click=${exportData}>Export backup</button>
+          <label class="ghost-btn file-btn">Import backup<input type="file" id="import" accept="application/json,.json" @change=${importData}></label>
+        </div>
+        <button class="danger-btn" id="reset" @click=${resetAll}>Reset everything</button>
+      </section>
+    `;
+  }
+
+  toggleInstrument(id, on) {
+    const s = store.state.settings;
+    const picked = Object.keys(TRANSPOSITIONS).filter((x) => (x === id ? on : s.instruments.includes(x)));
+    if (!picked.length) { toast('Pick at least one'); return this.requestUpdate(); } // (stays on)
     s.instruments = picked;
     s.instrumentsChosen = true;
     if (!picked.includes(s.view)) s.view = picked[0];
     save();
-  }));
-  $$('.stepper', root).forEach((st) => {
-    st.onclick = (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      const k = st.dataset.key;
-      s[k] = Math.max(0, Math.min(8, s[k] + Number(b.dataset.d)));
-      $('output', st).textContent = s[k];
-      save();
-    };
-  });
-  $$('.seg[data-setting]', root).forEach((sg) => {
-    sg.onclick = (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      s[sg.dataset.setting] = b.dataset.v;
-      $$('button', sg).forEach((x) => x.classList.toggle('on', x === b));
-      // The tune order applies to today's set straight away.
-      if (sg.dataset.setting === 'tuneOrder' && store.state.plan?.date === dateStr()) orderPlan(store.state.plan);
-      save();
-    };
-  });
-  // Rows for the less-used choices, each picked in a sheet with what it does.
-  $$('[data-open]', root).forEach((row) => (row.onclick = () => {
-    const c = CHOICES[row.dataset.open];
+    this.requestUpdate();
+  }
+  // A less-used choice, picked in a sheet with what each option does.
+  choose(key) {
+    const s = store.state.settings;
+    const c = CHOICES[key];
     openChoice({
       title: c.title, help: c.help, options: c.options, value: s[c.setting],
       onPick: (v) => {
@@ -161,63 +184,38 @@ export function renderSettings(root) {
         render();
       },
     });
-  }));
-  $('#rebuild').onclick = () => {
-    buildPlan(true);
-    goTo('today');
-    toast('Today’s set rebuilt');
-  };
-  getApiKey().then((k) => {
-    const status = $('#key-status', root);
-    const btn = $('#key-btn', root);
-    if (!status) return;
-    status.textContent = k ? `Set (…${k.slice(-4)})` : 'Not set';
-    btn.textContent = k ? 'Remove' : 'Set';
-    btn.onclick = async () => {
-      if (!k) return openKeySetup(() => openAssistant());
-      if (!confirm('Remove the API key from this device?')) return;
-      await setApiKey('');
-      render();
-      toast('Key removed');
-    };
-  });
-  getUsage().then((u) => {
-    const box = $('#spend', root);
-    if (!box || !Object.keys(u.days).length) return;
-    const t = summarize(u);
-    box.hidden = false;
-    $('#spend-text', root).textContent = `Today ${fmtCost(t.today)} · this month ${fmtCost(t.month)} · ${fmtCost(t.total)} since ${niceDate(t.since, { month: 'short', day: 'numeric' })}`;
-    $('#spend-reset', root).onclick = async () => {
-      if (!confirm('Reset the assistant spending totals?')) return;
-      await resetUsage();
-      render();
-    };
-  });
+  }
+  async keyButton() {
+    if (!this.key) return openKeySetup(() => openAssistant());
+    if (!confirm('Remove the API key from this device?')) return;
+    await setApiKey('');
+    this.load();
+    toast('Key removed');
+  }
+  async resetSpend() {
+    if (!confirm('Reset the assistant spending totals?')) return;
+    await resetUsage();
+    this.load();
+  }
   // Recordings not in any note (kept 30 days before they're deleted): offered back.
-  strayClips().then((ids) => {
-    const box = $('#stray', root);
-    if (!box || !ids.length) return;
-    box.hidden = false;
-    $('#stray-text', root).textContent = `${ids.length} recording${ids.length > 1 ? 's aren’t' : ' isn’t'} in any note (from a deleted note, or one that didn’t get saved). ${ids.length > 1 ? 'They’re' : 'It’s'} kept for 30 days.`;
-    $('#stray-restore', root).onclick = async (e) => {
-      e.currentTarget.disabled = true; // (once)
-      const n = await restoreStrayClips(addEntry);
-      await flush();
-      render();
-      toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);
-    };
-  });
-  $('#export').onclick = exportData;
-  $('#import').onchange = importData;
-  $('#reset').onclick = async () => {
-    if (!confirm('Erase all practice history and edits, and start over from the original list?')) return;
-    if (!confirm('Really? This can’t be undone (unless you have a backup).')) return;
-    await loadSeedCharts();
-    store.state = seedState();
-    save();
+  async restoreStray(btn) {
+    btn.disabled = true; // (once)
+    const n = await restoreStrayClips(addEntry);
+    await flush();
     render();
-    toast('Reset to the original list');
-  };
+    toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);
+  }
+}
+customElements.define('ws-settings', SettingsView);
+
+async function resetAll() {
+  if (!confirm('Erase all practice history and edits, and start over from the original list?')) return;
+  if (!confirm('Really? This can’t be undone (unless you have a backup).')) return;
+  await loadSeedCharts();
+  store.state = seedState();
+  save();
+  render();
+  toast('Reset to the original list');
 }
 
 async function exportData() {

@@ -391,7 +391,9 @@ of album track lists checked online.
 
 ## Development
 
-It's a small Vite project in plain JavaScript (no framework), with Vitest for unit tests and Playwright for end-to-end tests.
+It's a small Vite project in plain JavaScript, with Vitest for unit tests and Playwright for end-to-end tests.
+The screens are moving over to [Lit](https://lit.dev) components, one at a time (Settings so
+far; `src/ui/lit.js` has the shared pieces); the rest build HTML from template strings.
 
 ```sh
 git submodule update --init   # chord charts (vendor/JazzStandards)
