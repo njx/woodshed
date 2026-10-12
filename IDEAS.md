@@ -91,25 +91,18 @@ limits the web app keeps running into:
 The logic (plans, theory, charts, warm-ups) is plain JS with no DOM, so it could carry over to a
 native shell largely as is; the UI and audio/recording layers are what would change.
 
-## Screens: simpler, more hidden (from a UX review, parked)
+## Screens: simpler, more hidden (from a UX review)
 
-Screens are getting long, with many buttons always showing. A review at iPhone SE size suggested:
-- **Slimmer Today cards** (M): drop the swap button (swipe left does it), note and record into the
-  swipe tray, priority badge only for P1, Rough/OK/Solid on the check's row — about half the height.
-- **A "⋯" menu on tune and exercise sheets** (M) for Focus/On/Off, Add to today, Try it through a
-  tune, Log for today, Delete; set-once settings (level, priority, keys, kind, chords it goes with,
-  use with tunes) under a collapsed "Details"; "How to practice it" up under the notation.
-- **A toolbar above the chart** (S–M): key, ▶ Bass, Loop ▾ (sections in a popover), so the bass
-  doesn't start with the chart scrolled away; progressions behind a small expander.
-- **A lighter Today header** (S–M): one "+" for note, record and the assistant; the key circle only
-  with more than one instrument; the practice timer as a one-line bar.
-- **Show-once hints** (S): the swipe hint, loop hint, metronome tip, recordings and notation help
-  only until first used; Settings' rarely-changed groups under "Advanced"; long explanations
-  behind ⓘ.
-- Smaller: scale types as the chosen ones plus Edit; the chord picker in place of the note keys
-  (the notation stays in view); beats per bar as a stepper; one Progress tile for practice time
-  instead of three; fix wrapping at SE width ("Don't know", "Every beat", the library count, a
-  warm-up card's "for …").
+Done: slimmer Today cards (no swap button, P badge only for P1/P2, rating on the check's row), a
+one-line practice timer, a ⋯ menu and collapsed Details on tune and exercise sheets, Bass in the
+chart's header with Loop shown with it, show-once hints, More settings, the chord picker in place
+of the note keys, a one-row beats-per-bar, narrow-phone wrapping fixes. Still open:
+- **One "+" in the Today header** for note, record and the assistant (kept as circles for now —
+  asked for that way).
+- **Scale types** as the chosen ones plus Edit (they're under Details now, so less pressing).
+- **Progress**: three practice-time tiles could be one (the average one was asked for).
+- **The notation editor's** time signature and sound in a small Options row.
+- **Toasts** over a sheet just opened (e.g. after adding a warm-up).
 
 ## Code health (from the review)
 

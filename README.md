@@ -18,7 +18,8 @@ offered as a warm-up). Off leaves it out of the pool for now, to work from a sma
 or exercises for a while. The library filters by each.
 
 Swipe a card **right** (or tap ✓) when you've played it, and **left** to swap in a different
-suggestion. After you play a tune, rate how it went (Rough / OK / Solid).
+suggestion. Once it's played, rate how it went (Rough / OK / Solid) on the card, next to the ✓.
+Cards show a priority badge only for critical and high priority.
 
 ## Exercises
 
@@ -202,8 +203,15 @@ tune. The assistant can do the same ("I also played it in B").
 
 Everything saves as you go: details, notes, notation (with **Undo changes** to go back to how it
 was when you opened the editor) and chord charts (each edit is kept once it reads as a chart). A
-new tune or exercise is added when you close it, once it has a name (with Undo). An exercise's or
-tune's details have **Add to today's set**.
+new tune or exercise is added when you close it, once it has a name (with Undo).
+
+A tune's or exercise's details start with Focus / On / Off and a **⋯** menu: **Add to today's set**,
+**Try it through a tune** (exercises), **Delete**. What's set once and seldom changed — how well
+you know it, priority, usual keys and style; for an exercise its kind, the chords it goes with, use
+with tunes, what it varies, its pattern and how keys are chosen — is under a collapsed **Details**
+(with a summary; open or shut, it's remembered). An exercise's **How to practice it** sits under
+its notation. Hints (swiping cards, looping bars, the metronome tip, recording takes) show until
+you dismiss them (×) or do the thing; Settings' less-used groups are under **More settings**.
 
 The metronome stops when the app goes into the background (the phone slows it down there, so it
 would drift); coming back, a message offers **Start again**. A warm-up is played at its tune's
