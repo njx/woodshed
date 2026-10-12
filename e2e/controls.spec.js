@@ -154,13 +154,12 @@ test('today: one more tune; a run of solid sessions suggests the next level @nar
   // Two solid sessions on earlier days for the first tune card's tune…
   const card = page.locator('.card:not(.b-exercise)').first();
   const name = await card.locator('h2').textContent();
-  await ui.editSaved(`(s) => {
+  await ui.editSavedClosed(`(s) => {
     const t = s.items.find((x) => x.name === ${JSON.stringify(name)});
     t.level = 1;
     t.levelSetAt = 0;
     for (const d of ['2026-01-01', '2026-01-02']) s.log.push({ id: d, date: d, itemId: t.id, at: Date.parse(d), key: null, rating: 'solid', prev: {} });
   }`);
-  await page.reload();
   // …and a third today.
   const again = page.locator('.card', { has: page.locator('h2', { hasText: name }) });
   await again.locator('.check').click();
@@ -174,12 +173,14 @@ test('today: one more tune; a run of solid sessions suggests the next level @nar
 
 test('progress: tap a key’s bar, or a day @narrow', async ({ page, ui }) => {
   await ui.start();
-  await page.locator('.card:has(.keychip) .check').first().click(); // (one with a key)
+  const card = page.locator('.card:has(.keychip)').first(); // (one with a key)
+  const name = await card.locator('h2').textContent();
+  await card.locator('.check').click();
   await ui.tab('progress');
   await page.locator('.keybar').first().click();
   await expect(page.locator('#key-readout')).toContainText(/sessions? in the last 30 days/);
   await page.locator('.heat .cell.today').click();
-  await expect(page.locator('#heat-readout')).toContainText(/Major scale/);
+  await expect(page.locator('#heat-readout')).toContainText(name);
 });
 
 test('a note: saving needs some text; delete it, and undo @narrow', async ({ page, ui }) => {

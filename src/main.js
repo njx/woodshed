@@ -1,4 +1,7 @@
 import './styles.css';
+// Lit first: it uses Math.random once as it loads, so loading it up front keeps the end-to-end
+// tests' seeded picks the same whichever screens use it.
+import 'lit';
 import { store, loadState, flush, setSaveErrorHandler } from './store.js';
 import { dateStr } from './dates.js';
 import { $, $$, ui, registerViews, render, goTo, toast, closeSheet } from './ui/shell.js';

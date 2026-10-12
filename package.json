@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "abcjs": "^6.7.1"
+    "abcjs": "^6.7.1",
+    "lit": "^3.3.1"
   }
 }

@@ -114,6 +114,14 @@ function helpers(page) {
         t.oncomplete = () => { resolve(); q.result.close(); };
       };
     }), `(${fn})(s)`),
+    // The same, with the app closed while it's changed (so it can't save over the change as it
+    // goes), then opened again.
+    async editSavedClosed(fn) {
+      await page.goto('./manifest.webmanifest'); // (the same origin, without the app)
+      await page.waitForTimeout(300); // its last save, as it closed
+      await ui.editSaved(fn);
+      await page.goto('./');
+    },
   };
   return ui;
 }
