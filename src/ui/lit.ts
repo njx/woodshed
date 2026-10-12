@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { openSheet } from './shell.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
 // Screens and sheets as Lit components (https://lit.dev), moving over from template strings one
@@ -9,11 +10,16 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 // (shell.js). A component reads what it needs from it in render(); render() asks the screen's
 // component to update, and Lit changes only the parts of the page whose values changed.
 
-export { html, nothing } from 'lit';
+export { html, nothing, type TemplateResult } from 'lit';
 export { live } from 'lit/directives/live.js';
 
 export class View extends LitElement {
   createRenderRoot() { return this; }
+  connectedCallback() {
+    super.connectedCallback();
+    // Laid out as if it weren't there: its parts are the page's, as before it was a component.
+    this.style.display = 'contents';
+  }
   // Called by mount() each time the app redraws this screen.
   refresh() { this.requestUpdate(); }
 }
@@ -25,6 +31,12 @@ export function mount(root: HTMLElement, tag: string): View {
     el = document.createElement(tag) as View;
     root.replaceChildren(el);
   } else el.refresh();
+  return el;
+}
+
+// A sheet (see openSheet in shell.ts) holding a component.
+export function openSheetView<T extends HTMLElement>(el: T, onClose?: () => void): T {
+  openSheet('', onClose).querySelector('.sheet-body')!.append(el);
   return el;
 }
 

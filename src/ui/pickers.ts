@@ -1,17 +1,24 @@
 import { store } from '../store.js';
-import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { warmupChoices } from '../warmups.js';
 import { todayItem, addWarmup, tryWithTune, tunesToTry } from '../plan.js';
-import { $, $$, render, toast, openSheet, closeSheet, kn } from './shell.js';
+import { render, toast, closeSheet, kn } from './shell.js';
 import { exerciseKeysText, rootName } from './exercise.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { View, html, nothing, openSheetView, type TemplateResult } from './lit.js';
 import type { Exercise, PlanItem, Tune } from '../types.js';
 
 // Picking what goes with what: a warm-up for a tune, or a tune to take an exercise through.
 
-const row = (i: number, name: string, sub?: string) => `<li class="row" data-pick="${i}" role="button" tabindex="0">
-  <div class="row-main"><b>${esc(name)}</b>${sub ? `<span class="row-sub">${esc(sub)}</span>` : ''}</div></li>`;
-const group = (label: string, rows: string) => (rows ? `<h3 class="section-label">${esc(label)}</h3><ul class="list pick-list">${rows}</ul>` : '');
+interface Row { name: string; sub?: string; hidden?: boolean; pick: () => void }
+const rowHtml = (r: Row, i: number) => html`<li class="row" data-pick=${i} role="button" tabindex="0" ?hidden=${r.hidden} @click=${r.pick}>
+  <div class="row-main"><b>${r.name}</b>${r.sub ? html`<span class="row-sub">${r.sub}</span>` : nothing}</div></li>`;
+// Groups of rows under their headings (numbered across groups); an empty group isn't shown.
+function groups(list: { label: string; rows: Row[] }[], { labels = true } = {}): TemplateResult[] {
+  let n = 0;
+  return list.filter((g) => g.rows.length).map((g) => html`
+    <h3 class="section-label" ?hidden=${!labels}>${g.label}</h3><ul class="list pick-list">${g.rows.map((r) => rowHtml(r, n++))}</ul>`);
+}
 
 // How a warm-up goes: "Over ii–V7–I in B♭", "iiø–V7–i in G", "Gm6 · Aø7 · D7", "Through the form".
 // (A warm-up has its keys, see warmupChoices.)
@@ -27,54 +34,78 @@ export function pickWarmup(t: Tune, { back }: { back?: () => void } = {}): void 
   const plan = store.state.plan;
   const key = todayItem(t)?.key ?? null;
   const have = plan?.date ? plan.items.filter((i) => i.warmup === t.id) : [];
-  const { changes, chords, form } = warmupChoices(t, { key, have });
-  const all = [...changes, ...chords, ...form];
-  if (!all.length) return toast(`No more warm-ups for ${t.name}`);
-  let n = 0;
-  const rows = (list: PlanItem[]) => list.map((it) => { const x = itemById(it.itemId) as Exercise; return row(n++, x.name, how(it, x)); }).join('');
-  const sheet = openSheet(`
-    <p class="eyebrow">Warm up for ${esc(t.name)}</p>
-    <h2 class="sheet-title">Pick a warm-up</h2>
-    ${group('Over its changes', rows(changes))}
-    ${group('On its chords', rows(chords))}
-    ${group('Through the form — bend it to the changes', rows(form))}
-  `, () => back?.());
-  $$('[data-pick]', sheet).forEach((li) => (li.onclick = () => {
-    const it = all[Number(li.dataset.pick)];
-    addWarmup(t, it);
-    closeSheet();
-    render();
-    toast(`Added ${itemById(it.itemId)!.name} before ${t.name}`);
-  }));
+  const choices = warmupChoices(t, { key, have });
+  if (!choices.changes.length && !choices.chords.length && !choices.form.length) return toast(`No more warm-ups for ${t.name}`);
+  const el = document.createElement('ws-pick-warmup') as PickWarmup;
+  Object.assign(el, { tune: t, choices });
+  openSheetView(el, () => back?.());
+}
+
+@customElement('ws-pick-warmup')
+export class PickWarmup extends View {
+  @property({ attribute: false }) tune!: Tune;
+  @property({ attribute: false }) choices!: ReturnType<typeof warmupChoices>;
+
+  render() {
+    const t = this.tune;
+    const rows = (list: PlanItem[]): Row[] => list.map((it) => {
+      const x = itemById(it.itemId) as Exercise; // (warm-ups are exercises)
+      return { name: x.name, sub: how(it, x), pick: () => {
+        addWarmup(t, it);
+        closeSheet();
+        render();
+        toast(`Added ${x.name} before ${t.name}`);
+      } };
+    });
+    return html`
+      <p class="eyebrow">Warm up for ${t.name}</p>
+      <h2 class="sheet-title">Pick a warm-up</h2>
+      ${groups([
+        { label: 'Over its changes', rows: rows(this.choices.changes) },
+        { label: 'On its chords', rows: rows(this.choices.chords) },
+        { label: 'Through the form — bend it to the changes', rows: rows(this.choices.form) },
+      ])}`;
+  }
 }
 
 // A tune to take exercise x through (Try it through a tune), with a search.
 export function pickTune(x: Exercise, { back }: { back?: () => void } = {}): void {
-  const { today, fit, known, other } = tunesToTry(x);
-  const all = [...today, ...fit, ...known, ...other];
-  if (!all.length) { toast('No tune with a chart to try it with'); return back?.(); }
-  let n = 0;
-  const rows = (list: Tune[]) => list.map((t) => row(n++, t.name, t.style || '')).join('');
-  const sheet = openSheet(`
-    <p class="eyebrow">Try ${esc(x.name)} through a tune</p>
-    <h2 class="sheet-title">Pick a tune</h2>
-    <input class="pick-search" id="pick-q" type="search" placeholder="Search tunes" autocomplete="off" aria-label="Search tunes">
-    <div id="pick-groups">
-      ${group('In today’s set', rows(today))}
-      ${group('Its chords fit', rows(fit))}
-      ${group('Tunes you know', rows(known))}
-      ${group('Others', rows(other))}
-    </div>
-  `, () => back?.());
-  $('#pick-q', sheet).oninput = (e) => {
-    const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
-    $$('[data-pick]', sheet).forEach((li) => { li.hidden = !!q && !all[Number(li.dataset.pick)].name.toLowerCase().includes(q); });
-    $$('#pick-groups .section-label', sheet).forEach((h) => { h.hidden = !!q; });
-  };
-  $$('[data-pick]', sheet).forEach((li) => (li.onclick = () => {
-    const t = tryWithTune(x, all[Number(li.dataset.pick)]);
-    closeSheet();
-    render();
-    if (t) toast(`Added ${t.name} to today’s set, with ${x.name} before it`);
-  }));
+  const tunes = tunesToTry(x);
+  if (!Object.values(tunes).some((l) => l.length)) { toast('No tune with a chart to try it with'); return back?.(); }
+  const el = document.createElement('ws-pick-tune') as PickTune;
+  Object.assign(el, { exercise: x, tunes });
+  openSheetView(el, () => back?.());
+}
+
+@customElement('ws-pick-tune')
+export class PickTune extends View {
+  @property({ attribute: false }) exercise!: Exercise;
+  @property({ attribute: false }) tunes!: ReturnType<typeof tunesToTry>;
+  @state() query = '';
+
+  render() {
+    const x = this.exercise;
+    const q = this.query.trim().toLowerCase();
+    const rows = (list: Tune[]): Row[] => list.map((t) => ({
+      name: t.name, sub: t.style || '', hidden: !!q && !t.name.toLowerCase().includes(q),
+      pick: () => {
+        const added = tryWithTune(x, t);
+        closeSheet();
+        render();
+        if (added) toast(`Added ${added.name} to today’s set, with ${x.name} before it`);
+      },
+    }));
+    const { today, fit, known, other } = this.tunes;
+    return html`
+      <p class="eyebrow">Try ${x.name} through a tune</p>
+      <h2 class="sheet-title">Pick a tune</h2>
+      <input class="pick-search" id="pick-q" type="search" placeholder="Search tunes" autocomplete="off" aria-label="Search tunes"
+        @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)}>
+      <div id="pick-groups">${groups([
+        { label: 'In today’s set', rows: rows(today) },
+        { label: 'Its chords fit', rows: rows(fit) },
+        { label: 'Tunes you know', rows: rows(known) },
+        { label: 'Others', rows: rows(other) },
+      ], { labels: !q })}</div>`;
+  }
 }

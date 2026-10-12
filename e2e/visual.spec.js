@@ -100,3 +100,25 @@ test('metronome and a note @visual @narrow', async ({ page, ui }) => {
   await settle(page);
   await expect(page).toHaveScreenshot(...shot('note'));
 });
+
+test('pickers: a warm-up for a tune, a tune for an exercise @visual @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.fill('#q', 'Autumn Leaves');
+  await page.locator('.row', { hasText: 'Autumn Leaves' }).first().click();
+  await ui.menu('Add to today’s set');
+  await ui.backdrop();
+  await ui.tab('today');
+  await page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) }).locator('[data-add-warm]').click();
+  await settle(page);
+  await expect(page).toHaveScreenshot(...shot('pick-warmup'));
+  await ui.backdrop();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Cross-arpeggios' }).click();
+  await ui.menu('Try it through a tune');
+  await settle(page);
+  await expect(page).toHaveScreenshot(...shot('pick-tune'));
+  await page.fill('#pick-q', 'blue');
+  await expect(page).toHaveScreenshot(...shot('pick-tune-search'));
+});
