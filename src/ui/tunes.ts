@@ -6,8 +6,13 @@ import { $, $$, ICON, ui, saveUi, pips, priBadge, keysText, transposeToggle, bin
 import { openItem } from './item.js';
 import { openExercise, exerciseRowHtml } from './exercise.js';
 import { CATEGORIES } from '../constants.js';
+import type { Exercise, Id, Item, ItemStats, Tune } from '../types.js';
 
-export function rowHtml(t, stats) {
+type Stats = Map<Id, ItemStats>;
+// A library filter, for one kind of item.
+interface Filter<T extends Item> { id: string; label: string; fn: (t: T, stats: Stats) => boolean | undefined }
+
+export function rowHtml(t: Tune, stats: Stats): string {
   const s = stats.get(t.id);
   const keys = keysText(t);
   return `
@@ -21,7 +26,7 @@ export function rowHtml(t, stats) {
   </li>`;
 }
 
-export const FILTERS = [
+export const FILTERS: Filter<Tune>[] = [
   { id: 'all', label: 'All', fn: () => true },
   { id: 'due', label: 'Due', fn: isDue },
   { id: 'focus', label: 'Focus', fn: (t) => t.focus },
@@ -35,7 +40,7 @@ export const FILTERS = [
   { id: 'p2', label: 'High', fn: (t) => t.priority === 2 },
   { id: 'mine', label: 'Mine', fn: (t) => t.mine },
 ];
-const SORTS = {
+const SORTS: Record<string, { label: string; fn: (a: Item, b: Item, s: Stats) => number }> = {
   priority: { label: 'Priority', fn: (a, b) => a.priority - b.priority || a.name.localeCompare(b.name) },
   name: { label: 'A–Z', fn: (a, b) => a.name.localeCompare(b.name) },
   recent: { label: 'Recently played', fn: (a, b, s) => (s.get(b.id)?.last || '').localeCompare(s.get(a.id)?.last || '') || a.name.localeCompare(b.name) },
@@ -44,19 +49,20 @@ const SORTS = {
   level: { label: 'Familiarity', fn: (a, b) => (b.level ?? 0) - (a.level ?? 0) || a.priority - b.priority },
 };
 
-const EXERCISE_FILTERS = [
+const EXERCISE_FILTERS: Filter<Exercise>[] = [
   { id: 'all', label: 'All', fn: () => true },
   { id: 'due', label: 'Due', fn: isDue },
   { id: 'focus', label: 'Focus', fn: (t) => t.focus },
   { id: 'on', label: 'On', fn: (t) => !t.focus && !t.off && !t.fromTune },
   { id: 'off', label: 'Off', fn: (t) => t.off },
-  ...Object.entries(CATEGORIES).map(([k, label]) => ({ id: `c-${k}`, label: `${label}s`, fn: (t) => t.category === k })),
+  ...Object.entries(CATEGORIES).map(([k, label]) => ({ id: `c-${k}`, label: `${label}s`, fn: (t: Exercise) => t.category === k })),
 ];
 
-export function renderTunes(root) {
+export function renderTunes(root: HTMLElement): void {
   const exercises = ui.library === 'exercises';
   const kind = exercises ? 'exercise' : 'tune';
-  const filters = exercises ? EXERCISE_FILTERS : FILTERS;
+  // (Each kind's filters and rows get only that kind: see items().)
+  const filters = (exercises ? EXERCISE_FILTERS : FILTERS) as Filter<Item>[];
   const filterKey = exercises ? 'exFilter' : 'filter';
   const items = () => store.state.items.filter((t) => t.type === kind);
   // How many are focused, next to the Focus filter (more than a day's worth take turns).
@@ -93,17 +99,17 @@ export function renderTunes(root) {
     const q = ui.query.trim().toLowerCase();
     const f = filters.find((x) => x.id === (ui[filterKey] || 'all')) || filters[0];
     const list = items()
-      .filter((t) => f.fn(t, stats) && (!q || t.name.toLowerCase().includes(q) || (t.style || t.category || '').toLowerCase().includes(q)))
+      .filter((t: Item & { style?: string; category?: string }) => f.fn(t, stats) && (!q || t.name.toLowerCase().includes(q) || (t.style || t.category || '').toLowerCase().includes(q)))
       .sort((a, b) => (SORTS[ui.sort] || SORTS.priority).fn(a, b, stats));
     // (Only when it isn't all of them: the total is in the header.)
     $('#count').textContent = list.length === items().length ? '' : `${list.length} shown`;
-    const row = exercises ? exerciseRowHtml : rowHtml;
+    const row = (exercises ? exerciseRowHtml : rowHtml) as (t: Item, stats: Stats) => string;
     $('#tune-list').innerHTML = list.length ? list.map((t) => row(t, stats)).join('') : '<li class="empty">Nothing matches.</li>';
   };
   fill();
   bindTransposeToggle(root);
-  $('#q').oninput = (e) => { ui.query = e.target.value; fill(); };
-  $('#sort').onchange = (e) => { ui.sort = e.target.value; saveUi(); fill(); };
+  $('#q').oninput = (e) => { ui.query = (e.target as HTMLInputElement).value; fill(); };
+  $('#sort').onchange = (e) => { ui.sort = (e.target as HTMLSelectElement).value; saveUi(); fill(); };
   $$('[data-lib]', root).forEach((b) => (b.onclick = () => {
     ui.library = b.dataset.lib;
     ui.query = '';
@@ -111,13 +117,13 @@ export function renderTunes(root) {
     renderTunes(root);
   }));
   $$('.chip', root).forEach((c) => (c.onclick = () => {
-    ui[filterKey] = c.dataset.f;
+    ui[filterKey] = c.dataset.f!; // (every .chip here is a filter)
     saveUi();
     $$('.chip', root).forEach((x) => x.classList.toggle('on', x === c));
     fill();
   }));
   $('#tune-list').onclick = (e) => {
-    const row = e.target.closest('.row');
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.row');
     if (row) openItem(row.dataset.id);
   };
   $('#add').onclick = () => (exercises ? openExercise(null) : openItem(null));

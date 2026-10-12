@@ -259,4 +259,23 @@ export interface State {
 declare global {
   /** Safari before 14.1: AudioContext by its prefixed name (undefined elsewhere). */
   var webkitAudioContext: typeof AudioContext | undefined;
+  /** Dictation (Web Speech API), Safari's by its prefixed name: undefined where there's none. */
+  var SpeechRecognition: { new (): SpeechRecognition } | undefined;
+  var webkitSpeechRecognition: { new (): SpeechRecognition } | undefined;
+  /** The parts of it the app uses. */
+  interface SpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onresult: ((ev: SpeechRecognitionEvent) => void) | null;
+    onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null;
+    onend: ((ev: Event) => void) | null;
+    onstart: ((ev: Event) => void) | null;
+    onaudiostart: ((ev: Event) => void) | null;
+    start(): void;
+    stop(): void;
+    abort(): void;
+  }
+  interface SpeechRecognitionEvent extends Event { readonly resultIndex: number; readonly results: SpeechRecognitionResultList }
+  interface SpeechRecognitionErrorEvent extends Event { readonly error: string }
 }

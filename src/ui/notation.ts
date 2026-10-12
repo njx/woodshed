@@ -1,17 +1,22 @@
 import { buildAbc, barPerLine } from '../abc.js';
 import { SOUNDS, SWING, nearestSample, swingTime, loadSamples } from '../sounds.js';
+import type { Samples } from '../sounds.js';
 import { store, save } from '../store.js';
 import { esc } from '../util.js';
 import { holdAudio } from '../audiosession.js';
+import type { AudioTracks, TuneObject } from 'abcjs';
+import type { Key, Settings, SoundId, SwingId } from '../types.js';
 
 // abcjs is large, so it's only loaded when notation is first shown.
-let abcjsPromise = null;
+let abcjsPromise: Promise<typeof import('abcjs')> | null = null;
 const loadAbcjs = () => (abcjsPromise ||= import('abcjs').then((m) => m.default || m));
 
 // Draws notation (written in C) shifted up `shift` semitones, one bar per line. Returns the abcjs
 // tune object. The narrow staff width makes notes bigger once scaled to the screen.
 // wide: more bars to a line (full screen, sideways).
-export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo = 100, wide = false, key = 0 } = {}) {
+export async function renderNotation(el: HTMLElement, body: string, { shift = 0, meter = '4/4', tempo = 100, wide = false, key = 0 }: {
+  shift?: number; meter?: string; tempo?: number; wide?: boolean; key?: Key;
+} = {}): Promise<TuneObject> {
   const ABCJS = await loadAbcjs();
   const [tune] = ABCJS.renderAbc(el, buildAbc(barPerLine(body, wide ? 2 : 1), { meter, tempo, key }), {
     visualTranspose: shift,
@@ -30,7 +35,11 @@ export async function renderNotation(el, body, { shift = 0, meter = '4/4', tempo
 // Notation full screen, sideways: on a phone held upright the page is turned for you (turn the
 // phone to read it); held sideways it just fills the screen. draw(el) renders into the page
 // (wide); play() starts playback and returns a stop function, or null.
-export function openFullNotation({ title, draw, play }) {
+export function openFullNotation({ title, draw, play }: {
+  title: string;
+  draw: (el: HTMLElement) => unknown;
+  play?: ((onEnded: () => void) => Promise<(() => void) | null>) | null;
+}): () => void {
   const el = document.createElement('div');
   el.className = 'notation-full';
   el.setAttribute('role', 'dialog');
@@ -43,9 +52,9 @@ export function openFullNotation({ title, draw, play }) {
       <div class="notation nf-notation"></div>
     </div>`;
   document.body.appendChild(el);
-  const page = el.querySelector('.nf-page');
-  const box = el.querySelector('.nf-notation');
-  let stop = null;
+  const page = el.querySelector<HTMLElement>('.nf-page')!; // (just added)
+  const box = el.querySelector<HTMLElement>('.nf-notation')!;
+  let stop: (() => void) | null = null;
   const layout = () => {
     const w = window.innerWidth, h = window.innerHeight;
     const upright = h > w;
@@ -60,15 +69,16 @@ export function openFullNotation({ title, draw, play }) {
     document.removeEventListener('keydown', onKey);
     el.remove();
   };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
   window.addEventListener('resize', layout);
   document.addEventListener('keydown', onKey);
-  el.querySelector('.nf-close').onclick = close;
-  const playBtn = el.querySelector('.nf-play');
+  el.querySelector<HTMLElement>('.nf-close')!.onclick = close;
+  const playBtn = el.querySelector<HTMLElement>('.nf-play');
   if (playBtn) playBtn.onclick = async () => {
     if (stop) { stop(); stop = null; playBtn.textContent = '▶'; return; }
     playBtn.textContent = '■';
-    stop = await play(() => { stop = null; playBtn.textContent = '▶'; });
+    // (the button is there only with play)
+    stop = await play!(() => { stop = null; playBtn.textContent = '▶'; });
     if (!stop) playBtn.textContent = '▶';
   };
   layout();
@@ -76,7 +86,7 @@ export function openFullNotation({ title, draw, play }) {
 }
 
 // One thing plays at a time.
-let current = null;
+let current: { stop: () => void } | null = null;
 export function stopPlayback() {
   current?.stop();
   current = null;
@@ -87,7 +97,9 @@ export function stopPlayback() {
 // visual shift to the sound), with a recorded instrument or the synth, straight or swung.
 // Call from a tap, so the phone allows audio. onFallback(sound) is called if a recorded sound
 // couldn't be loaded (offline before it was ever used) and the synth plays instead.
-export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano', swing = 'straight', onEnded, onFallback } = {}) {
+export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sound = 'piano', swing = 'straight', onEnded, onFallback }: {
+  transpose?: number; tempo?: number; sound?: SoundId; swing?: SwingId; onEnded?: () => void; onFallback?: (sound: SoundId) => void;
+} = {}): Promise<() => void> {
   stopPlayback();
   const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!Ctx) throw new Error('no audio');
@@ -96,8 +108,8 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
   // ringer off).
   const releaseAudio = holdAudio('playback');
   try { await ctx.resume?.(); } catch { /* resumes on its own, or not at all */ }
-  let voice = SOUNDS[sound] ? sound : 'synth';
-  let samples = null;
+  let voice: SoundId = SOUNDS[sound] ? sound : 'synth';
+  let samples: Samples | null = null;
   if (voice !== 'synth') {
     try {
       samples = await loadSamples(ctx, voice);
@@ -107,7 +119,7 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
       voice = 'synth';
     }
   }
-  let audio;
+  let audio: AudioTracks;
   try {
     audio = tune.setUpAudio({ midiTranspose: transpose, chordsOff: true }); // the line itself, not comping
   } catch (err) {
@@ -118,11 +130,11 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
   const secPerBeat = 60 / (tempo || audio.tempo || 100);
   const ratio = SWING[swing]?.ratio ?? 0.5;
   // abcjs times are in whole notes; a beat is a quarter note.
-  const at = (whole) => swingTime(whole * 4, ratio) * secPerBeat;
+  const at = (whole: number) => swingTime(whole * 4, ratio) * secPerBeat;
 
   const out = ctx.createGain();
   out.connect(ctx.destination);
-  let synthIn = null;
+  let synthIn: BiquadFilterNode | null = null;
   if (voice === 'synth') {
     out.gain.value = 0.22;
     synthIn = ctx.createBiquadFilter(); // soften the sawtooth into something reedy
@@ -132,7 +144,7 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
   } else out.gain.value = 0.9;
 
   const t0 = ctx.currentTime + 0.08;
-  const sources = [];
+  const sources: AudioScheduledSourceNode[] = [];
   const release = SOUNDS[voice].release;
   for (const track of audio.tracks) {
     for (const ev of track) {
@@ -146,9 +158,9 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
         env.gain.linearRampToValueAtTime(peak, start + 0.015);
         env.gain.setTargetAtTime(peak * 0.75, start + 0.015, 0.12);
         env.gain.setTargetAtTime(0, end, release);
-        env.connect(synthIn);
+        env.connect(synthIn!); // (made above, for the synth)
         const freq = 440 * Math.pow(2, (ev.pitch - 69) / 12);
-        for (const [type, level] of [['sawtooth', 0.35], ['triangle', 0.65]]) {
+        for (const [type, level] of [['sawtooth', 0.35], ['triangle', 0.65]] as const) {
           const o = ctx.createOscillator();
           const g = ctx.createGain();
           o.type = type;
@@ -160,9 +172,9 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
           sources.push(o);
         }
       } else {
-        const m = nearestSample(voice, ev.pitch);
+        const m = nearestSample(voice, ev.pitch)!; // (every recorded sound has samples)
         const src = ctx.createBufferSource();
-        src.buffer = samples[m];
+        src.buffer = samples![m]; // (loaded above, or it's the synth)
         src.playbackRate.value = Math.pow(2, (ev.pitch - m) / 12);
         env.gain.setValueAtTime(peak, start);
         env.gain.setTargetAtTime(0, end, release);
@@ -193,22 +205,23 @@ export async function playNotation(tune, { transpose = 0, tempo, sound = 'piano'
 
 export function playbackOptionsHtml() {
   const s = store.state.settings;
-  const opt = (map, cur) => Object.entries(map).map(([id, x]) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(x.label)}</option>`).join('');
+  const opt = (map: Record<string, { label: string }>, cur: string) => Object.entries(map).map(([id, x]) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(x.label)}</option>`).join('');
   return `<select class="pb-select" data-pb="sound" aria-label="Sound">${opt(SOUNDS, s.sound)}</select>
     <select class="pb-select" data-pb="swing" aria-label="Feel">${opt(SWING, s.swing)}</select>`;
 }
 
 // onChange runs after a choice is made (e.g. to stop what's playing).
-export function bindPlaybackOptions(root, onChange) {
-  root.querySelectorAll('[data-pb]').forEach((sel) => (sel.onchange = () => {
-    store.state.settings[sel.dataset.pb] = sel.value;
+export function bindPlaybackOptions(root: ParentNode, onChange?: () => void): void {
+  root.querySelectorAll<HTMLSelectElement>('[data-pb]').forEach((sel) => (sel.onchange = () => {
+    // (data-pb: 'sound' or 'swing', and the value one of its options: see playbackOptionsHtml)
+    (store.state.settings as Record<'sound' | 'swing', string>)[sel.dataset.pb as 'sound' | 'swing'] = sel.value;
     save();
     onChange?.();
   }));
 }
 
 // The sound and feel to play notation in this meter with (6/8 and other x/8 meters aren't swung).
-export function playbackFor(meter = '4/4') {
+export function playbackFor(meter = '4/4'): Pick<Settings, 'sound' | 'swing'> {
   const s = store.state.settings;
   return { sound: s.sound, swing: /\/8$/.test(meter) ? 'straight' : s.swing };
 }

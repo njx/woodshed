@@ -6,11 +6,12 @@ import { itemById } from '../practice.js';
 import { openTodos } from '../diary.js';
 import { timedToday, startPractice } from '../practicetime.js';
 import { $, ICON, goTo } from './shell.js';
+import type { Item, PlanItem } from '../types.js';
 
 // The first time the app opens on a practice day (and the timer hasn't run yet), a welcome with
 // what's in today's set and a big Start practice. "Not now" leaves it until tomorrow.
 
-export function maybeGreet() {
+export function maybeGreet(): void {
   const s = store.state;
   if (!s?.settings.instrumentsChosen || s.greetedOn === dateStr() || timedToday()) return;
   if (document.querySelector('.greet')) return;
@@ -18,7 +19,7 @@ export function maybeGreet() {
 }
 
 // Marks today as greeted (the first-run setup counts).
-export function greeted() {
+export function greeted(): void {
   store.state.greetedOn = dateStr();
   flush(); // right away: closing the app straight after shouldn't bring it back
 }
@@ -39,11 +40,11 @@ function streak() {
 
 function planLines() {
   ensurePlan();
-  const plan = store.state.plan;
-  const items = plan.items.map((it) => ({ it, t: itemById(it.itemId) })).filter((x) => x.t);
+  const plan = store.state.plan!; // (ensurePlan made it)
+  const items = plan.items.map((it) => ({ it, t: itemById(it.itemId) })).filter((x): x is { it: PlanItem; t: Item } => !!x.t);
   const ex = items.filter((x) => x.t.type === 'exercise' && !x.it.warmup).length;
   const tunes = items.filter((x) => x.t.type === 'tune').length;
-  const lines = [];
+  const lines: string[] = [];
   const parts = [ex && `${ex} exercise${ex > 1 ? 's' : ''}`, tunes && `${tunes} tune${tunes > 1 ? 's' : ''}`].filter(Boolean);
   if (parts.length) lines.push(`Today’s set: ${parts.join(' and ')}`);
   const focus = items.filter((x) => x.it.bucket === 'focus').map((x) => x.t.name);
@@ -76,7 +77,7 @@ function openGreet() {
     document.removeEventListener('keydown', onKey);
     el.remove();
   };
-  const onKey = (e) => { if (e.key === 'Escape') skip(); };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') skip(); };
   const skip = () => { greeted(); close(); };
   document.addEventListener('keydown', onKey);
   $('#greet-skip', el).onclick = skip;

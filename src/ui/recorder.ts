@@ -6,38 +6,40 @@ import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker,
 import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
 import { keepAwake } from '../keepawake.js';
+import type { Clip, DiaryEntry, Id } from '../types.js';
 
 // Record a practice clip, then keep it (as a diary note, or added to an existing one) or discard it.
 //   opts.entryId: add the clip to this diary entry
 //   opts.itemId:  link a new note to this tune
 //   opts.back:    reopen the sheet this was opened from
-export function openRecorder(opts = {}) {
+//   opts.flag:    a new note's flag; opts.text: its text, to start with
+export function openRecorder(opts: { entryId?: Id; itemId?: Id | null; flag?: DiaryEntry['flag']; text?: string; back?: () => void } = {}): void {
   if (!canRecord()) return toast('Recording isn’t supported in this browser');
   const settings = store.state.settings;
   const tunes = linkableItems();
   const existing = opts.entryId ? entryById(opts.entryId) : null;
 
-  let kind = settings.recordKind === 'video' ? 'video' : 'audio';
+  let kind: Clip['kind'] = settings.recordKind === 'video' ? 'video' : 'audio';
   let facing = 'user';
-  let stream = null;
-  let recorder = null;
-  let chunks = [];
+  let stream: MediaStream | null = null;
+  let recorder: MediaRecorder | null = null;
+  let chunks: Blob[] = [];
   let startedAt = 0;
   let elapsed = 0;
-  let take = null; // { blob, url, ms } once a recording has stopped
-  let state = 'starting'; // starting | ready | recording | review | blocked
-  let mics = []; // microphones to pick from, once allowed: [{ id, label }]
+  let take: { blob: Blob; url: string; ms: number } | null = null; // once a recording has stopped
+  let state: 'starting' | 'ready' | 'recording' | 'review' | 'blocked' = 'starting';
+  let mics: { id: string; label: string }[] = []; // microphones to pick from, once allowed
   let closed = false;
   let handled = false; // take kept or discarded
-  let tick = null;
-  let raf = null;
-  const levels = [];
+  let tick: ReturnType<typeof setInterval> | null = null;
+  let raf: number | null = null;
+  const levels: number[] = [];
 
   // The mic needs a session that allows it alongside playback (the metronome in your earbuds),
   // held while the mic is on. Not while a take is played back: in that session the iPhone plays
   // through the earpiece, not the loudspeaker, so a take would be barely audible.
-  let releaseRecord = null;
-  const micSession = (on) => {
+  let releaseRecord: (() => void) | null = null;
+  const micSession = (on: boolean) => {
     if (on && !releaseRecord) releaseRecord = holdAudio('record');
     if (!on && releaseRecord) { releaseRecord(); releaseRecord = null; }
   };
@@ -49,21 +51,21 @@ export function openRecorder(opts = {}) {
   const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
   let audioCtx = AudioCtx ? new AudioCtx() : null;
   audioCtx?.resume?.();
-  let analyser = null;
-  let monoAnalyser = null; // after the mono step: to check sound comes through it
+  let analyser: AnalyserNode | null = null;
+  let monoAnalyser: AnalyserNode | null = null; // after the mono step: to check sound comes through it
   let heard = { mic: false, mono: false }; // sound seen on the mic, and on the mono path
   let quietSince = 0; // recording with no sound coming in since (ms)
-  let monoStream = null; // the stream recorded: see startStream
-  let micSource = null; // the mic in Web Audio (for the meter and the mono track)
+  let monoStream: MediaStream | null = null; // the stream recorded: see startStream
+  let micSource: MediaStreamAudioSourceNode | null = null; // the mic in Web Audio (for the meter and the mono track)
 
-  let afterStop = null;
+  let afterStop: (() => void) | null = null;
   const sheet = openSheet('<div class="recorder" id="rec"></div>', () => {
     closed = true;
     // Closing with a take in progress or unreviewed keeps it; go back once it's saved.
-    let pending = null;
+    let pending: Promise<void> | null = null;
     if (state === 'recording') {
-      pending = new Promise((resolve) => { afterStop = resolve; });
-      recorder.stop(); // onstop keeps the take
+      pending = new Promise<void>((resolve) => { afterStop = resolve; });
+      recorder!.stop(); // onstop keeps the take
     } else if (take && !handled) pending = keep();
     const finish = () => {
       teardown();
@@ -78,7 +80,7 @@ export function openRecorder(opts = {}) {
   function view() {
     if (closed) return;
     // A take being played back stops (and gives up the speaker) before it's replaced.
-    box.querySelectorAll('.rec-stage.review audio, .rec-stage.review video').forEach((el) => el.pause());
+    box.querySelectorAll<HTMLMediaElement>('.rec-stage.review audio, .rec-stage.review video').forEach((el) => el.pause());
     const tuneName = existing?.itemId ? itemById(existing.itemId)?.name : opts.itemId ? itemById(opts.itemId)?.name : '';
     const header = `
       <div class="rec-head">
@@ -98,13 +100,13 @@ export function openRecorder(opts = {}) {
           <p class="fine">Allow it for this site in your browser’s settings (on iPhone: Settings → Apps → Safari → Microphone/Camera), then try again.</p>
           <button class="pill-btn" id="rec-retry">Try again</button>
         </div>`;
-    } else if (state === 'review') {
+    } else if (state === 'review') { // (with a take)
       box.innerHTML = `
-        <p class="eyebrow">${kind === 'video' ? 'Video' : 'Audio'} · ${fmtDuration(take.ms)}${tuneName ? ` · ${esc(tuneName)}` : ''}</p>
+        <p class="eyebrow">${kind === 'video' ? 'Video' : 'Audio'} · ${fmtDuration(take!.ms)}${tuneName ? ` · ${esc(tuneName)}` : ''}</p>
         <div class="rec-stage review">
           ${kind === 'video'
-            ? `<video src="${take.url}" controls playsinline></video>`
-            : `<audio src="${take.url}" controls></audio>`}
+            ? `<video src="${take!.url}" controls playsinline></video>`
+            : `<audio src="${take!.url}" controls></audio>`}
         </div>
         ${existing ? '' : `
           <textarea id="rec-text" rows="2" placeholder="Add a note (optional)">${esc(opts.text || '')}</textarea>
@@ -130,10 +132,10 @@ export function openRecorder(opts = {}) {
           <span class="rec-hint">${recording ? 'Recording' : 'Tap to record'}</span>
         </div>
         <p class="fine rec-quiet" id="rec-quiet" hidden>No sound is coming in from ${esc(mics.find((m) => m.id === currentMic())?.label || 'the microphone')}${mics.length > 1 ? ' — try another Mic above' : ''}.</p>`;
-      const preview = $('#rec-preview', box);
+      const preview = $<HTMLVideoElement>('#rec-preview', box);
       if (preview && stream) preview.srcObject = stream;
     }
-    const player = $('.rec-stage.review audio, .rec-stage.review video', box);
+    const player = $<HTMLMediaElement>('.rec-stage.review audio, .rec-stage.review video', box);
     if (player) playOnSpeaker(player);
     bind();
   }
@@ -141,7 +143,7 @@ export function openRecorder(opts = {}) {
   function bind() {
     $$('[data-kind]', box).forEach((b) => (b.onclick = () => {
       if (state === 'recording' || state === 'review' || b.dataset.kind === kind) return;
-      kind = b.dataset.kind;
+      kind = b.dataset.kind as Clip['kind']; // (data-kind: 'audio' or 'video')
       settings.recordKind = kind;
       save();
       startStream();
@@ -153,8 +155,8 @@ export function openRecorder(opts = {}) {
       startStream();
     };
     const go = $('#rec-go', box);
-    if (go) go.onclick = () => (state === 'recording' ? recorder.stop() : startRecording());
-    const mic = $('#rec-mic', box);
+    if (go) go.onclick = () => (state === 'recording' ? recorder!.stop() : startRecording());
+    const mic = $<HTMLSelectElement>('#rec-mic', box);
     if (mic) mic.onchange = () => {
       settings.recordMic = mic.value;
       settings.recordMicLabel = mics.find((m) => m.id === mic.value)?.label || null;
@@ -163,7 +165,7 @@ export function openRecorder(opts = {}) {
     };
     const retry = $('#rec-retry', box);
     if (retry) retry.onclick = startStream;
-    const keepBtn = $('#rec-keep', box);
+    const keepBtn = $<HTMLButtonElement>('#rec-keep', box);
     if (keepBtn) keepBtn.onclick = async () => {
       keepBtn.disabled = true;
       await keep();
@@ -173,7 +175,7 @@ export function openRecorder(opts = {}) {
     if (again) again.onclick = () => { dropTake(); startStream(); };
     const discard = $('#rec-discard', box);
     if (discard) discard.onclick = () => {
-      if (take.ms > 20000 && !confirm('Discard this recording?')) return;
+      if (take!.ms > 20000 && !confirm('Discard this recording?')) return;
       dropTake();
       handled = true;
       closeSheet();
@@ -182,13 +184,13 @@ export function openRecorder(opts = {}) {
   }
 
   let streamGen = 0;
-  async function startStream() {
+  async function startStream(): Promise<void> {
     stopStream();
     micSession(true);
     const gen = ++streamGen;
     state = 'starting';
     view();
-    let s;
+    let s: MediaStream;
     try {
       s = await navigator.mediaDevices.getUserMedia(constraints(kind, facing, settings.recordMic || null))
         // The chosen mic isn't there now (earbuds put away): the default one.
@@ -264,7 +266,7 @@ export function openRecorder(opts = {}) {
     // Through Web Audio (mono) only while it's running and, if the mic has been heard, passing
     // the sound on; otherwise the mic as it comes (better two channels than silence).
     const monoWorks = audioCtx?.state === 'running' && (!heard.mic || heard.mono);
-    const source = monoStream && monoWorks ? monoStream : stream;
+    const source = monoStream && monoWorks ? monoStream : stream!; // (recording starts once ready)
     quietSince = 0;
     try {
       recorder = new MediaRecorder(source, {
@@ -278,8 +280,8 @@ export function openRecorder(opts = {}) {
     chunks = [];
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     recorder.onstop = () => {
-      clearInterval(tick);
-      const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || `${kind}/webm` });
+      clearInterval(tick ?? undefined);
+      const blob = new Blob(chunks, { type: recorder!.mimeType || mimeType || `${kind}/webm` });
       take = { blob, url: URL.createObjectURL(blob), ms: Date.now() - startedAt };
       stopStream();
       micSession(false); // (so the take plays on the loudspeaker)
@@ -301,19 +303,20 @@ export function openRecorder(opts = {}) {
 
   // Scrolling level meter from the microphone.
   function meter() {
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf ?? 0);
     const buf = analyser ? new Float32Array(analyser.fftSize) : null;
     const draw = () => {
-      const canvas = $('#rec-meter', box);
+      const canvas = $<HTMLCanvasElement>('#rec-meter', box);
       if (!canvas || !analyser || closed) return;
-      analyser.getFloatTimeDomainData(buf);
+      // (buf: made with the analyser)
+      analyser.getFloatTimeDomainData(buf!);
       let peak = 0;
-      for (const v of buf) peak = Math.max(peak, Math.abs(v));
+      for (const v of buf!) peak = Math.max(peak, Math.abs(v));
       if (peak > 0.02) heard.mic = true;
       if (monoAnalyser) {
-        monoAnalyser.getFloatTimeDomainData(buf);
-        if (buf.some((v) => Math.abs(v) > 0.005)) heard.mono = true;
-        analyser.getFloatTimeDomainData(buf); // back to the mic's, for drawing below
+        monoAnalyser.getFloatTimeDomainData(buf!);
+        if (buf!.some((v) => Math.abs(v) > 0.005)) heard.mono = true;
+        analyser.getFloatTimeDomainData(buf!); // back to the mic's, for drawing below
       }
       // Recording with nothing coming in for a few seconds: say so (and which mic it is).
       const hint = $('#rec-quiet', box);
@@ -326,7 +329,7 @@ export function openRecorder(opts = {}) {
       }
       levels.push(Math.min(1, Math.sqrt(peak)));
       if (levels.length > 75) levels.shift();
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d')!;
       const { width: w, height: h } = canvas;
       ctx.clearRect(0, 0, w, h);
       const color = getComputedStyle(canvas).color;
@@ -348,8 +351,8 @@ export function openRecorder(opts = {}) {
     if (!take || handled) return;
     handled = true;
     const t = take;
-    const text = $('#rec-text', box)?.value || opts.text || '';
-    const tuneInput = $('#rec-tune', box)?.value;
+    const text = $<HTMLTextAreaElement>('#rec-text', box)?.value || opts.text || '';
+    const tuneInput = $<HTMLInputElement>('#rec-tune', box)?.value;
     const tune = tuneInput?.trim() ? findItemByName(tuneInput) : opts.itemId ? { id: opts.itemId } : null;
     try {
       const clip = await saveClip(t.blob, kind, t.ms);
@@ -392,12 +395,12 @@ export function openRecorder(opts = {}) {
       return [];
     }
   }
-  const trackMic = (s) => s?.getAudioTracks()[0]?.getSettings?.().deviceId || null;
+  const trackMic = (s: MediaStream | null) => s?.getAudioTracks()[0]?.getSettings?.().deviceId || null;
   // The mic in use: the stream's, else the chosen one.
   const currentMic = () => trackMic(stream) || settings.recordMic;
 
   function stopStream() {
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf ?? 0);
     monoStream?.getAudioTracks().forEach((tr) => tr.stop());
     monoStream = null;
     micSource?.disconnect(); // the old mic's meter and mono chain go with it
@@ -408,8 +411,8 @@ export function openRecorder(opts = {}) {
   }
 
   function teardown() {
-    box.querySelectorAll('audio, video').forEach((el) => el.pause());
-    clearInterval(tick);
+    box.querySelectorAll<HTMLMediaElement>('audio, video').forEach((el) => el.pause());
+    clearInterval(tick ?? undefined);
     stopStream();
     audioCtx?.close?.().catch(() => {});
     releaseAudio();
@@ -419,7 +422,7 @@ export function openRecorder(opts = {}) {
 
   // Phones stop capture in the background: finish the take so it can be kept.
   function onHide() {
-    if (document.visibilityState === 'hidden' && state === 'recording') recorder.stop();
+    if (document.visibilityState === 'hidden' && state === 'recording') recorder!.stop();
   }
   document.addEventListener('visibilitychange', onHide);
 

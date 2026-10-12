@@ -28,7 +28,7 @@ navigator.storage?.persist?.().catch(() => {});
 
 $$('.tab').forEach((b) => (b.onclick = () => {
   if (ui.tab === b.dataset.tab) return window.scrollTo({ top: 0, behavior: 'smooth' });
-  goTo(b.dataset.tab);
+  goTo(b.dataset.tab!); // (every tab has one, see index.html)
 }));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 

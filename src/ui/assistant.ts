@@ -4,11 +4,27 @@ import { itemById } from '../practice.js';
 import { send, newConversation, getApiKey, setApiKey, describeError } from '../assistant/agent.js';
 import { fmtCost } from '../assistant/cost.js';
 import { $, ICON, render, toast, openSheet } from './shell.js';
+import type { AssistantError, Stop, TurnChanges } from '../assistant/agent.js';
+import type { State } from '../types.js';
 
 // Chat with the practice assistant. The conversation lasts while the app is open.
 let conv = newConversation();
-let transcript = []; // what's shown: { role, text, tools, changes, undo, undone, error, stop }
-let pendingNote = null; // told to the assistant with the next message (e.g. "I undid your changes")
+// A message or a reply in the chat (see entryHtml).
+interface Entry {
+  role: 'user' | 'bot';
+  text: string;
+  tools?: string[];
+  pending?: boolean;
+  changes?: string[];
+  cost?: number;
+  undo?: State; // the state before its changes
+  undone?: boolean;
+  rev?: number; // store.rev once it was done
+  stop?: Stop;
+  error?: string;
+}
+let transcript: Entry[] = []; // what's shown: { role, text, tools, changes, undo, undone, error, stop }
+let pendingNote: string | null = null; // told to the assistant with the next message (e.g. "I undid your changes")
 
 const SUGGESTIONS = [
   'Build me a set for tonight',
@@ -18,7 +34,8 @@ const SUGGESTIONS = [
   'What should I ask my teacher about?',
 ];
 
-const TOOL_LABELS = {
+// (input: the tool's input as Claude sent it, untyped here.)
+const TOOL_LABELS: Record<string, (input: any) => string> = {
   get_today: () => 'Checked today’s set',
   search_library: () => 'Searched your library',
   get_item: (i) => `Looked at ${itemById(i.item_id)?.name || 'an item'}`,
@@ -28,10 +45,10 @@ const TOOL_LABELS = {
 };
 
 // Minimal, safe formatting for replies: paragraphs, "- " lists, **bold**, *italic*.
-function formatReply(text) {
-  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
-  const blocks = [];
-  let list = null;
+function formatReply(text: string) {
+  const inline = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
+  const blocks: string[] = [];
+  let list: string[] | null = null;
   for (const line of text.split('\n')) {
     const m = /^\s*(?:[-•*]|\d+[.)])\s+(.*)$/.exec(line);
     if (m) {
@@ -45,7 +62,7 @@ function formatReply(text) {
   return blocks.join('');
 }
 
-function entryHtml(e, i) {
+function entryHtml(e: Entry, i: number) {
   if (e.role === 'user') return `<div class="msg user"><p>${esc(e.text)}</p></div>`;
   // Undo is offered for the latest changes only, and only while nothing else has changed since.
   const latestUndoable = transcript.findLastIndex((x) => x.changes?.length && !x.undone) === i && e.rev === store.rev;
@@ -69,7 +86,7 @@ export async function openAssistant() {
   const key = await getApiKey();
   if (!key) return openKeySetup(() => openAssistant());
 
-  const busy = { on: false, controller: null };
+  const busy: { on: boolean; controller: AbortController | null } = { on: false, controller: null };
   const sheet = openSheet(`
     <div class="chat">
       <div class="chat-head">
@@ -85,7 +102,7 @@ export async function openAssistant() {
     </div>`, () => { busy.controller?.abort(); stopListening(); render(); });
 
   const log = $('#chat-log', sheet);
-  const input = $('#chat-text', sheet);
+  const input = $<HTMLTextAreaElement>('#chat-text', sheet);
   const sendBtn = $('#chat-send', sheet);
   const body = $('.sheet-body', sheet);
 
@@ -97,18 +114,18 @@ export async function openAssistant() {
           <p>Ask me to plan or change today’s practice, find tunes, look at your progress, or answer music questions.</p>
           <div class="chips wrap">${SUGGESTIONS.map((s) => `<button class="chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
-    log.querySelectorAll('[data-suggest]').forEach((b) => (b.onclick = () => submit(b.dataset.suggest)));
-    log.querySelectorAll('[data-undo]').forEach((b) => (b.onclick = () => undo(Number(b.dataset.undo))));
+    log.querySelectorAll<HTMLElement>('[data-suggest]').forEach((b) => (b.onclick = () => submit(b.dataset.suggest!)));
+    log.querySelectorAll<HTMLElement>('[data-undo]').forEach((b) => (b.onclick = () => undo(Number(b.dataset.undo))));
     body.scrollTop = body.scrollHeight;
   };
   const fit = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 140)}px`; };
-  const setBusy = (on) => {
+  const setBusy = (on: boolean) => {
     busy.on = on;
     sendBtn.innerHTML = on ? ICON.stop : ICON.send;
     sendBtn.setAttribute('aria-label', on ? 'Stop' : 'Send');
   };
 
-  function undo(i) {
+  function undo(i: number) {
     const e = transcript[i];
     if (!e?.undo) return;
     if (e.rev !== store.rev) { draw(); return toast('Can’t undo — other things have changed since'); }
@@ -121,7 +138,7 @@ export async function openAssistant() {
     toast('Changes undone');
   }
 
-  async function submit(text) {
+  async function submit(text: string) {
     text = text.trim();
     if (!text || busy.on) return;
     stopListening();
@@ -129,12 +146,12 @@ export async function openAssistant() {
     fit();
     const snapshot = clone(store.state);
     transcript.push({ role: 'user', text });
-    const reply = { role: 'bot', text: '', tools: [], pending: true };
+    const reply: Entry & { tools: string[] } = { role: 'bot', text: '', tools: [], pending: true };
     transcript.push(reply);
     draw();
     setBusy(true);
     busy.controller = new AbortController();
-    const finishTurn = (r) => {
+    const finishTurn = (r: TurnChanges | undefined) => {
       reply.changes = r?.changes || [];
       reply.cost = r?.cost || 0;
       if (reply.changes.length) {
@@ -161,9 +178,9 @@ export async function openAssistant() {
       reply.stop = result.stop;
       finishTurn(result);
     } catch (err) {
-      finishTurn(err?.partial); // changes made before the error still get listed, with Undo
+      finishTurn((err as AssistantError)?.partial); // changes made before the error still get listed, with Undo
       reply.error = await describeError(err);
-      if (err?.code === 'no_key') return openKeySetup(() => openAssistant());
+      if ((err as AssistantError)?.code === 'no_key') return openKeySetup(() => openAssistant());
     } finally {
       reply.pending = false;
       setBusy(false);
@@ -172,14 +189,14 @@ export async function openAssistant() {
     }
   }
 
-  $('#chat-form', sheet).onsubmit = (e) => {
+  $<HTMLFormElement>('#chat-form', sheet).onsubmit = (e) => {
     e.preventDefault();
     if (busy.on) busy.controller?.abort();
     else submit(input.value);
   };
   input.oninput = fit;
   input.onkeydown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chat-form', sheet).requestSubmit(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $<HTMLFormElement>('#chat-form', sheet).requestSubmit(); }
   };
   $('#chat-new', sheet).onclick = () => {
     if (busy.on) return;
@@ -190,7 +207,7 @@ export async function openAssistant() {
   };
 
   // Dictation, where the browser supports it.
-  let rec = null;
+  let rec: SpeechRecognition | null = null;
   function stopListening() {
     rec?.stop();
     rec = null;
@@ -199,7 +216,7 @@ export async function openAssistant() {
   const mic = $('#chat-mic', sheet);
   if (mic) mic.onclick = () => {
     if (rec) return stopListening();
-    rec = new Recognition();
+    rec = new Recognition!(); // (there's a mic button only with it)
     rec.continuous = true;
     rec.lang = navigator.language || 'en-US';
     rec.onresult = (ev) => {
@@ -217,7 +234,7 @@ export async function openAssistant() {
 const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 
 // First-run setup: the assistant uses the user's own Anthropic API key.
-export function openKeySetup(then) {
+export function openKeySetup(then?: () => void): void {
   const sheet = openSheet(`
     <p class="eyebrow">Assistant</p>
     <h2 class="sheet-title">Connect your Anthropic API key</h2>
@@ -235,7 +252,7 @@ export function openKeySetup(then) {
     <button class="primary-btn" id="key-save">Save key</button>
   `);
   $('#key-save', sheet).onclick = async () => {
-    const v = $('#key-input', sheet).value.trim();
+    const v = $<HTMLInputElement>('#key-input', sheet).value.trim();
     if (!v.startsWith('sk-')) return toast('That doesn’t look like an Anthropic API key');
     await setApiKey(v);
     toast('Key saved');

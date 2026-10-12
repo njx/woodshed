@@ -2,6 +2,9 @@ import { store, save } from '../store.js';
 import { LEVELS, PRIORITIES, TRANSPOSITIONS } from '../constants.js';
 import { keyName } from '../keys.js';
 import { esc, clone } from '../util.js';
+import type { itemStatus } from '../plan.js';
+import type { levelSuggestion } from '../practice.js';
+import type { Item, Key, Level, Priority, State } from '../types.js';
 
 // The element a selector finds (taken to be there: check the result where it may not be), and
 // all of them.
@@ -9,22 +12,36 @@ type Root = Document | Element | DocumentFragment;
 export const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: Root = document): T => root.querySelector(sel) as T;
 export const $$ = <T extends HTMLElement = HTMLElement>(sel: string, root: Root = document): T[] => [...root.querySelectorAll<T>(sel)];
 
+// What a list given as `[cond && x, …]` can hold besides x (skipped).
+type Falsy = false | null | undefined | '' | 0;
+
 // ---------- UI state (per device, not part of the backed-up data) ----------
 
 const UI_KEY = 'woodshed.ui';
-export const ui = { tab: 'today', query: '', filter: 'all', sort: 'priority' };
+export interface UiState {
+  tab: string;
+  query: string;
+  filter: string;
+  sort: string;
+  exFilter?: string;
+  library?: string;
+  diaryFilter?: string;
+}
+export const ui: UiState = { tab: 'today', query: '', filter: 'all', sort: 'priority' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch {}
-export function saveUi() {
+export function saveUi(): void {
   try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, exFilter: ui.exFilter, sort: ui.sort, library: ui.library })); } catch {}
 }
 
 // ---------- Rendering ----------
 
-let views = {};
-export function registerViews(v) {
+// A screen: draws itself into the root it's given.
+export type View = (root: HTMLElement) => void;
+let views: Record<string, View> = {};
+export function registerViews(v: Record<string, View>): void {
   views = v;
 }
-export function render() {
+export function render(): void {
   const root = $('#view');
   const y = window.scrollY;
   const same = root.dataset.tab === ui.tab;
@@ -33,7 +50,7 @@ export function render() {
   $$('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === ui.tab));
   window.scrollTo(0, same ? y : 0);
 }
-export function goTo(tab) {
+export function goTo(tab: string): void {
   ui.tab = tab;
   saveUi();
   closeSheet();
@@ -43,8 +60,10 @@ export function goTo(tab) {
 
 // ---------- Toast + undo ----------
 
-let toastTimer;
-export function toast(msg, action) {
+// A toast's button (like Undo).
+export interface ToastAction { label: string; fn: () => void }
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+export function toast(msg: string, action?: ToastAction): void {
   const el = $('#toast');
   el.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action.label)}</button>` : ''}`;
   el.classList.add('show');
@@ -57,7 +76,7 @@ export function toast(msg, action) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), action ? 5000 : 2500);
 }
-export function withUndo(msg, fn) {
+export function withUndo(msg: string, fn: () => void): void {
   const snapshot = clone(store.state);
   fn();
   save();
@@ -73,18 +92,21 @@ export function withUndo(msg, fn) {
 }
 // Puts back an earlier copy of the state. An open sheet holds objects from the replaced state,
 // so it's closed (after the swap, so anything it reopens reads the restored state).
-export function restoreState(snapshot) {
+export function restoreState(snapshot: State): void {
   store.state = snapshot;
   save();
   closeSheet();
   render();
 }
-export function haptic() {
+export function haptic(): void {
   navigator.vibrate?.(12);
 }
 
 // ---------- Small view helpers ----------
 
+type IconName = 'tuner' | 'check' | 'swap' | 'shuffle' | 'plus' | 'key' | 'skip' | 'focus' | 'search' | 'play' | 'out'
+  | 'pin' | 'teacher' | 'mic' | 'share' | 'rec' | 'video' | 'quarter' | 'ask' | 'send' | 'stop' | 'metro' | 'note';
+// (The second lot are added below, as the module loads.)
 export const ICON = {
   tuner: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 16l3.5-6"/><circle cx="12" cy="16" r="1.4"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -97,30 +119,30 @@ export const ICON = {
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
   out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4"/></svg>',
-};
+} as Record<IconName, string>;
 
 // A concert key named for the transposition currently shown.
-export const kn = (k) => keyName(k, store.state.settings.view);
-export const keysText = (t) => t.keys.map(kn).join(' / ');
-export const levelLabel = (l) => LEVELS[l ?? 0].label;
+export const kn = (k: Key | null | undefined): string => keyName(k, store.state.settings.view);
+export const keysText = (t: { keys: Key[] }): string => t.keys.map(kn).join(' / ');
+export const levelLabel = (l: Level | null | undefined): string => LEVELS[l ?? 0].label;
 
-export function pips(level) {
+export function pips(level: Level | null | undefined): string {
   const n = level ?? 0;
   return `<span class="pips" aria-label="${esc(levelLabel(level))}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 // Only for the priorities that stand out (critical, high); medium and low show nothing.
-export function priBadge(p) {
+export function priBadge(p: Priority): string {
   return p <= 2 ? `<span class="pri p${p}" title="${PRIORITIES[p - 1].label} priority">P${p}</span>` : '';
 }
 
-export function transposeToggle() {
+export function transposeToggle(): string {
   const s = store.state.settings;
   const cur = TRANSPOSITIONS[s.view];
   const multi = s.instruments.length > 1;
   return `<button class="transpose ${multi ? '' : 'solo'}" id="transpose" aria-label="Keys shown for ${esc(cur.label)} instruments${multi ? '. Tap to switch' : ''}">
     <span>Keys in</span><b>${esc(cur.label)}</b>${multi ? ICON.swap : ''}</button>`;
 }
-export function bindTransposeToggle(root) {
+export function bindTransposeToggle(root: Root): void {
   const b = $('#transpose', root);
   if (!b) return;
   b.onclick = () => {
@@ -134,10 +156,11 @@ export function bindTransposeToggle(root) {
 
 // ---------- Bottom sheet ----------
 
-let sheetClose = null;
+let sheetClose: (() => void) | null | undefined = null;
 let sheetGen = 0;
-let opening = null; // the frame a sheet slides in on (closing before it still closes it) // which sheet is current (a closed one's cleanup mustn't clear the next)
-export function openSheet(html, onClose) {
+let opening: number | null = null; // the frame a sheet slides in on (closing before it still closes it) // which sheet is current (a closed one's cleanup mustn't clear the next)
+// Returns the sheet (its content in .sheet-body).
+export function openSheet(html: string, onClose?: () => void): HTMLElement {
   sheetGen++;
   closeMenu();
   const root = $('#sheet-root');
@@ -148,7 +171,7 @@ export function openSheet(html, onClose) {
       <div class="sheet-body">${html}</div>
     </section>`;
   const sheet = $('.sheet', root);
-  cancelAnimationFrame(opening);
+  if (opening !== null) cancelAnimationFrame(opening);
   opening = requestAnimationFrame(() => { opening = null; root.classList.add('open'); });
   $('.sheet-backdrop', root).onclick = closeSheet;
   $('.sheet-x', root).onclick = closeSheet;
@@ -161,15 +184,15 @@ export function openSheet(html, onClose) {
 // (not from a text field, slider or sideways swipe). Far enough, or a quick flick, closes it;
 // otherwise it springs back. Touch uses touch events (so the page can't take the gesture over
 // half way); a mouse can drag the handle.
-function dragToDismiss(root, sheet) {
+function dragToDismiss(root: HTMLElement, sheet: HTMLElement): void {
   const grab = $('.sheet-grab', sheet);
   const body = $('.sheet-body', sheet);
   const backdrop = $('.sheet-backdrop', root);
-  let start = null; // { x, y, fromGrab, top }
+  let start: { x: number; y: number; fromGrab: boolean; top: number } | null = null;
   let dragging = false;
-  let samples = []; // recent [t, y], for the flick speed
+  let samples: [number, number][] = []; // recent [t, y], for the flick speed
 
-  const begin = (x, y, target) => {
+  const begin = (x: number, y: number, target: Element) => {
     if (target.closest('.sheet-x')) return;
     const fromGrab = grab.contains(target);
     if (!fromGrab && target.closest('input, textarea, select, canvas, [contenteditable], .no-sheet-drag')) return;
@@ -178,7 +201,7 @@ function dragToDismiss(root, sheet) {
     samples = [[performance.now(), y]];
   };
   // Returns true while the sheet follows the finger.
-  const move = (x, y) => {
+  const move = (x: number, y: number) => {
     if (!start) return false;
     const dy = y - start.y, dx = x - start.x;
     if (!dragging) {
@@ -200,7 +223,7 @@ function dragToDismiss(root, sheet) {
     if (samples.length > 6) samples.shift();
     return true;
   };
-  const end = (y, cancelled = false) => {
+  const end = (y: number, cancelled = false) => {
     if (!start) return;
     const was = dragging;
     const dy = y - start.y;
@@ -217,7 +240,7 @@ function dragToDismiss(root, sheet) {
   };
 
   sheet.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY, e.target);
+    if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY, e.target as Element);
   }, { passive: true });
   sheet.addEventListener('touchmove', (e) => {
     if (move(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); // the sheet moves, not the page
@@ -227,18 +250,18 @@ function dragToDismiss(root, sheet) {
 
   grab.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'mouse') return; // touch is handled above
-    begin(e.clientX, e.clientY, e.target);
+    begin(e.clientX, e.clientY, e.target as Element);
     if (start) grab.setPointerCapture(e.pointerId); // not when it's the × (its click would be lost)
   });
   grab.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') move(e.clientX, e.clientY); });
   grab.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') end(e.clientY); });
   grab.addEventListener('pointercancel', (e) => { if (e.pointerType === 'mouse') end(e.clientY, true); });
 }
-export function closeSheet() {
+export function closeSheet(): void {
   closeMenu();
   const root = $('#sheet-root');
   if (!root.classList.contains('open') && opening == null) return;
-  cancelAnimationFrame(opening);
+  if (opening !== null) cancelAnimationFrame(opening);
   opening = null;
   root.classList.remove('open');
   const sheet = $('.sheet', root);
@@ -260,22 +283,25 @@ export function closeSheet() {
 //   a short swipe leaves them open to tap, a long one does the edge-most action.
 // actions: [fn, …] in the order of the buttons. Tapping the open card (or another) closes it.
 const ACTION_W = 78;
-let openWrap = null;
-export function closeSwipes() {
+let openWrap: HTMLElement | null = null;
+export function closeSwipes(): void {
   if (!openWrap) return;
-  const card = openWrap.querySelector('.card');
+  const card = openWrap.querySelector<HTMLElement>('.card')!; // (a .card-wrap holds its card)
   card.style.transform = '';
   openWrap.classList.remove('open');
   openWrap.style.setProperty('--pull', '0px');
   openWrap = null;
 }
-document.addEventListener('pointerdown', (e) => { if (openWrap && !openWrap.contains(e.target)) closeSwipes(); }, true);
+document.addEventListener('pointerdown', (e) => { if (openWrap && !openWrap.contains(e.target as Node)) closeSwipes(); }, true);
 
-export function attachSwipe(card, { right, actions = [] }) {
-  const wrap = card.parentElement;
+// (_swiped: just swiped, so the click that ends it isn't a tap.)
+export type SwipeCard = HTMLElement & { _swiped?: boolean };
+export interface SwipeOpts { right?: () => void; actions?: (() => void)[] }
+export function attachSwipe(card: SwipeCard, { right, actions = [] }: SwipeOpts): void {
+  const wrap = card.parentElement!; // the .card-wrap
   const THRESH = 90;
   const openW = actions.length * ACTION_W;
-  let sx = 0, sy = 0, dx = 0, base = 0, active = false, decided = false, horiz = false, pid = null;
+  let sx = 0, sy = 0, dx = 0, base = 0, active = false, decided = false, horiz = false, pid: number | null = null;
   const full = () => Math.max(openW + 70, card.offsetWidth * 0.6);
   wrap.style.setProperty('--open', `${openW}px`);
 
@@ -287,7 +313,7 @@ export function attachSwipe(card, { right, actions = [] }) {
   }));
 
   // (A swipe can start on one of the card's buttons, its chips; then it isn't a tap on it.)
-  card.addEventListener('click', (e) => { if (card._swiped && e.target.closest('button')) { e.stopPropagation(); e.preventDefault(); } }, true);
+  card.addEventListener('click', (e) => { if (card._swiped && (e.target as Element).closest('button')) { e.stopPropagation(); e.preventDefault(); } }, true);
   card.addEventListener('pointerdown', (e) => {
     sx = e.clientX; sy = e.clientY; dx = 0;
     base = wrap.classList.contains('open') ? -openW : 0;
@@ -302,7 +328,7 @@ export function attachSwipe(card, { right, actions = [] }) {
       decided = true;
       horiz = Math.abs(mx) > Math.abs(my);
       if (!horiz) { active = false; return; }
-      card.setPointerCapture(pid);
+      card.setPointerCapture(pid!); // (set on pointerdown, before any move)
       card.classList.add('dragging');
       if (openWrap && openWrap !== wrap) closeSwipes();
     }
@@ -311,7 +337,7 @@ export function attachSwipe(card, { right, actions = [] }) {
     if (dx > 0 && !right) dx = dx / 4;
     card.style.transform = `translateX(${dx}px)${dx > 0 ? ` rotate(${dx / 50}deg)` : ''}`;
     wrap.dataset.dir = dx > 0 ? 'right' : 'left';
-    wrap.style.setProperty('--reveal', Math.min(1, Math.abs(dx) / THRESH));
+    wrap.style.setProperty('--reveal', String(Math.min(1, Math.abs(dx) / THRESH)));
     wrap.style.setProperty('--pull', `${Math.max(0, -dx)}px`);
     wrap.classList.toggle('armed', dx >= THRESH || (actions.length > 0 && -dx >= full()));
   });
@@ -329,7 +355,7 @@ export function attachSwipe(card, { right, actions = [] }) {
     wrap.classList.remove('armed');
     if (dx >= THRESH && right) {
       card.style.transform = '';
-      wrap.style.setProperty('--reveal', 0);
+      wrap.style.setProperty('--reveal', '0');
       right();
     } else if (actions.length && -dx >= full()) {
       // All the way: the edge-most action, the card sliding off.
@@ -345,7 +371,7 @@ export function attachSwipe(card, { right, actions = [] }) {
       openWrap = wrap;
     } else {
       card.style.transform = '';
-      wrap.style.setProperty('--reveal', 0);
+      wrap.style.setProperty('--reveal', '0');
       wrap.style.setProperty('--pull', '0px');
       wrap.classList.remove('open');
       if (openWrap === wrap) openWrap = null;
@@ -356,7 +382,7 @@ export function attachSwipe(card, { right, actions = [] }) {
 }
 
 // Banner suggesting a level change, shown on played cards and in the detail sheet.
-export function suggestionHtml(t, sug) {
+export function suggestionHtml(t: Item, sug: ReturnType<typeof levelSuggestion>): string {
   if (!sug) return '';
   return `<div class="suggest ${sug.up ? 'up' : 'down'}"><span>${esc(sug.text)}</span>
     <button class="pill-btn" data-level="${sug.to}">${sug.up ? '↑' : '↓'} ${esc(LEVELS[sug.to].label)}</button></div>`;
@@ -385,7 +411,7 @@ const STATUS_HINTS = {
 };
 // At the top of a tune's or exercise's details: Focus / On / Off, and a ⋯ menu (#item-menu) for
 // the rest. What Focus or Off means shows under it (On is the usual, and says nothing).
-export function statusHtml(t, status) {
+export function statusHtml(t: Item, status: ReturnType<typeof itemStatus>): string {
   const hint = STATUS_HINTS[status];
   return `<div class="item-top"><div class="seg item-status" id="item-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${status === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
     <button class="icon-btn small item-menu" id="item-menu" aria-label="More">⋯</button></div>
@@ -395,11 +421,11 @@ export function statusHtml(t, status) {
 // ---------- Hints shown until dismissed (or done) ----------
 // A line of help with an ×; once dismissed, or once the thing it explains has been done
 // (hintDone), it isn't shown again.
-export function hintHtml(id, html, cls = 'hint') {
+export function hintHtml(id: string, html: string, cls = 'hint'): string {
   if ((store.state.hintsSeen || []).includes(id)) return '';
   return `<p class="${cls} once-hint" data-hint="${id}"><span>${html}</span><button class="hint-x" aria-label="Got it">×</button></p>`;
 }
-export function hintDone(id) {
+export function hintDone(id: string): void {
   const seen = (store.state.hintsSeen ||= []);
   if (seen.includes(id)) return;
   seen.push(id);
@@ -408,21 +434,23 @@ export function hintDone(id) {
 }
 // The ×: wired once, for any hint on the page or in a sheet.
 document.addEventListener('click', (e) => {
-  const x = e.target.closest?.('.hint-x');
+  const x = (e.target as Element).closest?.('.hint-x');
   if (!x) return;
   e.stopPropagation();
-  hintDone(x.closest('[data-hint]').dataset.hint);
+  hintDone(x.closest<HTMLElement>('[data-hint]')!.dataset.hint!); // (an × is in its hint, see hintHtml)
 }, true);
 
 // ---------- A "⋯" menu ----------
 // items: [{ label, fn, danger? }] (falsy ones are skipped). Opens under `anchor`; a tap outside
 // (or on an item) closes it.
-export function openMenu(anchor, items) {
+export interface MenuItem { label: string; fn: () => void; danger?: boolean }
+type MenuPop = HTMLDivElement & { _anchor?: Element };
+export function openMenu(anchor: Element, items: (MenuItem | Falsy)[]): void {
   // (Its button again closes it.)
   if (openPop && openPop._anchor === anchor) return closeMenu();
   closeMenu();
-  const list = items.filter(Boolean);
-  const pop = document.createElement('div');
+  const list = items.filter(Boolean) as MenuItem[];
+  const pop: MenuPop = document.createElement('div');
   pop.className = 'menu-pop';
   pop.setAttribute('role', 'menu');
   pop.innerHTML = list.map((it, i) => `<button role="menuitem" class="${it.danger ? 'danger' : ''}" data-mi="${i}">${esc(it.label)}</button>`).join('');
@@ -431,7 +459,7 @@ export function openMenu(anchor, items) {
   pop.style.top = `${Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 10)}px`;
   pop.style.right = `${Math.max(10, window.innerWidth - r.right)}px`;
   pop.onclick = (e) => {
-    const b = e.target.closest('[data-mi]');
+    const b = (e.target as Element).closest<HTMLElement>('[data-mi]');
     if (!b) return;
     closeMenu();
     list[Number(b.dataset.mi)].fn();
@@ -440,10 +468,10 @@ export function openMenu(anchor, items) {
   pop._anchor = anchor;
   openPop = pop;
 }
-let openPop = null;
+let openPop: MenuPop | null = null;
 // A tap outside closes it — not on its own button, whose click does (see openMenu).
-function outside(e) { if (openPop && !openPop.contains(e.target) && !openPop._anchor.contains(e.target)) closeMenu(); }
-export function closeMenu() {
+function outside(e: Event) { if (openPop && !openPop.contains(e.target as Node) && !openPop._anchor!.contains(e.target as Node)) closeMenu(); }
+export function closeMenu(): void {
   openPop?.remove();
   openPop = null;
   document.removeEventListener('pointerdown', outside, true);
@@ -454,7 +482,7 @@ export function closeMenu() {
 // An explanation that isn't needed every time: info(html) gives the ⓘ button (to put by a heading
 // or label) and the text it shows and hides (to put under it). Wired once, globally.
 let infoN = 0;
-export function info(html) {
+export function info(html: string): { btn: string; text: string } {
   const id = `info-${++infoN}`;
   return {
     btn: `<button type="button" class="info-btn" aria-controls="${id}" aria-expanded="false" aria-label="What’s this?">i</button>`,
@@ -462,11 +490,11 @@ export function info(html) {
   };
 }
 document.addEventListener('click', (e) => {
-  const b = e.target.closest?.('.info-btn');
+  const b = (e.target as Element).closest?.('.info-btn');
   if (!b) return;
   e.preventDefault();
   e.stopPropagation();
-  const el = document.getElementById(b.getAttribute('aria-controls'));
+  const el = document.getElementById(b.getAttribute('aria-controls')!); // (set by info())
   if (!el) return;
   el.hidden = !el.hidden;
   b.setAttribute('aria-expanded', String(!el.hidden));
@@ -476,14 +504,15 @@ document.addEventListener('click', (e) => {
 // A list of a sheet's settings: each row shows what it's set to; tapping it opens a panel over the
 // sheet with the controls for that one (see settingPanel). rows: [{ key, label, value, html? }]
 // (html: a control in the row itself, like a switch, instead of a panel).
-export function settingRowsHtml(rows) {
-  return `<div class="set-list">${rows.filter(Boolean).map((r) => (r.html
+export interface SettingRow { key?: string; label?: string; value?: string | null; html?: string }
+export function settingRowsHtml(rows: (SettingRow | Falsy)[]): string {
+  return `<div class="set-list">${(rows.filter(Boolean) as SettingRow[]).map((r) => (r.html
     ? `<div class="set-row">${r.html}</div>`
     : `<button class="set-row" data-open="${r.key}"><span class="set-label">${esc(r.label)}</span><span class="set-value">${esc(r.value || '')}</span><span class="set-go" aria-hidden="true">›</span></button>`)).join('')}</div>`;
 }
 // The panel for one setting, over the sheet (it stays there through the sheet's redraws: the
 // caller fills .sub-body). Returns the panel element; Done (or closePanel) removes it.
-export function settingPanel(sheet, title, onDone) {
+export function settingPanel(sheet: HTMLElement, title: string, onDone?: () => void): HTMLDivElement {
   closePanel(sheet);
   const p = document.createElement('div');
   p.className = 'sub-panel';
@@ -491,16 +520,23 @@ export function settingPanel(sheet, title, onDone) {
   p.setAttribute('aria-label', title);
   p.innerHTML = `<div class="sub-head"><b>${esc(title)}</b><button class="pill-btn sub-done">Done</button></div><div class="sub-body"></div>`;
   sheet.appendChild(p);
-  p.querySelector('.sub-done').onclick = () => { closePanel(sheet); onDone?.(); };
+  p.querySelector<HTMLElement>('.sub-done')!.onclick = () => { closePanel(sheet); onDone?.(); };
   return p;
 }
-export function closePanel(sheet) {
+export function closePanel(sheet: Element): void {
   sheet.querySelector('.sub-panel')?.remove();
 }
 
 // A sheet to pick one option, with what the setting does: { title, help, options: [[value,
 // label, hint?]], value, onPick(value) }. Picking closes it.
-export function openChoice({ title, help = '', options, value, onPick }) {
+export interface ChoiceOpts {
+  title: string;
+  help?: string;
+  options: [value: string, label: string, hint?: string][];
+  value: string | null | undefined;
+  onPick: (value: string) => void;
+}
+export function openChoice({ title, help = '', options, value, onPick }: ChoiceOpts): void {
   const sheet = openSheet(`
     <p class="eyebrow">Settings</p>
     <h2 class="sheet-title">${esc(title)}</h2>
@@ -508,8 +544,8 @@ export function openChoice({ title, help = '', options, value, onPick }) {
     <div class="set-list choice-list" role="radiogroup">${options.map(([v, label, hint]) => `
       <button class="set-row ${v === value ? 'on' : ''}" role="radio" aria-checked="${v === value}" data-pick="${esc(v)}">
         <span class="set-label">${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ''}</span><span class="set-check" aria-hidden="true">${v === value ? '✓' : ''}</span></button>`).join('')}</div>`);
-  sheet.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => {
+  sheet.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) => (b.onclick = () => {
     closeSheet();
-    onPick(b.dataset.pick);
+    onPick(b.dataset.pick!);
   }));
 }

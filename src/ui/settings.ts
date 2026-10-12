@@ -12,6 +12,17 @@ import { openKeySetup, openAssistant } from './assistant.js';
 import { ICON, render, toast, goTo, openChoice } from './shell.js';
 import { customElement, state } from 'lit/decorators.js';
 import { View, mount, html, nothing, live, raw, infoParts, settingRows } from './lit.js';
+import type { ListenService, Settings, Transposition } from '../types.js';
+
+// The settings changed with a stepper, with a choice in a sheet, and with a segmented control.
+type CountKey = 'exercises' | 'hone' | 'learn' | 'fresh' | 'focusTunes' | 'focusExercises';
+type ChoiceKey = 'exerciseFocus' | 'priority' | 'newKeys';
+type SegKey = 'tuneOrder' | 'listen';
+interface Choice<K extends ChoiceKey> {
+  setting: K; label: string; title: string; help?: string;
+  options: [value: Settings[K], label: string, hint?: string][];
+  after?: () => void;
+}
 
 const EX_FOCUS_HINTS = {
   own: 'Each exercise picks its own keys (and scale or chord types).',
@@ -19,7 +30,7 @@ const EX_FOCUS_HINTS = {
 };
 
 // Less-used choices: a row each in Settings, picked in a sheet.
-const CHOICES = {
+const CHOICES: { [K in ChoiceKey]: Choice<K> } = {
   exerciseFocus: {
     setting: 'exerciseFocus', label: 'Exercises on a day', title: 'Exercises on a day',
     options: [['own', 'Each its own', EX_FOCUS_HINTS.own], ['day', 'Key of the day', EX_FOCUS_HINTS.day]],
@@ -37,7 +48,7 @@ const CHOICES = {
   },
 };
 
-export function renderSettings(root) {
+export function renderSettings(root: HTMLElement): void {
   mount(root, 'ws-settings');
 }
 
@@ -65,18 +76,18 @@ export class SettingsView extends View {
   render() {
     const s = store.state.settings;
     // A change to a setting: saved, and shown.
-    const set = (k, v) => { s[k] = v; save(); this.requestUpdate(); };
-    const stepper = (key, label, hint) => html`
+    const set = <K extends keyof Settings>(k: K, v: Settings[K]) => { s[k] = v; save(); this.requestUpdate(); };
+    const stepper = (key: CountKey, label: string, hint: string) => html`
       <div class="setting">
         <div><b>${label}</b><span>${hint}</span></div>
         <div class="stepper" data-key=${key}>
           <button data-d="-1" aria-label="Fewer" @click=${() => set(key, Math.max(0, s[key] - 1))}>−</button><output>${s[key]}</output><button data-d="1" aria-label="More" @click=${() => set(key, Math.min(8, s[key] + 1))}>+</button>
         </div>
       </div>`;
-    const seg = (key, opts, after) => html`<div class="seg" data-setting=${key}>${opts.map(([v, l]) => html`
+    const seg = <K extends SegKey>(key: K, opts: [Settings[K], string][], after?: () => void) => html`<div class="seg" data-setting=${key}>${opts.map(([v, l]) => html`
       <button class=${s[key] === v ? 'on' : ''} data-v=${v} @click=${() => { set(key, v); after?.(); }}>${l}</button>`)}</div>`;
     // A section's heading, with what it's about behind an ⓘ.
-    const heading = (id, label, help) => {
+    const heading = (id: string, label: string, help: string) => {
       const h = infoParts(`info-settings-${id}`, help);
       return html`<h3 class="section-label">${label}${h.btn}</h3>${h.text}`;
     };
@@ -89,9 +100,9 @@ export class SettingsView extends View {
 
       <section class="panel">
         ${heading('instruments', 'Instruments you play', 'Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.')}
-        <ul class="instruments">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => html`
+        <ul class="instruments">${(Object.entries(TRANSPOSITIONS) as [Transposition, (typeof TRANSPOSITIONS)[Transposition]][]).map(([id, tr]) => html`
           <li><label>
-            <input type="checkbox" data-ins=${id} .checked=${live(s.instruments.includes(id))} @change=${(e) => this.toggleInstrument(id, e.target.checked)}>
+            <input type="checkbox" data-ins=${id} .checked=${live(s.instruments.includes(id))} @change=${(e: Event) => this.toggleInstrument(id, (e.target as HTMLInputElement).checked)}>
             <span class="ins-name">${tr.label}${id === 'c' ? '' : ' instruments'}</span>
             <span class="ins-hint">${tr.hint}</span>
           </label></li>`)}</ul>
@@ -115,12 +126,12 @@ export class SettingsView extends View {
 
       <section class="panel">
         <h3 class="section-label">Picking</h3>
-        ${settingRows(Object.entries(CHOICES).map(([key, c]) => ({ key, label: c.label, value: c.options.find(([v]) => v === s[c.setting])?.[1] })), (key) => this.choose(key))}
+        ${settingRows(Object.entries(CHOICES).map(([key, c]) => ({ key, label: c.label, value: c.options.find(([v]) => v === s[c.setting])?.[1] })), (key) => this.choose(key as ChoiceKey))}
       </section>
 
       <section class="panel">
         ${heading('listen', 'Open recordings in', 'Recording links in a tune’s details search this service for that recording.')}
-        ${seg('listen', Object.entries(LISTEN_SERVICES).map(([v, x]) => [v, x.label]))}
+        ${seg('listen', (Object.entries(LISTEN_SERVICES) as [ListenService, { label: string }][]).map(([v, x]) => [v, x.label]))}
       </section>
 
       <section class="panel">
@@ -146,7 +157,7 @@ export class SettingsView extends View {
         ${this.stray.length ? html`
           <div id="stray">
             <p class="fine" id="stray-text">${this.stray.length} recording${this.stray.length > 1 ? 's aren’t' : ' isn’t'} in any note (from a deleted note, or one that didn’t get saved). ${this.stray.length > 1 ? 'They’re' : 'It’s'} kept for 30 days.</p>
-            <button class="ghost-btn" id="stray-restore" @click=${(e) => this.restoreStray(e.currentTarget)}>Restore them as notes</button>
+            <button class="ghost-btn" id="stray-restore" @click=${(e: Event) => this.restoreStray(e.currentTarget as HTMLButtonElement)}>Restore them as notes</button>
           </div>` : nothing}
         <div class="btn-row">
           <button class="ghost-btn" id="export" @click=${exportData}>Export backup</button>
@@ -157,9 +168,9 @@ export class SettingsView extends View {
     `;
   }
 
-  toggleInstrument(id, on) {
+  toggleInstrument(id: Transposition, on: boolean) {
     const s = store.state.settings;
-    const picked = Object.keys(TRANSPOSITIONS).filter((x) => (x === id ? on : s.instruments.includes(x)));
+    const picked = (Object.keys(TRANSPOSITIONS) as Transposition[]).filter((x) => (x === id ? on : s.instruments.includes(x)));
     if (!picked.length) { toast('Pick at least one'); return this.requestUpdate(); } // (stays on)
     s.instruments = picked;
     s.instrumentsChosen = true;
@@ -168,14 +179,14 @@ export class SettingsView extends View {
     this.requestUpdate();
   }
   // A less-used choice, picked in a sheet with what each option does.
-  choose(key) {
+  choose<K extends ChoiceKey>(key: K) {
     const s = store.state.settings;
-    const c = CHOICES[key];
+    const c: Choice<K> = CHOICES[key];
     openChoice({
       title: c.title, help: c.help, options: c.options, value: s[c.setting],
       onPick: (v) => {
         if (s[c.setting] === v) return;
-        s[c.setting] = v;
+        s[c.setting] = v as Settings[K]; // (one of its options)
         save();
         c.after?.();
         render();
@@ -195,7 +206,7 @@ export class SettingsView extends View {
     this.load();
   }
   // Recordings not in any note (kept 30 days before they're deleted): offered back.
-  async restoreStray(btn) {
+  async restoreStray(btn: HTMLButtonElement) {
     btn.disabled = true; // (once)
     const n = await restoreStrayClips(addEntry);
     await flush();
@@ -220,7 +231,7 @@ async function exportData() {
   const name = `woodshed-backup-${dateStr()}.json`;
   const file = new File([json], name, { type: 'application/json' });
   if (navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'Woodshed backup' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ files: [file], title: 'Woodshed backup' }); return; } catch (e) { if ((e as Error).name === 'AbortError') return; }
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(file);
@@ -231,12 +242,12 @@ async function exportData() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-async function importData(e) {
-  const f = e.target.files?.[0];
-  e.target.value = '';
+async function importData(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0];
+  (e.target as HTMLInputElement).value = '';
   if (!f) return;
   try {
-    const data = JSON.parse(await f.text());
+    const data = JSON.parse(await f.text()); // (any: checked below, and by migrate)
     const items = data.items || data.tunes; // backups from the first version have "tunes"
     if (!Array.isArray(items) || !Array.isArray(data.log)) throw new Error('not a backup');
     if (!confirm(`Replace current data with this backup (${items.length} tunes, ${data.log.length} log entries)?`)) return;
@@ -244,7 +255,7 @@ async function importData(e) {
     delete data.exported;
     // Recordings aren't in backups, and clips nothing refers to are deleted at startup: keep the
     // notes that hold this phone's recordings unless the backup has them too.
-    const backupIds = new Set((data.diary || []).map((e) => e?.id));
+    const backupIds = new Set((data.diary || []).map((e: any) => e?.id)); // (the backup's notes, unchecked)
     const keep = store.state.diary.filter((e) => e.media?.length && !backupIds.has(e.id));
     data.diary = [...(data.diary || []), ...clone(keep)];
     await loadSeedCharts(); // older backups' tunes get charts

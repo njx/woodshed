@@ -7,11 +7,12 @@ import { keyFamiliarity, keySessions } from '../keystats.js';
 import { writtenToConcert } from '../keys.js';
 import { rootName } from './exercise.js';
 import { practicedByDay, fmtDuration } from '../practicetime.js';
+import type { DateStr, Id } from '../types.js';
 
-export function renderProgress(root) {
+export function renderProgress(root: HTMLElement): void {
   const state = store.state;
   const today = dateStr();
-  const perDay = new Map();
+  const perDay = new Map<DateStr, number>();
   for (const e of state.log) perDay.set(e.date, (perDay.get(e.date) || 0) + 1);
 
   let streak = 0;
@@ -19,12 +20,12 @@ export function renderProgress(root) {
   while (perDay.has(d)) { streak++; d = addDays(d, -1); }
   let days30 = 0;
   for (let i = 0; i < 30; i++) if (perDay.has(addDays(today, -i))) days30++;
-  const week = new Set();
+  const week = new Set<Id>();
   for (const e of state.log) if (daysBetween(e.date, today) < 7 && itemById(e.itemId)?.type === 'tune') week.add(e.itemId);
   const time = practicedByDay();
-  const timeSince = (days) => [...time].reduce((n, [d, ms]) => n + (daysBetween(d, today) < days ? ms : 0), 0);
+  const timeSince = (days: number) => [...time].reduce((n, [d, ms]) => n + (daysBetween(d, today) < days ? ms : 0), 0);
   // Big numbers for tiles: "45 min", "2.5 h".
-  const tileTime = (ms) => (ms < 3600000 ? `${Math.round(ms / 60000)} min` : `${(ms / 3600000).toFixed(1).replace(/\.0$/, '')} h`);
+  const tileTime = (ms: number) => (ms < 3600000 ? `${Math.round(ms / 60000)} min` : `${(ms / 3600000).toFixed(1).replace(/\.0$/, '')} h`);
   const tunes = state.items.filter((t) => t.type === 'tune');
   // Average time on the days timed in the last 30.
   const timedDays = [...time].filter(([d, ms]) => ms > 0 && daysBetween(d, today) < 30).length;
@@ -44,7 +45,7 @@ export function renderProgress(root) {
     }
   }
 
-  const levelCounts = [3, 2, 1, 0].map((l) => ({ l, n: tunes.filter((t) => (t.level ?? 0) === l).length }));
+  const levelCounts = ([3, 2, 1, 0] as const).map((l) => ({ l, n: tunes.filter((t) => (t.level ?? 0) === l).length }));
 
   // Keys: how familiar each one is (recent sessions count more), in circle-of-fifths order.
   const fam = keyFamiliarity();
@@ -55,8 +56,8 @@ export function renderProgress(root) {
   const hasKeys = fam.some((x) => x > 0);
   const maxCount = Math.max(...levelCounts.map((c) => c.n), 1);
   const byDate = [...new Set([...perDay.keys(), ...time.keys()])].sort().reverse().slice(0, 10);
-  const timeOn = (day) => (time.get(day) ? fmtDuration(time.get(day)) : '');
-  const namesOn = (day) => state.log.filter((e) => e.date === day).map((e) => itemById(e.itemId)?.name).filter(Boolean);
+  const timeOn = (day: DateStr) => (time.get(day) ? fmtDuration(time.get(day)) : '');
+  const namesOn = (day: DateStr) => state.log.filter((e) => e.date === day).map((e) => itemById(e.itemId)?.name).filter(Boolean);
 
   root.innerHTML = `
     <header class="top"><div><p class="eyebrow">Your practice</p><h1>Progress</h1></div></header>
@@ -115,11 +116,11 @@ export function renderProgress(root) {
     $('#key-readout').textContent = `${rootName(k)}: ${sessions[k]} session${sessions[k] === 1 ? '' : 's'} in the last 30 days.`;
   }));
   $('.heat', root).onclick = (e) => {
-    const c = e.target.closest('.cell');
+    const c = (e.target as HTMLElement).closest<HTMLButtonElement>('.cell');
     if (!c || c.disabled) return;
     $$('.heat .cell', root).forEach((x) => x.classList.toggle('sel', x === c));
-    const names = namesOn(c.dataset.d);
-    const t = timeOn(c.dataset.d);
-    $('#heat-readout').textContent = `${niceDate(c.dataset.d, { weekday: 'short', month: 'short', day: 'numeric' })}${t ? ` · ${t}` : ''}: ${names.length ? names.join(', ') : t ? 'nothing marked played' : 'no practice logged'}`;
+    const names = namesOn(c.dataset.d!); // (every day's cell has its date)
+    const t = timeOn(c.dataset.d!);
+    $('#heat-readout').textContent = `${niceDate(c.dataset.d!, { weekday: 'short', month: 'short', day: 'numeric' })}${t ? ` · ${t}` : ''}: ${names.length ? names.join(', ') : t ? 'nothing marked played' : 'no practice logged'}`;
   };
 }

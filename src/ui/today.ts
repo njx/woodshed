@@ -30,16 +30,19 @@ import { canRecord } from '../media.js';
 import { chartFor } from '../charts.js';
 import { greeted } from './greet.js';
 import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
+import type { SwipeCard } from './shell.js';
+import type { Id, Item, ItemStats, Level, PlanItem, Rating, Transposition, Tune } from '../types.js';
 
-export function renderToday(root) {
+export function renderToday(root: HTMLElement): void {
   const state = store.state;
   ensurePlan();
   const stats = itemStats();
-  const items = state.plan.items.filter((it) => itemById(it.itemId));
+  const items = state.plan!.items.filter((it) => itemById(it.itemId));
   const done = items.filter((it) => isPlanItemPlayed(it)).length;
   const today = dateStr();
   const planIds = new Set(items.map((i) => i.itemId));
-  const extras = state.log.filter((e) => e.date === today && !planIds.has(e.itemId)).map((e) => itemById(e.itemId)).filter(Boolean);
+  const extras = state.log.filter((e) => e.date === today && !planIds.has(e.itemId)).map((e) => itemById(e.itemId)).filter(Boolean) as Item[];
+  // TODO(ts): extras can be exercises too (logged from their details), drawn here as tune rows.
 
   root.innerHTML = `
     <header class="top today-top">
@@ -60,11 +63,11 @@ export function renderToday(root) {
     ${state.settings.instrumentsChosen ? '' : welcomeHtml()}
     ${rememberPanel()}
     ${items.length ? '' : '<p class="empty">No tunes yet. Add some on the Tunes tab.</p>'}
-    <ul class="cards">${state.plan.items.map((it, i) => cardHtml(it, i, stats)).join('')}</ul>
+    <ul class="cards">${state.plan!.items.map((it, i) => cardHtml(it, i, stats)).join('')}</ul>
     <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
-      <ul class="list">${extras.map((t) => rowHtml(t, stats)).join('')}</ul>` : ''}
+      <ul class="list">${extras.map((t) => rowHtml(t as Tune, stats)).join('')}</ul>` : ''}
     ${hintHtml('swipe', 'Swipe a card right when you’ve played it, left to swap or remove it. Tap for details.')}
   `;
 
@@ -75,7 +78,7 @@ export function renderToday(root) {
   $('#more').onclick = () => {
     const t = pickItem(randomOf(['fresh', 'learn', 'hone']), excludedIds(), stats);
     if (!t) return toast('No more tunes to suggest');
-    state.plan.items.push(makePlanItem(t, stats));
+    state.plan!.items.push(makePlanItem(t, stats));
     dropOrphanWarmups();
     save();
     render();
@@ -88,14 +91,14 @@ export function renderToday(root) {
   if (rec) rec.onclick = () => openRecorder();
   liveTools();
   bindNotes(root);
-  $$('.list .row', root).forEach((row) => (row.onclick = () => openItem(row.dataset.id)));
+  $$('.list .row', root).forEach((row) => (row.onclick = () => openItem(row.dataset.id!)));
   $$('.card', root).forEach((card) => bindCard(card));
 }
 
 // The tools, as circles at the top right. The metronome's and tuner's show them running: the
 // tempo, flashing on the beat; the note, green when in tune.
 function toolsHtml() {
-  const tool = (id, icon, label, live = false) => `<button class="hd-tool${live ? ` ${id}` : ''}" id="${id}" aria-label="${label}">
+  const tool = (id: string, icon: string, label: string, live = false) => `<button class="hd-tool${live ? ` ${id}` : ''}" id="${id}" aria-label="${label}">
     <span class="hd-icon">${icon}</span>${live ? '<b class="hd-live" aria-hidden="true"></b>' : ''}</button>`;
   const s = store.state.settings;
   const multi = s.instruments.length > 1;
@@ -113,9 +116,9 @@ function toolsHtml() {
 }
 
 const HOLD_MS = 600; // the tuner keeps showing a note this long after the sound stops
-let liveRaf = null;
+let liveRaf: number | null = null;
 function liveTools() {
-  cancelAnimationFrame(liveRaf);
+  if (liveRaf !== null) cancelAnimationFrame(liveRaf);
   const tick = () => {
     const ms = metronome.state;
     const ts = tuner.state;
@@ -125,7 +128,7 @@ function liveTools() {
       m.classList.toggle('live', ms.running);
       m.classList.toggle('beat', !!c && c.since < 0.1);
       m.classList.toggle('accent', !!c && c.since < 0.1 && c.beat === 0 && ms.beats > 1);
-      $('.hd-live', m).textContent = ms.running ? ms.bpm : '';
+      $('.hd-live', m).textContent = ms.running ? String(ms.bpm) : '';
       m.setAttribute('aria-label', ms.running ? `Metronome, ${ms.bpm} bpm` : 'Metronome');
     }
     const tn = document.getElementById('today-tuner');
@@ -154,23 +157,23 @@ tuner.subscribe(() => liveTools());
 // Swap (for another pick, warm-up or focus item) or take out an unplayed item of today's set —
 // from its card (swipe left) or its details (⋯).
   // Take it out of today's set: a focus item for today, a warm-up, or a pick (not suggested again today).
-export function removeFromToday(item) {
+export function removeFromToday(item: PlanItem): void {
   const state = store.state;
-  const i = state.plan.items.indexOf(item);
-  const name = () => itemById(item.itemId).name;
+  const i = state.plan!.items.indexOf(item); // (the item is from today's set)
+  const name = () => itemById(item.itemId)!.name;
   if (i < 0 || isPlanItemPlayed(item)) return;
   const msg = item.warmup ? `Took out the ${name()} warm-up` : `Took ${name()} out of today’s set`;
   withUndo(msg, () => {
-    if (item.bucket === 'focus') state.plan.focusSkipped.push(item.itemId);
-    else if (!item.warmup) state.plan.skipped.push(item.itemId);
-    state.plan.items.splice(i, 1);
+    if (item.bucket === 'focus') state.plan!.focusSkipped.push(item.itemId);
+    else if (!item.warmup) state.plan!.skipped.push(item.itemId);
+    state.plan!.items.splice(i, 1);
     dropOrphanWarmups(); // a tune's warm-ups go with it
   });
 }
-export function swapInToday(item) {
+export function swapInToday(item: PlanItem): void {
   const state = store.state;
-  const i = state.plan.items.indexOf(item);
-  const name = () => itemById(item.itemId).name;
+  const i = state.plan!.items.indexOf(item);
+  const name = () => itemById(item.itemId)!.name;
   if (i < 0 || isPlanItemPlayed(item)) return;
   if (item.warmup) {
     const was = name();
@@ -180,7 +183,7 @@ export function swapInToday(item) {
     return toast(`Swapped the ${was} warm-up`);
   }
   const focus = item.bucket === 'focus';
-  const was = itemById(item.itemId);
+  const was = itemById(item.itemId)!;
   // A focus item swaps for another focus one; anything else, for a pick from its group.
   const t = focus ? pickFocus(was) : pickItem(item.bucket, excludedIds(), itemStats());
   if (!t) {
@@ -188,24 +191,24 @@ export function swapInToday(item) {
     return toast(focus ? `No other focus ${was.type === 'exercise' ? 'exercises' : 'tunes'} to swap in` : item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
   }
   withUndo(`Swapped out ${name()}`, () => {
-    if (focus) state.plan.focusSkipped.push(item.itemId);
-    else state.plan.skipped.push(item.itemId);
-    state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
+    if (focus) state.plan!.focusSkipped.push(item.itemId);
+    else state.plan!.skipped.push(item.itemId);
+    state.plan!.items[i] = makePlanItem(t, itemStats(), item.bucket);
     dropOrphanWarmups();
   });
 }
 
-function bindCard(card) {
+function bindCard(card: SwipeCard) {
   const state = store.state;
   const i = Number(card.dataset.i);
-  const item = state.plan.items[i];
+  const item = state.plan!.items[i];
   const toggle = () => {
     if (isPlanItemPlayed(item)) unmarkPlayed(item.itemId, item);
     else {
       markPlayed(item.itemId, item);
       autoStart();
       haptic();
-      if (state.plan.items.every((it) => !itemById(it.itemId) || isPlanItemPlayed(it))) toast('All done for today — nice work 🎷');
+      if (state.plan!.items.every((it) => !itemById(it.itemId) || isPlanItemPlayed(it))) toast('All done for today — nice work 🎷');
     }
     save();
     render();
@@ -215,15 +218,15 @@ function bindCard(card) {
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
   $$('.rating button', card).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
-    rate(item.itemId, b.dataset.v, item);
+    rate(item.itemId, b.dataset.v as Rating, item);
     save();
     render();
   }));
   const sug = $('.suggest [data-level]', card);
   if (sug) sug.onclick = (e) => {
     e.stopPropagation();
-    const t = itemById(item.itemId);
-    setLevel(t, Number(sug.dataset.level));
+    const t = itemById(item.itemId)!; // (a card is only drawn for an item there is, see cardHtml)
+    setLevel(t, Number(sug.dataset.level) as Level);
     save();
     render();
     toast(`${t.name} is now ${LEVELS[t.level].label}`);
@@ -233,7 +236,7 @@ function bindCard(card) {
   const warmBtn = $('[data-add-warm]', card);
   if (warmBtn) warmBtn.onclick = (e) => {
     e.stopPropagation();
-    pickWarmup(itemById(item.itemId));
+    pickWarmup(itemById(item.itemId) as Tune); // (the button is only on a tune's card)
   };
   const noteBtn = $('.note-chip', card);
   if (noteBtn) noteBtn.onclick = (e) => {
@@ -243,39 +246,40 @@ function bindCard(card) {
   const recBtn = $('.rec-chip', card);
   if (recBtn) recBtn.onclick = (e) => {
     e.stopPropagation();
-    const t = itemById(item.itemId);
+    const t = itemById(item.itemId)!;
     const text = t.type === 'exercise'
       ? takeLabel(t, item.keys || [], item.types || null, item.prog || null, tempoSource(t, item).tempo)
       : [item.key != null && `In ${kn(item.key)}`, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     openRecorder({ itemId: t.id, text, back: render });
   };
-  card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip, .add-warm')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
+  card.onclick = (e) => { if (!card._swiped && !(e.target as Element).closest('.rating, .suggest, .tempo-chip, .add-warm')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
   // (Once a card's been swiped, the hint about swiping goes.)
-  const swiped = (fn) => () => { hintDone('swipe'); fn(); };
+  const swiped = (fn: () => void) => () => { hintDone('swipe'); fn(); };
   attachSwipe(card, {
     right: swiped(toggle),
     actions: isPlanItemPlayed(item) ? [] : leftActions(item).map((a) => swiped(a === 'swap' ? swap : skip)),
   });
 }
 
-function keyChip(it, t) {
-  const chip = (cls, main, sub) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
+function keyChip(it: PlanItem, t: Item) {
+  const chip = (cls: string, main: string, sub?: string) => `<div class="keychip ${cls}">${ICON.key}<div class="kc-text"><span>${main}</span>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   if (t.type === 'exercise') {
     if (!it.keys?.length && !it.types?.length) return '';
-    if (it.form) return chip('multi', `Through the form in <b>${esc(kn(it.overKey ?? it.keys[0]))}</b>`, 'with its chords and a bass');
-    if (it.prog) return chip('multi', `<b>${esc(it.prog.name)}</b> in <b>${esc(rootName(it.keys[0]))}</b>`, 'tap for notation');
+    // (An exercise's set item has its keys, see makePlanItem.)
+    if (it.form) return chip('multi', `Through the form in <b>${esc(kn(it.overKey ?? it.keys![0]))}</b>`, 'with its chords and a bass');
+    if (it.prog) return chip('multi', `<b>${esc(it.prog.name)}</b> in <b>${esc(rootName(it.keys![0]))}</b>`, 'tap for notation');
     // A lick or pattern over part of a progression (in a key, or a sequence of keys), or over one chord.
     if (it.over && it.overKey != null) {
-      const seq = it.keys.length > 1 ? `played in ${it.keys.map(rootName).join(', then ')}` : 'tap for notation';
+      const seq = it.keys!.length > 1 ? `played in ${it.keys!.map(rootName).join(', then ')}` : 'tap for notation';
       return chip('multi', `Over <b>${esc(it.over)}</b> in <b>${esc(kn(it.overKey))}</b>`, esc(seq));
     }
-    if (it.over) return chip('multi', `Over <b>${esc(it.over)}</b>`, esc(`in ${rootName(it.keys[0])}`));
-    const what = esc(exerciseKeysText(it.keys, t, it.types)).replaceAll(' · ', '</b> · <b>');
+    if (it.over) return chip('multi', `Over <b>${esc(it.over)}</b>`, esc(`in ${rootName(it.keys![0])}`));
+    const what = esc(exerciseKeysText(it.keys!, t, it.types)).replaceAll(' · ', '</b> · <b>');
     // The whole list matters here, so it wraps (between keys) rather than being cut off.
     return chip('multi', `${it.keys?.length ? 'In ' : ''}<b>${what}</b>`, t.abc || t.vary ? 'tap for notation' : '');
   }
   if (it.alt) {
-    if (it.key == null) return chip('alt', `Transpose it <b>${SHIFTS[it.shift]}</b>`);
+    if (it.key == null) return chip('alt', `Transpose it <b>${SHIFTS[it.shift!]}</b>`);
     return chip('alt', `Try it in <b>${kn(it.key)}</b>`, `usually ${esc(keysText(t))}`);
   }
   if (it.key == null) return '';
@@ -287,7 +291,7 @@ function keyChip(it, t) {
 // to count the time away too.
 function timerHtml() {
   const total = practicedMs();
-  const bar = (cls, text, buttons) => `<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
+  const bar = (cls: string, text: string, buttons: string) => `<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
   if (running()) {
     return bar('on', `<span class="pt-dot" aria-hidden="true"></span>Practicing · <b id="pt-clock">${fmtClock(total)}</b> today`,
       `<button class="pill-btn" id="pt-end" aria-label="End practice">${ICON.stop}End</button>`);
@@ -302,8 +306,8 @@ function timerHtml() {
   return bar('', 'Practice timer', `<button class="pill-btn" id="pt-start" aria-label="Start practice">${ICON.play}Start</button>`);
 }
 
-let clock = null;
-function bindTimer(root) {
+let clock: ReturnType<typeof setInterval> | undefined;
+function bindTimer(root: HTMLElement) {
   const start = $('#pt-start', root);
   if (start) start.onclick = () => { startPractice(); render(); };
   const away = $('#pt-away', root);
@@ -322,14 +326,14 @@ function bindTimer(root) {
 
 function dayNote() {
   const s = store.state.settings;
-  const plan = store.state.plan;
+  const plan = store.state.plan!; // (renderToday made it)
   if (s.exerciseFocus === 'day' && plan.dayKeys?.length) {
     return `<p class="day-note">Key${plan.dayKeys.length > 1 ? 's' : ''} of the day: <b>${plan.dayKeys.map((r) => esc(rootName(r))).join(' · ')}</b></p>`;
   }
   return '';
 }
 
-function cardHtml(it, i, stats) {
+function cardHtml(it: PlanItem, i: number, stats: Map<Id, ItemStats>) {
   const t = itemById(it.itemId);
   if (!t) return '';
   const s = stats.get(t.id);
@@ -368,12 +372,12 @@ function cardHtml(it, i, stats) {
 }
 
 // A note on it: today's count, and a tap to write one.
-function noteChip(t) {
+function noteChip(t: Item) {
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && !e.media?.length).length;
   return `<button class="note-chip ${n ? '' : 'empty'}" aria-label="Note on ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.note}${n ? `<span>${n}</span>` : ''}</button>`;
 }
 // Record a take of it; shows how many were recorded today.
-function recChip(t) {
+function recChip(t: Item) {
   if (!canRecord()) return '';
   const n = entriesFor(t.id).filter((e) => e.date === dateStr() && e.media?.length).length;
   return `<button class="rec-chip ${n ? '' : 'empty'}" aria-label="Record ${esc(t.name)}${n ? ` (${n} today)` : ''}">${ICON.rec}${n ? `<span>${n}</span>` : ''}</button>`;
@@ -381,11 +385,11 @@ function recChip(t) {
 
 // What a left swipe offers, the same on every card: Swap, and Remove (for today) at the edge, which
 // a long swipe does. (A focus item swaps for another focus one.)
-function leftActions() {
+function leftActions(_it?: PlanItem) { // (it's passed the item, but they're the same for all)
   return ['swap', 'remove'];
 }
 
-function progressRing(done, total) {
+function progressRing(done: number, total: number) {
   const R = 19, C = 2 * Math.PI * R;
   const frac = total ? done / total : 0;
   const complete = total > 0 && done === total;
@@ -404,16 +408,16 @@ function welcomeHtml() {
     <div class="welcome">
       <h2>What do you play?</h2>
       <p>Keys will be shown for your instrument. Pick more than one to switch between them.</p>
-      <div class="chips">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => `<button class="chip ${s.instruments.includes(id) ? 'on' : ''}" data-ins="${id}">${esc(tr.label)}</button>`).join('')}</div>
+      <div class="chips">${Object.entries(TRANSPOSITIONS).map(([id, tr]) => `<button class="chip ${s.instruments.includes(id as Transposition) ? 'on' : ''}" data-ins="${id}">${esc(tr.label)}</button>`).join('')}</div>
       <p>${Object.values(TRANSPOSITIONS).map((tr) => `<b>${esc(tr.label)}</b>: ${esc(tr.hint)}`).join('<br>')}</p>
       <button class="primary-btn" id="ins-done">Done</button>
     </div>`;
 }
 
-function bindWelcome(root) {
+function bindWelcome(root: HTMLElement) {
   $$('.welcome .chip', root).forEach((c) => (c.onclick = () => {
     const s = store.state.settings;
-    const id = c.dataset.ins;
+    const id = c.dataset.ins as Transposition;
     if (s.instruments.includes(id)) {
       if (s.instruments.length === 1) return;
       s.instruments = s.instruments.filter((x) => x !== id);

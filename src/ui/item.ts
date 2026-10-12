@@ -21,17 +21,21 @@ import { autoStart } from '../practicetime.js';
 import {
   $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml, statusHtml, openMenu, keysText, settingRowsHtml, settingPanel,
 } from './shell.js';
+import type { ExerciseOpts } from './exercise.js';
+import type { Id, Key, Level, Priority, Tune } from '../types.js';
 
 // Detail sheet for a tune: edit it, listen to recordings, see its history. id null = new tune.
-export function openItem(id, opts) {
+export function openItem(id: Id | null, opts?: ExerciseOpts): void {
   const state = store.state;
   if (id && itemById(id)?.type === 'exercise') return openExercise(id, opts);
   const isNew = !id;
+  // (A new tune has no `focus` yet: unset reads as not.)
   const t = isNew
-    ? { id: uid(), type: 'tune', name: ui.query.trim(), style: 'Standard', priority: 2, level: 0, keys: [], notes: '', mine: true, ivl: null, due: null }
-    : itemById(id);
+    ? { id: uid(), type: 'tune', name: ui.query.trim(), style: 'Standard', priority: 2, level: 0, keys: [] as Key[], notes: '', mine: true, ivl: null, due: null } satisfies Omit<Tune, 'focus'> as Tune
+    : itemById(id) as Tune | undefined; // (an exercise opened above)
   if (!t) return;
-  const styles = [...new Set(state.items.map((x) => x.style))].sort();
+  // TODO(ts): exercises have no style, so this has undefined in it too (an empty <option> below).
+  const styles = [...new Set(state.items.map((x) => ('style' in x ? x.style : undefined)))].sort();
   const view = state.settings.view;
 
   // Key chips are laid out by written pitch for the current transposition.
@@ -96,7 +100,7 @@ export function openItem(id, opts) {
           ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
             <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
             <span>${e.key != null ? esc(kn(e.key)) : e.shift ? esc(SHIFTS[e.shift]) : ''}${e.alt ? ' <em>new key</em>' : ''}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
-            <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
+            <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok'))!.label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
           ${canRecord() ? `<button class="link-btn" id="rec-tune">${ICON.rec}Record</button>` : ''}
@@ -129,25 +133,26 @@ export function openItem(id, opts) {
   function detailsHtml() {
     return Object.values(PANELS).map((x) => `<label class="field-label">${x.label}</label>${x.html()}`).join('');
   }
-  let panel = null; // the panel open over the sheet (a key of PANELS), if any
+  let panel: keyof typeof PANELS | null = null; // the panel open over the sheet (a key of PANELS), if any
   const fillPanel = () => {
     const el = sheet.querySelector('.sub-panel');
     if (!el || !panel) { panel = null; return; }
-    el.querySelector('.sub-body').innerHTML = PANELS[panel].html();
+    el.querySelector('.sub-body')!.innerHTML = PANELS[panel].html();
   };
 
   // Today's key, changeable (the chart and its warm-ups follow).
+  // (t! below: it's checked above, but that doesn't reach into a function declaration.)
   function todayKeyHtml() {
-    const it = todayItem(t);
+    const it = todayItem(t!);
     if (!it) return '';
-    const minor = (it.key ?? t.keys?.[0] ?? 0) >= 12;
+    const minor = (it.key ?? t!.keys?.[0] ?? 0) >= 12;
     const keys = [...Array(12).keys()].map((r) => r + (minor ? 12 : 0));
     return `
       <div class="setting today-key">
-        <div><b>Today in</b><span>${it.key != null && t.keys.includes(it.key) ? 'One of its usual keys' : 'A new key for it'}</span></div>
+        <div><b>Today in</b><span>${it.key != null && t!.keys.includes(it.key) ? 'One of its usual keys' : 'A new key for it'}</span></div>
         <select id="f-todaykey" aria-label="Today’s key">
           ${it.key == null ? '<option value="" selected>—</option>' : ''}
-          ${keys.map((k) => `<option value="${k}" ${k === it.key ? 'selected' : ''}>${esc(kn(k))}${t.keys.includes(k) ? ' · usual' : ''}</option>`).join('')}
+          ${keys.map((k) => `<option value="${k}" ${k === it.key ? 'selected' : ''}>${esc(kn(k))}${t!.keys.includes(k) ? ' · usual' : ''}</option>`).join('')}
         </select>
       </div>`;
   }
@@ -176,16 +181,16 @@ export function openItem(id, opts) {
     if (!box) return;
     $('#listen-service', box).onclick = () => goTo('settings');
     $('#rec-add-toggle', box).onclick = () => {
-      const form = $('#rec-form', box);
+      const form = $<HTMLFormElement>('#rec-form', box);
       form.hidden = !form.hidden;
-      if (!form.hidden) form.artist.focus();
+      if (!form.hidden) (form.artist as HTMLInputElement).focus();
     };
     $('#rec-form', box).onsubmit = (e) => {
       e.preventDefault();
-      const f = e.target;
-      const artist = f.artist.value.trim();
+      const f = e.target as HTMLFormElement;
+      const artist = (f.artist as HTMLInputElement).value.trim();
       if (!artist) return;
-      t.recordings = [...(t.recordings || []), { artist, album: f.album.value.trim() || null }];
+      t.recordings = [...(t.recordings || []), { artist, album: (f.album as HTMLInputElement).value.trim() || null }];
       commit();
       box.innerHTML = listenHtml();
       bindListen();
@@ -201,14 +206,14 @@ export function openItem(id, opts) {
   const bind = () => {
     bindListen();
     $$('#item-status button', sheet).forEach((b) => (b.onclick = () => {
-      setItemStatus(t, b.dataset.v);
+      setItemStatus(t, b.dataset.v as ReturnType<typeof itemStatus>);
       commit();
       refresh();
     }));
     const sug = $('.suggest [data-level]', sheet);
-    if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
+    if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level) as Level); commit(); refresh(); };
     // The name field wraps onto as many lines as it needs, but stays a single line of text.
-    const nameEl = $('#f-name', sheet);
+    const nameEl = $<HTMLTextAreaElement>('#f-name', sheet);
     const fit = () => { nameEl.style.height = 'auto'; nameEl.style.height = `${nameEl.scrollHeight}px`; };
     fit();
     nameEl.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); } };
@@ -219,11 +224,11 @@ export function openItem(id, opts) {
       if (!isNew && t.name.trim()) commit();
     };
     const style = $('#f-style', sheet);
-    if (style) style.onchange = (e) => { t.style = e.target.value.trim() || 'Standard'; commit(); };
-    $('#f-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
+    if (style) style.onchange = (e) => { t.style = (e.target as HTMLInputElement).value.trim() || 'Standard'; commit(); };
+    $('#f-notes', sheet).oninput = (e) => { t.notes = (e.target as HTMLTextAreaElement).value; commit(); };
     const grids = $('#keygrids', sheet);
     if (grids) grids.onclick = (e) => {
-      const b = e.target.closest('button');
+      const b = (e.target as Element).closest('button');
       if (!b) return;
       const k = Number(b.dataset.k);
       t.keys = t.keys.includes(k) ? t.keys.filter((x) => x !== k) : [...t.keys, k];
@@ -232,27 +237,27 @@ export function openItem(id, opts) {
     };
     $$('.seg[data-field]', sheet).forEach((seg) => {
       seg.onclick = (e) => {
-        const b = e.target.closest('button');
+        const b = (e.target as Element).closest('button');
         if (!b) return;
         if (seg.dataset.field === 'level') {
-          setLevel(t, Number(b.dataset.v));
+          setLevel(t, Number(b.dataset.v) as Level);
           commit();
           return refresh();
         }
-        t[seg.dataset.field] = Number(b.dataset.v);
+        t[seg.dataset.field as 'priority'] = Number(b.dataset.v) as Priority; // (level's done above)
         $$('button', seg).forEach((x) => x.classList.toggle('on', x === b));
         commit();
       };
     });
-    const keySel = $('#f-todaykey', sheet);
+    const keySel = $<HTMLSelectElement>('#f-todaykey', sheet);
     if (keySel) keySel.onchange = () => {
       if (keySel.value === '') return;
-      setTodayKey(todayItem(t), Number(keySel.value));
+      setTodayKey(todayItem(t)!, Number(keySel.value)); // (it's shown for an item in today's set)
       refresh();
     };
     // A setting's row opens its panel over the sheet; Done goes back to the rows.
     $$('[data-open]', sheet).forEach((b) => (b.onclick = () => {
-      panel = b.dataset.open;
+      panel = b.dataset.open as keyof typeof PANELS;
       settingPanel(sheet, PANELS[panel].label, () => { panel = null; refresh(); });
       refresh();
     }));

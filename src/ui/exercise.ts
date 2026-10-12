@@ -24,24 +24,27 @@ import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './m
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
+import type { TuneObject } from 'abcjs';
+import type { Duration } from '../abc.js';
+import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, Level, Priority, Progression, Shape, Tune, Vary } from '../types.js';
 import {
   $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, hintHtml, info, settingRowsHtml, settingPanel,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
-export const rootName = (r) => keyName(r % 12, view());
+export const rootName = (r: Key): string => keyName(r % 12, view());
 // A key for an exercise: "Dm" for a lick written in a minor key.
-export const keyLabel = (r, t) => `${rootName(r)}${homeKey(t) >= 12 ? 'm' : ''}`;
+export const keyLabel = (r: Key, t: Exercise | null): string => `${rootName(r)}${homeKey(t) >= 12 ? 'm' : ''}`;
 
 // A progression's chords in a key: "Am7 · D7 · Gm7 · C7".
-export function progressionChords(prog, key) {
+export function progressionChords(prog: Progression, key: Key): string {
   return prog.chords.map((c) => variantName(rootName((key + c.d) % 12), 'chord', c.family)).join(' · ');
 }
 
 // What to play: "C · F · B♭", or with scale or chord types "C dor · F harm min", "Cm7 · F7",
 // or a progression "iii–VI7–ii–V7 in F".
-export function exerciseKeysText(keys = [], t = null, types = null, prog = null) {
+export function exerciseKeysText(keys: Key[] = [], t: Exercise | null = null, types: string[] | null = null, prog: Progression | null = null): string {
   if (prog?.name) return `${prog.name}${keys.length ? ` in ${rootName(keys[0])}` : ''}`;
   const kind = t?.vary?.kind;
   if (!kind || !types?.length) return keys.map((k) => keyLabel(k, t)).join(' · ');
@@ -51,32 +54,37 @@ export function exerciseKeysText(keys = [], t = null, types = null, prog = null)
 
 // A recording's note for an exercise: what was played (keys and types, or the progression) and
 // the tempo, e.g. "In C · E♭ · 120 bpm", "D dorian · G mixolydian", "ii–V7–I in F".
-export function takeLabel(t, keys = [], types = null, prog = null, tempo = t.tempo) {
+export function takeLabel(t: Exercise, keys: Key[] = [], types: string[] | null = null, prog: Progression | null = null, tempo = t.tempo): string {
   const what = exerciseKeysText(keys, t, types, prog);
   return [what && (t.vary || prog ? what : `In ${what}`), tempo && `${tempo} bpm`].filter(Boolean).join(' · ');
 }
 
-const patternHint = (kind) => (kind === 'chord'
+const patternHint = (kind: Vary['kind']) => (kind === 'chord'
   ? 'Numbers are chord tones: 1 3 5 7, and 8 10 12 14 an octave up. Tap numbers to change the pattern.'
   : 'Numbers are notes of the scale: 1 is the root, and on a 7-note scale 8 is the octave. Tap numbers to change the pattern; the presets fit themselves to scales with more or fewer notes.');
 
 // The notation to show: generated for a progression (a warm-up), a scale or chord type, or the
-// exercise's own.
+// exercise's own. (A varying exercise always has a type to show: at least one is turned on.)
 // part: play only its first so many chords (part of a lick over part of a progression).
-function notationFor(t, type, prog = null, part = null) {
+function notationFor(t: Exercise, type: string | undefined, prog: Progression | null = null, part: number | null = null): string {
   if (t.fromTune) return prog ? progressionAbc(prog.chords, { meter: t.meter || '4/4' }) : '';
-  if (t.vary) return generateAbc(t.vary.kind, type, { shape: t.vary.shape, pattern: t.vary.pattern, meter: t.meter || '4/4' });
+  if (t.vary) return generateAbc(t.vary.kind, type!, { shape: t.vary.shape, pattern: t.vary.pattern, meter: t.meter || '4/4' });
   return part ? abcFirstChords(t.abc, part) : t.abc;
 }
 
+// pid: today's plan item it was opened from; keys, types, prog: what's played today.
+export interface ExerciseOpts { pid?: Id; keys?: Key[] | null; types?: string[]; prog?: Progression | null; back?: () => void }
+
 // Detail sheet for an exercise. id null = new exercise. opts.keys: today's keys, to preview first.
-export function openExercise(id, opts = {}) {
+export function openExercise(id: Id | null, opts: ExerciseOpts = {}): void {
   const state = store.state;
   const isNew = !id;
-  const t = isNew
-    ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', notes: '', priority: 2, level: 0, ivl: null, due: null }
-    : itemById(id);
-  if (!t) return;
+  // TODO(ts): a new exercise has no `focus` or `vary` (validate.ts fills them in on the next load).
+  const item: Item | undefined = isNew
+    ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', notes: '', priority: 2, level: 0, ivl: null, due: null } as Omit<Exercise, 'focus' | 'vary'> as Exercise
+    : itemById(id!);
+  if (!item || item.type !== 'exercise') return;
+  const t = item;
   // Today's plan item it was opened from (it can be in the set more than once, as warm-ups
   // before tunes); opened from elsewhere, its own place in the set, if it has one.
   const today = state.plan?.date === dateStr() ? state.plan.items.filter((i) => i.itemId === t.id) : [];
@@ -87,20 +95,20 @@ export function openExercise(id, opts = {}) {
   // A lick played over part of a progression: in which key only its first so many chords; and
   // what it's over, in words.
   // How much of it to show in a key (all of it when it's shown only as written).
-  const partFor = (root) => (asWritten() ? null : planItem?.parts?.[todayKeys.indexOf(root)] ?? null);
-  const formText = () => `Today: through ${tempoFrom.name}’s form, in ${kn(planItem.overKey)} — bend it to the changes, or take off from it.`;
+  const partFor = (root: Key) => (asWritten() ? null : planItem?.parts?.[todayKeys.indexOf(root)] ?? null);
+  const formText = () => `Today: through ${tempoFrom.name}’s form, in ${kn(planItem!.overKey)} — bend it to the changes, or take off from it.`;
   const overText = () => {
-    const where = planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : '';
-    const keys = todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`);
-    return `Today: over ${planItem.over}${where} — play it in ${keys.join(', then ')}`;
+    const where = planItem!.overKey != null ? ` in ${kn(planItem!.overKey)}` : '';
+    const keys = todayKeys.map((k, i) => `${rootName(k)}${planItem!.parts?.[i] ? ` (its first ${planItem!.parts[i]} chords)` : ''}`);
+    return `Today: over ${planItem!.over}${where} — play it in ${keys.join(', then ')}`;
   };
   // A warm-up is played at its tune's tempo (the tempo row, notation and takes use that).
   const tempoFrom = (planItem?.warmup && itemById(planItem.warmup)) || t;
-  const isPlayed = () => (logItem() ? isPlanItemPlayed(logItem()) : isPlayedToday(t.id));
-  let todayKeys = opts.keys || planItem?.keys || []; // changes if today's keys are edited
+  const isPlayed = () => (logItem() ? isPlanItemPlayed(logItem()!) : isPlayedToday(t.id));
+  let todayKeys: Key[] = opts.keys || planItem?.keys || []; // changes if today's keys are edited
   const prog = planItem?.prog || opts.prog || null; // a tune's progression (warm-ups)
   // Today's types can include ones not turned on (warm-ups follow a tune's chords).
-  const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary.kind, id)) : []);
+  const todayTypes = () => (t.vary ? (planItem?.types || opts.types || []).filter((id) => typeInfo(t.vary!.kind, id)) : []);
   const stripTypes = () => [...new Set([...(t.vary?.types || []), ...todayTypes()])];
   // A walking bass through its chords, in the key shown: a progression (a bar a chord), or the
   // chord symbols in its notation (timed by the notes under them), or else the chords typed for it
@@ -132,13 +140,13 @@ export function openExercise(id, opts = {}) {
   const writtenC = () => writtenToConcert(homeKey(t) % 12, view()); // (the key it's written in)
   let previewRoot = asWritten() ? writtenC() : todayKeys[0] ?? 0;
   // The scale or chord type shown: today's for the key shown, or the first one turned on.
-  const typeFor = (root) => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
-  let previewType = typeFor(previewRoot);
+  const typeFor = (root: Key): string | undefined => todayTypes()[todayKeys.indexOf(root)] ?? todayTypes()[0] ?? t.vary?.types[0];
+  let previewType: string | undefined = typeFor(previewRoot);
   // A new take's note: today's keys and types, or else the key (and type) shown.
   const label = () => (prog || !todayKeys.length
     ? takeLabel(t, [previewRoot], previewType ? [previewType] : null, prog, tempoFrom.tempo)
     : takeLabel(t, todayKeys, todayTypes(), prog, tempoFrom.tempo));
-  let stopFn = null;
+  let stopFn: (() => void) | null = null;
 
   const body = () => {
     const s = itemStats().get(t.id);
@@ -164,7 +172,7 @@ export function openExercise(id, opts = {}) {
             return `<button class="${r === previewRoot ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root="${r}">${esc(keyLabel(r, t))}</button>`;
           }).join('')}</div>`}
           ${t.vary ? `<div class="type-strip" role="group" aria-label="Show ${t.vary.kind} type">${stripTypes().map((id) => `
-            <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary.kind, id).short)}</button>`).join('')}</div>` : ''}
+            <button class="${id === previewType ? 'on' : ''}" data-type="${id}">${esc(typeInfo(t.vary!.kind, id)!.short)}</button>`).join('')}</div>` : ''}
           <div class="nt-wrap">
             <div class="notation" id="x-notation"><span class="fine">Loading notation…</span></div>
             <button class="x-full" id="x-full" aria-label="Full screen" title="Full screen">⤢</button>
@@ -211,7 +219,7 @@ export function openExercise(id, opts = {}) {
           ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
             <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
             <span>${esc(e.progName ? `${e.progName} in ${rootName(entryKeys(e)[0] ?? 0)}` : exerciseKeysText(entryKeys(e), t, e.types))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
-            <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
+            <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok'))!.label)}</span></li>`).join('')}</ul>` : ''}
         </div>
         <div class="field-label row-label"><span>Diary</span><span class="row-links">
           <button class="link-btn" id="x-note">${ICON.plus}Add a note</button></span></div>
@@ -234,10 +242,10 @@ export function openExercise(id, opts = {}) {
       <p class="fine">${t.vary ? `Each key comes with one of the ${t.vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.` : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'}</p>
       ${t.vary ? `
         <div class="chips wrap" id="x-types">${Object.entries(typesOf(t.vary.kind)).map(([id, x]) => `
-          <button class="chip ${t.vary.types.includes(id) ? 'on' : ''}" data-vtype="${id}" aria-pressed="${t.vary.types.includes(id)}">${esc(x.label)}</button>`).join('')}</div>
+          <button class="chip ${t.vary!.types.includes(id) ? 'on' : ''}" data-vtype="${id}" aria-pressed="${t.vary!.types.includes(id)}">${esc(x.label)}</button>`).join('')}</div>
         <label class="field-label">Pattern</label>
-        <div class="chips wrap" id="x-shape">${Object.entries(SHAPES).filter(([, x]) => x.kinds.includes(t.vary.kind)).map(([id, x]) => `
-          <button class="chip ${t.vary.shape === id ? 'on' : ''}" data-shape="${id}">${esc(x.label)}</button>`).join('')}</div>
+        <div class="chips wrap" id="x-shape">${Object.entries(SHAPES).filter(([, x]) => x.kinds.includes(t.vary!.kind)).map(([id, x]) => `
+          <button class="chip ${t.vary!.shape === id ? 'on' : ''}" data-shape="${id}">${esc(x.label)}</button>`).join('')}</div>
         <div class="pattern-card">
           <div class="pattern-line" id="x-pattern" aria-live="polite">${esc(patternText(t.vary.kind, t.vary.shape, t.vary.pattern)) || '&nbsp;'}</div>
           ${t.vary.shape === 'custom' ? `<div class="keypad pattern-pad" id="x-pad">${PATTERN_PAD[t.vary.kind].map((n) => `<button data-pn="${n}">${n}</button>`).join('')}
@@ -256,13 +264,14 @@ export function openExercise(id, opts = {}) {
           <div><b>Keys per session</b><span>How many keys to play it in each time</span></div>
           <div class="stepper" id="x-kps"><button data-d="-1" aria-label="Fewer">−</button><output>${t.keysPerSession}</output><button data-d="1" aria-label="More">+</button></div>
         </div>` : ''}`;
-  const tunesSwitch = (btn) => `<label class="as-written use-tunes"><span>Use with tunes${btn}</span><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}></label>`;
+  const tunesSwitch = (btn: string) => `<label class="as-written use-tunes"><span>Use with tunes${btn}</span><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}></label>`;
   // key: { label, value (shown in its row), html (its controls), shown? }
-  const PANELS = {
+  interface Panel { label: string; value: () => string; html: () => string; shown?: () => boolean }
+  const PANELS: Record<string, Panel> = {
     harmony: { label: 'Chords it goes with', value: () => (t.harmony ?? guessed()) || 'None yet', html: harmonyHtml, shown: () => !isNew && !t.vary && !t.fromTune },
     kind: { label: 'Kind', value: () => CATEGORIES[t.category] || 'Other', html: kindChips },
     vary: { label: 'Each session', shown: () => !t.fromTune, html: varyHtml,
-      value: () => (!t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`) },
+      value: () => (!t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary!.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`) },
     keys: { label: 'Keys', shown: () => !t.fromTune, html: keysHtml,
       value: () => (t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} · ${KEY_MODES[t.keyMode].label.toLowerCase()}${t.keyMode === 'fixed' && t.keys.length ? `: ${t.keys.map((k) => rootName(k)).join(' ')}` : ''}`) },
     level: { label: 'How well you know it', value: () => LEVELS[t.level ?? 0].label, html: levelSeg },
@@ -281,11 +290,11 @@ export function openExercise(id, opts = {}) {
     ]) + (t.fromTune ? '' : help.text);
   }
   // The panel open over the sheet (a key of PANELS), if any.
-  let panel = null;
+  let panel: string | null = null;
   const fillPanel = () => {
     const el = sheet.querySelector('.sub-panel');
     if (!el || !panel || !PANELS[panel]) { panel = null; return; }
-    el.querySelector('.sub-body').innerHTML = PANELS[panel].html();
+    el.querySelector('.sub-body')!.innerHTML = PANELS[panel].html();
   };
 
   // Today's keys (and types) for this exercise, changeable: not for a warm-up (its come from its
@@ -293,9 +302,9 @@ export function openExercise(id, opts = {}) {
   const editable = () => !!planItem && !planItem.warmup && !t.fromTune && t.keyMode !== 'none';
   function todayHtml() {
     if (!editable()) return '';
-    const keys = planItem.keys || [];
-    const types = t.vary ? planItem.types || [] : [];
-    const played = isPlanItemPlayed(planItem);
+    const keys = planItem!.keys || [];
+    const types = t.vary ? planItem!.types || [] : [];
+    const played = isPlanItemPlayed(planItem!);
     const help = info(`Tap keys to play ${t.vary ? 'it in (and pick the type for each)' : 'it in'} today${played ? ' — the session you logged changes too' : ''}.`);
     return `
       <div class="field-label row-label"><span>Today’s keys${help.btn}</span></div>${help.text}
@@ -304,7 +313,7 @@ export function openExercise(id, opts = {}) {
         return `<button class="${keys.includes(k) ? 'on' : ''}" data-tk="${k}" aria-pressed="${keys.includes(k)}">${esc(rootName(k))}</button>`;
       }).join('')}</div>
       ${t.vary && keys.length ? `<ul class="today-types">${keys.map((k, i) => `
-        <li><b>${esc(rootName(k))}</b><select data-tt="${i}" aria-label="${esc(VARY[t.vary.kind].label)} in ${esc(rootName(k))}">${Object.entries(VARY[t.vary.kind].types).map(([id, x]) => `
+        <li><b>${esc(rootName(k))}</b><select data-tt="${i}" aria-label="${esc(VARY[t.vary!.kind].label)} in ${esc(rootName(k))}">${Object.entries(VARY[t.vary!.kind].types).map(([id, x]) => `
           <option value="${id}" ${types[i] === id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></li>`).join('')}</ul>` : ''}`;
   }
 
@@ -359,13 +368,13 @@ export function openExercise(id, opts = {}) {
     bind();
   };
   // Leave this sheet for another (note, recorder, editor) and come back after.
-  const goTo = (fn) => {
+  const goTo = (fn: () => void) => {
     leaving = true;
     closeSheet();
     fn();
   };
 
-  async function drawNotation() {
+  async function drawNotation(): Promise<TuneObject | null> {
     const el = $('#x-notation', sheet);
     const abc = notationFor(t, previewType, prog, partFor(previewRoot));
     if (!el || !abc) return null;
@@ -374,7 +383,7 @@ export function openExercise(id, opts = {}) {
   }
 
   function bind() {
-    let tune = null;
+    let tune: TuneObject | null = null;
     drawNotation().then((x) => { tune = x; });
     const stopPlaying = () => {
       if (!stopFn) return;
@@ -414,7 +423,7 @@ export function openExercise(id, opts = {}) {
           onEnded: () => { stopFn = null; play.classList.remove('on'); $('span', play).textContent = 'Play'; },
           onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
         });
-        if (stopFn) $('span', play).textContent = 'Stop';
+        if (stopFn !== null) $('span', play).textContent = 'Stop'; // (always: playNotation returns its stop)
       } catch {
         stopFn = null;
         play.classList.remove('on');
@@ -431,7 +440,7 @@ export function openExercise(id, opts = {}) {
       else startBass();
       refresh();
     };
-    const aw = $('#x-as-written', sheet);
+    const aw = $<HTMLInputElement>('#x-as-written', sheet);
     if (aw) aw.onchange = () => {
       stopPlaying();
       if (aw.checked) t.asWritten = true;
@@ -444,8 +453,8 @@ export function openExercise(id, opts = {}) {
     // Today's keys and types.
     $$('[data-tk]', sheet).forEach((b) => (b.onclick = () => {
       const k = Number(b.dataset.tk);
-      const keys = [...(planItem.keys || [])];
-      const types = t.vary ? [...(planItem.types || [])] : null;
+      const keys = [...(planItem!.keys || [])];
+      const types = t.vary ? [...(planItem!.types || [])] : null;
       const i = keys.indexOf(k);
       if (i >= 0) {
         if (keys.length === 1) return toast('Keep at least one key');
@@ -454,19 +463,19 @@ export function openExercise(id, opts = {}) {
       } else {
         keys.push(k);
         // A new key gets a type the usual way: one played least.
-        if (types) types.push(chooseTypes(t.vary, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] ?? t.vary.types[0]);
+        if (types) types.push(chooseTypes(t.vary!, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] ?? t.vary!.types[0]);
       }
-      setTodayKeys(planItem, keys, types);
-      todayKeys = planItem.keys;
+      setTodayKeys(planItem!, keys, types);
+      todayKeys = planItem!.keys!; // (just set)
       if (t.vary && todayKeys.includes(previewRoot)) previewType = typeFor(previewRoot);
       refresh();
     }));
-    $$('[data-tt]', sheet).forEach((sel) => (sel.onchange = () => {
+    $$<HTMLSelectElement>('[data-tt]', sheet).forEach((sel) => (sel.onchange = () => {
       const i = Number(sel.dataset.tt);
-      const types = [...(planItem.types || [])];
+      const types = [...(planItem!.types || [])];
       types[i] = sel.value;
-      setTodayKeys(planItem, planItem.keys, types);
-      if (planItem.keys[i] === previewRoot) previewType = sel.value;
+      setTodayKeys(planItem!, planItem!.keys!, types);
+      if (planItem!.keys![i] === previewRoot) previewType = sel.value;
       refresh();
     }));
 
@@ -478,7 +487,7 @@ export function openExercise(id, opts = {}) {
       if (!abc) return;
       const shift = homeShift(previewRoot, homeKey(t), view());
       const what = prog ? `${prog.name} in ${rootName(previewRoot)}` : exerciseKeysText([previewRoot], t, previewType ? [previewType] : null);
-      let fullTune = null;
+      let fullTune: TuneObject | null = null;
       openFullNotation({
         title: `${t.name} · ${what}`,
         draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, key: homeKey(t), meter: t.meter, tempo: tempoFrom.tempo || 100, wide: true }).catch(() => null); },
@@ -511,7 +520,7 @@ export function openExercise(id, opts = {}) {
       goTo(() => openNotationEditor(t, back));
     };
 
-    const nameEl = $('#x-name', sheet);
+    const nameEl = $<HTMLTextAreaElement>('#x-name', sheet);
     const fit = () => { nameEl.style.height = 'auto'; nameEl.style.height = `${nameEl.scrollHeight}px`; };
     fit();
     nameEl.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); } };
@@ -522,31 +531,32 @@ export function openExercise(id, opts = {}) {
       if (!isNew && t.name.trim()) commit();
     };
     $$('#item-status button', sheet).forEach((b) => (b.onclick = () => {
-      setItemStatus(t, b.dataset.v);
+      setItemStatus(t, b.dataset.v as ReturnType<typeof itemStatus>);
       commit();
       refresh();
     }));
-    $$('[data-cat]', sheet).forEach((b) => (b.onclick = () => { t.category = b.dataset.cat; commit(); refresh(); }));
+    $$('[data-cat]', sheet).forEach((b) => (b.onclick = () => { t.category = b.dataset.cat as Category; commit(); refresh(); }));
     $$('[data-vary]', sheet).forEach((b) => (b.onclick = () => {
-      const kind = b.dataset.vary;
+      const kind = b.dataset.vary as Vary['kind'] | '';
       if ((t.vary?.kind || '') === kind) return;
       t.vary = kind ? { kind, types: [...VARY[kind].defaults], shape: 'updown', pattern: '' } : null;
       previewType = t.vary?.types[0];
       varyChanged();
     }));
     $$('[data-vtype]', sheet).forEach((b) => (b.onclick = () => {
-      const id = b.dataset.vtype;
-      const on = t.vary.types.includes(id);
-      if (on && t.vary.types.length === 1) return toast('Keep at least one turned on');
+      // (Its buttons are there only when it varies.)
+      const id = b.dataset.vtype!;
+      const on = t.vary!.types.includes(id);
+      if (on && t.vary!.types.length === 1) return toast('Keep at least one turned on');
       // Keep the catalogue's order.
-      t.vary.types = Object.keys(typesOf(t.vary.kind)).filter((x) => (x === id ? !on : t.vary.types.includes(x)));
-      if (!t.vary.types.includes(previewType)) previewType = t.vary.types[0];
+      t.vary!.types = Object.keys(typesOf(t.vary!.kind)).filter((x) => (x === id ? !on : t.vary!.types.includes(x)));
+      if (!t.vary!.types.includes(previewType!)) previewType = t.vary!.types[0];
       varyChanged();
     }));
     $$('[data-shape]', sheet).forEach((b) => (b.onclick = () => {
       // Custom starts from the preset that was chosen (its numbers to change).
-      if (b.dataset.shape === 'custom' && t.vary.shape !== 'custom') t.vary.pattern = patternText(t.vary.kind, t.vary.shape, t.vary.pattern);
-      t.vary.shape = b.dataset.shape;
+      if (b.dataset.shape === 'custom' && t.vary!.shape !== 'custom') t.vary!.pattern = patternText(t.vary!.kind, t.vary!.shape, t.vary!.pattern);
+      t.vary!.shape = b.dataset.shape as Shape;
       commit();
       refresh();
     }));
@@ -560,25 +570,25 @@ export function openExercise(id, opts = {}) {
     };
     // The number pad edits the pattern; changing a preset makes it your own.
     $$('[data-pn]', sheet).forEach((b) => (b.onclick = async () => {
-      const nums = patternText(t.vary.kind, t.vary.shape, t.vary.pattern).split(' ').filter(Boolean);
-      const v = b.dataset.pn;
+      const nums = patternText(t.vary!.kind, t.vary!.shape, t.vary!.pattern).split(' ').filter(Boolean);
+      const v = b.dataset.pn!;
       if (v === 'back') nums.pop();
       else if (v === 'clear') nums.length = 0;
       else if (nums.length < 64) nums.push(v);
-      t.vary.shape = 'custom';
-      t.vary.pattern = nums.join(' ');
+      t.vary!.shape = 'custom';
+      t.vary!.pattern = nums.join(' ');
       $$('[data-shape]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.shape === 'custom'));
-      $('#x-pattern', sheet).innerHTML = esc(t.vary.pattern) || '&nbsp;';
-      const { error } = parsePattern(t.vary.pattern, t.vary.kind);
+      $('#x-pattern', sheet).innerHTML = esc(t.vary!.pattern) || '&nbsp;';
+      const { error } = parsePattern(t.vary!.pattern, t.vary!.kind);
       const msg = $('#x-pattern-msg', sheet);
-      msg.textContent = error ? (nums.length ? error : 'Tap some numbers.') : patternHint(t.vary.kind);
+      msg.textContent = error ? (nums.length ? error : 'Tap some numbers.') : patternHint(t.vary!.kind);
       msg.classList.toggle('error', !!error);
       commit();
       if (error) return;
       stopPlaying();
       tune = await drawNotation();
     }));
-    $$('[data-mode]', sheet).forEach((b) => (b.onclick = () => { t.keyMode = b.dataset.mode; commit(); refresh(); }));
+    $$('[data-mode]', sheet).forEach((b) => (b.onclick = () => { t.keyMode = b.dataset.mode as KeyMode; commit(); refresh(); }));
     $$('[data-fixed]', sheet).forEach((b) => (b.onclick = () => {
       const r = Number(b.dataset.fixed);
       t.keys = t.keys.includes(r) ? t.keys.filter((x) => x !== r) : [...t.keys, r];
@@ -587,24 +597,24 @@ export function openExercise(id, opts = {}) {
     }));
     const kps = $('#x-kps', sheet);
     if (kps) kps.onclick = (e) => {
-      const b = e.target.closest('button');
+      const b = (e.target as HTMLElement).closest('button');
       if (!b) return;
       t.keysPerSession = Math.max(1, Math.min(12, t.keysPerSession + Number(b.dataset.d)));
-      $('output', kps).textContent = t.keysPerSession;
+      $('output', kps).textContent = String(t.keysPerSession);
       commit();
     };
     $$('.seg[data-field]', sheet).forEach((seg) => (seg.onclick = (e) => {
-      const b = e.target.closest('button');
+      const b = (e.target as HTMLElement).closest('button');
       if (!b) return;
-      if (seg.dataset.field === 'level') setLevel(t, Number(b.dataset.v));
-      else t.priority = Number(b.dataset.v);
+      if (seg.dataset.field === 'level') setLevel(t, Number(b.dataset.v) as Level);
+      else t.priority = Number(b.dataset.v) as Priority;
       commit();
       refresh();
     }));
     const sug = $('.suggest [data-level]', sheet);
-    if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level)); commit(); refresh(); };
-    $('#x-notes', sheet).oninput = (e) => { t.notes = e.target.value; commit(); };
-    const harm = $('#x-harmony', sheet);
+    if (sug) sug.onclick = () => { setLevel(t, Number(sug.dataset.level) as Level); commit(); refresh(); };
+    $('#x-notes', sheet).oninput = (e) => { t.notes = (e.target as HTMLTextAreaElement).value; commit(); };
+    const harm = $<HTMLInputElement>('#x-harmony', sheet);
     if (harm) harm.oninput = () => {
       const text = harm.value.trim();
       const msg = $('#x-harmony-msg', sheet);
@@ -616,7 +626,7 @@ export function openExercise(id, opts = {}) {
       msg.textContent = t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).' : 'From the chord symbols in its notation.';
       commit();
     };
-    const useTunes = $('#x-tunes', sheet);
+    const useTunes = $<HTMLInputElement>('#x-tunes', sheet);
     if (useTunes) useTunes.onchange = () => {
       if (useTunes.checked) delete t.solo;
       else t.solo = true;
@@ -624,10 +634,11 @@ export function openExercise(id, opts = {}) {
       refresh();
     };
     const tuneChart = $('#x-tune-chart', sheet);
-    if (tuneChart) mountChart(tuneChart, tempoFrom, { key: todayItem(tempoFrom)?.key ?? (planItem.form ? planItem.overKey : null), compact: true }); // in the tune's key
+    // (It has a chart, so it's the tune the warm-up is for.)
+    if (tuneChart) mountChart(tuneChart, tempoFrom as Tune, { key: todayItem(tempoFrom)?.key ?? (planItem!.form ? planItem!.overKey : null), compact: true }); // in the tune's key
     // A setting's row opens its panel over the sheet; Done goes back to the rows.
     $$('[data-open]', sheet).forEach((b) => (b.onclick = () => {
-      panel = b.dataset.open;
+      panel = b.dataset.open!;
       settingPanel(sheet, PANELS[panel].label, () => { panel = null; refresh(); });
       refresh();
     }));
@@ -682,12 +693,12 @@ export function openExercise(id, opts = {}) {
 const METERS = ['4/4', '3/4', '5/4', '6/8', '2/4'];
 
 // Small note icons for the length buttons.
-function noteIcon(d) {
+function noteIcon(d: string) {
   const head = d === 'whole' || d === 'half'
     ? '<ellipse cx="9" cy="19" rx="4.6" ry="3.3" transform="rotate(-20 9 19)" fill="none" stroke="currentColor" stroke-width="1.8"/>'
     : '<ellipse cx="9" cy="19" rx="4.6" ry="3.3" transform="rotate(-20 9 19)" fill="currentColor"/>';
   const stem = d === 'whole' ? '' : '<path d="M13.2 18V3.5" stroke="currentColor" stroke-width="1.8"/>';
-  const flags = { eighth: 1, sixteenth: 2 }[d] || 0;
+  const flags = ({ eighth: 1, sixteenth: 2 } as Record<string, number>)[d] || 0;
   const flag = Array.from({ length: flags }, (_, i) => `<path d="M13.2 ${3.5 + i * 4.5}c0 3 5 4 4.5 8" fill="none" stroke="currentColor" stroke-width="1.8"/>`).join('');
   return `<svg viewBox="0 0 22 24" aria-hidden="true">${head}${stem}${flag}</svg>`;
 }
@@ -697,17 +708,17 @@ function noteIcon(d) {
 const CHORD_QUALITIES = [['maj7', 'Δ7'], ['6', '6'], ['m7', 'm7'], ['m6', 'm6'], ['7', '7'], ['7b9', '7♭9'],
   ['7#9', '7♯9'], ['7alt', '7alt'], ['7sus', '7sus'], ['m7b5', 'ø7'], ['dim7', '°7'], ['m(maj7)', 'mΔ7']];
 
-export function openNotationEditor(t, back) {
+export function openNotationEditor(t: Exercise, back?: () => void): void {
   let body = t.abc || '';
   let meter = t.meter || '4/4';
-  let duration = 'eighth';
+  let duration: Duration = 'eighth';
   let dotted = false;
   let accidental = '';
   let typing = false;
-  let stopFn = null;
+  let stopFn: (() => void) | null = null;
   let chord = { open: false, root: '', acc: '' }; // a chord symbol being picked
   const original = { abc: t.abc || '', meter: t.meter || '4/4', home: t.home };
-  let tune = null;
+  let tune: TuneObject | null = null;
 
   const sheet = openSheet(`
     <p class="eyebrow">Notation · ${esc(t.name)}</p>
@@ -767,9 +778,9 @@ export function openNotationEditor(t, back) {
     back?.();
   });
 
-  const area = $('#ne-abc', sheet);
+  const area = $<HTMLTextAreaElement>('#ne-abc', sheet);
   const preview = $('#ne-preview', sheet);
-  let drawTimer = null;
+  let drawTimer: ReturnType<typeof setTimeout> | undefined;
   // Every change is saved as it's made (Undo changes puts back what it was when opened).
   const keep = () => {
     t.abc = body.trim();
@@ -800,7 +811,7 @@ export function openNotationEditor(t, back) {
   };
 
   // Insert at the cursor, or at the end.
-  const insert = (text) => {
+  const insert = (text: string) => {
     const start = area.selectionStart ?? body.length;
     const end = area.selectionEnd ?? body.length;
     body = body.slice(0, start) + text + body.slice(end);
@@ -810,7 +821,7 @@ export function openNotationEditor(t, back) {
     draw();
   };
   // Move the note before the cursor up or down an octave.
-  const moveLast = (d) => {
+  const moveLast = (d: number) => {
     const pos = area.selectionStart ?? body.length;
     const r = moveLastNote(body.slice(0, pos), d);
     if (!r) return;
@@ -834,7 +845,7 @@ export function openNotationEditor(t, back) {
 
   // Move the cursor a note (or bar line, or triplet mark) at a time, skipping spaces.
   const TOKEN = /\(3|(?:"[^"]*"\s*)?[_^=]*[A-Ga-gz][,']*\d*\/?\d*-?|\|/g; // a chord symbol goes with its note
-  const step = (dir) => {
+  const step = (dir: number) => {
     const pos = area.selectionStart ?? body.length;
     const stops = [0];
     for (const m of body.matchAll(TOKEN)) stops.push(m.index + m[0].length);
@@ -846,7 +857,7 @@ export function openNotationEditor(t, back) {
 
   // The key it's written in: the key signature changes, the notes keep their pitches.
   $('#ne-home', sheet).onchange = (e) => {
-    const k = Number(e.target.value);
+    const k = Number((e.target as HTMLSelectElement).value);
     body = rekey(body, t.home ?? 0, k);
     area.value = body;
     if (k) t.home = k;
@@ -854,10 +865,10 @@ export function openNotationEditor(t, back) {
     draw();
   };
   $('#ne-pad', sheet).onclick = (e) => {
-    const b = e.target.closest('button');
+    const b = (e.target as HTMLElement).closest('button');
     if (!b) return;
     e.preventDefault();
-    if (b.dataset.dur) { duration = b.dataset.dur; dotted = false; }
+    if (b.dataset.dur) { duration = b.dataset.dur as Duration; dotted = false; }
     else if (b.hasAttribute('data-dot')) dotted = !dotted;
     else if (b.hasAttribute('data-trip')) insert('(3');
     else if (b.dataset.acc != null) accidental = accidental === b.dataset.acc ? '' : b.dataset.acc;
@@ -903,7 +914,7 @@ export function openNotationEditor(t, back) {
     area.blur();
     area.focus();
   };
-  $('#ne-meter', sheet).onchange = (e) => { meter = e.target.value; draw(); };
+  $('#ne-meter', sheet).onchange = (e) => { meter = (e.target as HTMLSelectElement).value; draw(); };
   bindPlaybackOptions(sheet, () => { if (stopFn) { stopFn(); stopFn = null; $('span', $('#ne-play', sheet)).textContent = 'Play'; } });
   const play = $('#ne-play', sheet);
   play.onclick = async () => {
@@ -917,7 +928,7 @@ export function openNotationEditor(t, back) {
         onEnded: () => { stopFn = null; $('span', play).textContent = 'Play'; },
         onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
       });
-      if (stopFn) $('span', play).textContent = 'Stop';
+      if (stopFn !== null) $('span', play).textContent = 'Stop'; // (always: playNotation returns its stop)
     } catch {
       stopFn = null;
       $('span', play).textContent = 'Play';
@@ -931,8 +942,8 @@ export function openNotationEditor(t, back) {
     if (original.home) t.home = original.home;
     else delete t.home;
     area.value = body;
-    $('#ne-meter', sheet).value = meter;
-    $('#ne-home', sheet).value = t.home ?? 0;
+    $<HTMLSelectElement>('#ne-meter', sheet).value = meter;
+    $<HTMLSelectElement>('#ne-home', sheet).value = String(t.home ?? 0);
     draw();
     toast('Back to how it was');
   };
@@ -943,7 +954,7 @@ export function openNotationEditor(t, back) {
 
 // ---------- Library list ----------
 
-export function exerciseRowHtml(t, stats) {
+export function exerciseRowHtml(t: Exercise, stats: Map<Id, ItemStats>): string {
   const s = stats.get(t.id);
   const mode = t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''} · ${KEY_MODES[t.keyMode].label.toLowerCase()}`;
   return `

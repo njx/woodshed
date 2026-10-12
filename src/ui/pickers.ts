@@ -5,23 +5,25 @@ import { warmupChoices } from '../warmups.js';
 import { todayItem, addWarmup, tryWithTune, tunesToTry } from '../plan.js';
 import { $, $$, render, toast, openSheet, closeSheet, kn } from './shell.js';
 import { exerciseKeysText, rootName } from './exercise.js';
+import type { Exercise, PlanItem, Tune } from '../types.js';
 
 // Picking what goes with what: a warm-up for a tune, or a tune to take an exercise through.
 
-const row = (i, name, sub) => `<li class="row" data-pick="${i}" role="button" tabindex="0">
+const row = (i: number, name: string, sub?: string) => `<li class="row" data-pick="${i}" role="button" tabindex="0">
   <div class="row-main"><b>${esc(name)}</b>${sub ? `<span class="row-sub">${esc(sub)}</span>` : ''}</div></li>`;
-const group = (label, rows) => (rows ? `<h3 class="section-label">${esc(label)}</h3><ul class="list pick-list">${rows}</ul>` : '');
+const group = (label: string, rows: string) => (rows ? `<h3 class="section-label">${esc(label)}</h3><ul class="list pick-list">${rows}</ul>` : '');
 
 // How a warm-up goes: "Over ii–V7–I in B♭", "iiø–V7–i in G", "Gm6 · Aø7 · D7", "Through the form".
-function how(it, x) {
+// (A warm-up has its keys, see warmupChoices.)
+function how(it: PlanItem, x: Exercise) {
   if (it.form) return 'Through the form';
-  if (it.prog) return `${it.prog.name} in ${rootName(it.keys[0])}`;
-  if (it.over) return `Over ${it.over}${it.overKey != null ? ` in ${kn(it.overKey)}` : ''}${it.keys.length > 1 ? ` — in ${it.keys.map(rootName).join(', then ')}` : ''}`;
-  return exerciseKeysText(it.keys, x, it.types);
+  if (it.prog) return `${it.prog.name} in ${rootName(it.keys![0])}`;
+  if (it.over) return `Over ${it.over}${it.overKey != null ? ` in ${kn(it.overKey)}` : ''}${it.keys!.length > 1 ? ` — in ${it.keys!.map(rootName).join(', then ')}` : ''}`;
+  return exerciseKeysText(it.keys!, x, it.types);
 }
 
 // A warm-up for tune t, picked from all that could go before it (+ Warm-up, Add a warm-up).
-export function pickWarmup(t, { back } = {}) {
+export function pickWarmup(t: Tune, { back }: { back?: () => void } = {}): void {
   const plan = store.state.plan;
   const key = todayItem(t)?.key ?? null;
   const have = plan?.date ? plan.items.filter((i) => i.warmup === t.id) : [];
@@ -29,7 +31,7 @@ export function pickWarmup(t, { back } = {}) {
   const all = [...changes, ...chords, ...form];
   if (!all.length) return toast(`No more warm-ups for ${t.name}`);
   let n = 0;
-  const rows = (list) => list.map((it) => { const x = itemById(it.itemId); return row(n++, x.name, how(it, x)); }).join('');
+  const rows = (list: PlanItem[]) => list.map((it) => { const x = itemById(it.itemId) as Exercise; return row(n++, x.name, how(it, x)); }).join('');
   const sheet = openSheet(`
     <p class="eyebrow">Warm up for ${esc(t.name)}</p>
     <h2 class="sheet-title">Pick a warm-up</h2>
@@ -42,17 +44,17 @@ export function pickWarmup(t, { back } = {}) {
     addWarmup(t, it);
     closeSheet();
     render();
-    toast(`Added ${itemById(it.itemId).name} before ${t.name}`);
+    toast(`Added ${itemById(it.itemId)!.name} before ${t.name}`);
   }));
 }
 
 // A tune to take exercise x through (Try it through a tune), with a search.
-export function pickTune(x, { back } = {}) {
+export function pickTune(x: Exercise, { back }: { back?: () => void } = {}): void {
   const { today, fit, known, other } = tunesToTry(x);
   const all = [...today, ...fit, ...known, ...other];
   if (!all.length) { toast('No tune with a chart to try it with'); return back?.(); }
   let n = 0;
-  const rows = (list) => list.map((t) => row(n++, t.name, t.style || '')).join('');
+  const rows = (list: Tune[]) => list.map((t) => row(n++, t.name, t.style || '')).join('');
   const sheet = openSheet(`
     <p class="eyebrow">Try ${esc(x.name)} through a tune</p>
     <h2 class="sheet-title">Pick a tune</h2>
@@ -65,7 +67,7 @@ export function pickTune(x, { back } = {}) {
     </div>
   `, () => back?.());
   $('#pick-q', sheet).oninput = (e) => {
-    const q = e.target.value.trim().toLowerCase();
+    const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
     $$('[data-pick]', sheet).forEach((li) => { li.hidden = !!q && !all[Number(li.dataset.pick)].name.toLowerCase().includes(q); });
     $$('#pick-groups .section-label', sheet).forEach((h) => { h.hidden = !!q; });
   };

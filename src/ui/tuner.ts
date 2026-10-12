@@ -3,6 +3,7 @@ import { TRANSPOSITIONS } from '../constants.js';
 import { concertName, writtenName } from '../pitch.js';
 import { tuner, TRACE_SECONDS } from '../tuning.js';
 import { $, ICON, openSheet, closeSheet } from './shell.js';
+import type { TracePoint } from '../tuning.js';
 
 // Tuner: a dial for the note you're playing now, and a trace of the last few seconds underneath
 // (handy for long tones: you can see the pitch sag at the end of a breath).
@@ -11,7 +12,7 @@ import { $, ICON, openSheet, closeSheet } from './shell.js';
 const IN_TUNE = 5; // cents either side that count as in tune
 const HOLD_MS = 600; // keep showing the last note this long after the sound stops
 
-export function openTuner(opts = {}) {
+export function openTuner(opts: { back?: () => void } = {}) {
   const settings = store.state.settings;
   const view = settings.view;
   let a4 = settings.a4 || 440;
@@ -43,7 +44,7 @@ export function openTuner(opts = {}) {
     <p class="fine" id="t-msg">${view !== 'c' ? `Notes are shown as written for ${TRANSPOSITIONS[view].label}, with concert pitch underneath.` : ''}</p>
   `, () => {
     closed = true;
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf ?? 0);
     unsub();
     if (!mini) tuner.stop();
     opts.back?.();
@@ -54,19 +55,19 @@ export function openTuner(opts = {}) {
   const noteEl = $('#t-note', sheet);
   const centsEl = $('#t-cents', sheet);
   const hzEl = $('#t-hz', sheet);
-  const canvas = $('#t-trace', sheet);
-  const g = canvas.getContext('2d');
+  const canvas = $<HTMLCanvasElement>('#t-trace', sheet);
+  const g = canvas.getContext('2d')!; // (a 2d context is always there for a canvas)
 
   let closed = false;
-  let raf = null;
+  let raf: number | null = null;
   let shown = 0; // needle angle, eased
   let lastText = 0;
 
-  sheet.querySelectorAll('[data-a4]').forEach((b) => (b.onclick = () => {
+  sheet.querySelectorAll<HTMLElement>('[data-a4]').forEach((b) => (b.onclick = () => {
     a4 = Math.max(430, Math.min(450, a4 + Number(b.dataset.a4)));
     settings.a4 = a4;
     save();
-    $('#t-a4', sheet).textContent = a4;
+    $('#t-a4', sheet).textContent = String(a4);
   }));
   // Keep listening in a small tuner on top of everything, and go back to the set.
   $('#t-mini', sheet).onclick = () => {
@@ -97,7 +98,7 @@ export function openTuner(opts = {}) {
     drawTrace(now);
   }
 
-  function showReading(now) {
+  function showReading(now: number) {
     const last = tuner.last;
     const live = last && now - last.at < HOLD_MS;
     dial.classList.toggle('live', !!live);
@@ -126,15 +127,15 @@ export function openTuner(opts = {}) {
   }
 
   // The trace: newest on the right, in tune along the middle, ±50 cents top to bottom.
-  function drawTrace(now) {
+  function drawTrace(now: number) {
     const dpr = devicePixelRatio || 1;
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
     const css = getComputedStyle(canvas);
-    const y = (c) => h / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (h / 2 - 6);
-    const x = (t) => w - ((now - t) / (TRACE_SECONDS * 1000)) * w;
+    const y = (c: number) => h / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (h / 2 - 6);
+    const x = (t: number) => w - ((now - t) / (TRACE_SECONDS * 1000)) * w;
     // In-tune band and centre line.
     g.fillStyle = css.getPropertyValue('--t-band');
     g.fillRect(0, y(IN_TUNE), w, y(-IN_TUNE) - y(IN_TUNE));
@@ -145,18 +146,18 @@ export function openTuner(opts = {}) {
     g.lineWidth = 2.5;
     g.lineJoin = 'round';
     g.font = '600 12px system-ui, sans-serif';
-    let prev = null;
+    let prev: TracePoint | null = null; // (only ever a point with a note: cents and midi set)
     for (const p of tuner.trace) {
-      if (p.cents == null) { prev = null; continue; }
+      if (p.cents == null) { prev = null; continue; } // (midi is null just when cents is)
       if (!prev || prev.midi !== p.midi) {
         g.fillStyle = css.getPropertyValue('--t-label');
-        g.fillText(view === 'c' ? concertName(p.midi) : writtenName(p.midi, view), Math.max(2, x(p.t) + 3), 14);
+        g.fillText(view === 'c' ? concertName(p.midi!) : writtenName(p.midi!, view), Math.max(2, x(p.t) + 3), 14);
         prev = null;
       }
       if (prev) {
         const good = Math.abs(p.cents) <= IN_TUNE;
         g.strokeStyle = css.getPropertyValue(good ? '--t-good' : '--t-line');
-        g.beginPath(); g.moveTo(x(prev.t), y(prev.cents)); g.lineTo(x(p.t), y(p.cents)); g.stroke();
+        g.beginPath(); g.moveTo(x(prev.t), y(prev.cents!)); g.lineTo(x(p.t), y(p.cents)); g.stroke();
       }
       prev = p;
     }
@@ -176,7 +177,7 @@ export function mountTunerPill() {
   document.body.appendChild(pill);
   const note = $('.tp-note', pill);
   const dot = $('.tp-dot', pill);
-  let raf = null;
+  let raf: number | null = null;
   let shown = 0;
   $('.tp-open', pill).onclick = () => openTuner();
   $('.tp-stop', pill).onclick = () => tuner.stop();
@@ -198,7 +199,7 @@ export function mountTunerPill() {
     const on = st.running && st.mini;
     pill.hidden = !on;
     document.body.classList.toggle('has-tuner-pill', on);
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf ?? 0);
     if (on) raf = requestAnimationFrame(tick);
   });
 }

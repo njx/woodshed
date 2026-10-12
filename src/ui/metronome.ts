@@ -6,10 +6,13 @@ import { chartChords } from '../bass.js';
 import { metronome, takeAwayStop } from '../metronome.js';
 import { setTempo, clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
 import { $, $$, ICON, render, toast, openSheet, hintHtml } from './shell.js';
+import type { Click, MetronomeState } from '../metronome.js';
+import type { Id, Item } from '../types.js';
+import type { tempoSuggestion } from '../tempo.js';
 
 // Metronome sheet. Opened for a tune or exercise (opts.itemId), its tempo is that item's working
 // tempo: changing it here changes the item's.
-export function openMetronome(opts = {}) {
+export function openMetronome(opts: { itemId?: Id | null; back?: () => void } = {}) {
   const settings = store.state.settings;
   const ms = metronome.state;
   // Opened without an item (the Today circle) while it's running for one: that's the metronome
@@ -19,8 +22,8 @@ export function openMetronome(opts = {}) {
   const sameItem = ms.running && ms.itemId === (item?.id ?? null);
   let bpm = sameItem ? ms.bpm : item?.tempo || (ms.running ? ms.bpm : settings.metroBpm || 100);
   let beats = settings.metroBeats || 4;
-  let taps = [];
-  let raf = null;
+  let taps: number[] = [];
+  let raf: number | null = null;
 
   const beatDots = () => Array.from({ length: beats }, (_, i) => `<i class="${i === 0 && beats > 1 ? 'accent' : ''}"></i>`).join('');
   const sheet = openSheet(`
@@ -51,26 +54,26 @@ export function openMetronome(opts = {}) {
       <p class="fine">${esc(item.name)}’s working tempo, saved with the session when you log it.</p>`
       : hintHtml('metro-tip', 'Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice.', 'fine')}
   `, () => {
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf ?? 0);
     unsubscribe();
     render();
     opts.back?.();
   });
 
   const out = $('#m-bpm', sheet);
-  const slider = $('#m-slider', sheet);
+  const slider = $<HTMLInputElement>('#m-slider', sheet);
   const go = $('#m-go', sheet);
 
-  function setBpm(b, { fromSlider = false } = {}) {
+  function setBpm(b: number, { fromSlider = false } = {}) {
     bpm = clampBpm(b);
-    out.textContent = bpm;
-    if (!fromSlider) slider.value = bpm;
+    out.textContent = String(bpm);
+    if (!fromSlider) slider.value = String(bpm);
     settings.metroBpm = bpm;
     if (metronome.state.running) metronome.setBpm(bpm);
     if (item) setTempo(item, bpm);
     save();
   }
-  function showRunning(s) {
+  function showRunning(s: MetronomeState) {
     const running = s.running && s.itemId === (item?.id ?? null);
     go.classList.toggle('on', running);
     go.innerHTML = running ? `${ICON.skip}<span>Stop</span>` : `${ICON.play}<span>Start</span>`;
@@ -80,14 +83,14 @@ export function openMetronome(opts = {}) {
   const chartBass = item?.type === 'tune' ? chartChords(item, todayItem(item)?.key ?? item.keys?.[0] ?? null) : null;
   const mine = () => metronome.state.running && metronome.state.itemId === (item?.id ?? null);
   const bassOn = () => mine() && !!metronome.state.bass;
-  const startWith = (bass) => {
+  const startWith = (bass: boolean) => {
     if (item && !item.tempo) setTempo(item, bpm);
     save();
     const b = bass && chartBass;
     metronome.start({
       bpm, itemId: item?.id ?? null, click: settings.bassClick,
       beats: b ? chartBass.beats : beats,
-      bass: b ? { chords: chartBass.chords, owner: `chart:${item.id}`, label: item.name } : null,
+      bass: b ? { chords: chartBass.chords, owner: `chart:${item!.id}`, label: item!.name } : null, // (a chart's bass: item is a tune)
     });
   };
   function showBass() {
@@ -97,7 +100,7 @@ export function openMetronome(opts = {}) {
     if (!chartBass && !on) { box.innerHTML = ''; return; }
     const click = metronome.state.bass ? metronome.state.click : settings.bassClick || 'twofour';
     box.innerHTML = `
-      <div class="setting"><div><b>Walking bass</b><span>${on ? `Through ${esc(metronome.state.bass.label)}, round and round` : 'Through its chart, with the click'}</span></div>
+      <div class="setting"><div><b>Walking bass</b><span>${on ? `Through ${esc(metronome.state.bass!.label)}, round and round` : 'Through its chart, with the click'}</span></div>
         <div class="seg" id="m-bass-seg">${[['off', 'Off'], ['on', 'On']].map(([v, l]) => `<button class="${(on ? 'on' : 'off') === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>
       ${on ? `<div class="setting"><div><b>Click</b><span>With the bass</span></div>
         <div class="seg" id="m-click">${[['all', 'Every beat'], ['twofour', '2 & 4'], ['off', 'Off']].map(([v, l]) => `<button class="${click === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>` : ''}`;
@@ -108,9 +111,9 @@ export function openMetronome(opts = {}) {
       showBass();
     }));
     $$('#m-click button', box).forEach((b) => (b.onclick = () => {
-      settings.bassClick = b.dataset.v;
+      settings.bassClick = b.dataset.v as Click;
       save();
-      metronome.setClick(b.dataset.v);
+      metronome.setClick(b.dataset.v as Click);
       showBass();
     }));
   }
@@ -140,11 +143,11 @@ export function openMetronome(opts = {}) {
     metronome.stop();
     startWith(false);
   };
-  const goal = $('#m-goal', sheet);
+  const goal = $<HTMLInputElement>('#m-goal', sheet);
   if (goal) goal.onchange = () => {
     const g = Number(goal.value);
-    item.goalTempo = g ? clampBpm(g) : null;
-    goal.value = item.goalTempo || '';
+    item!.goalTempo = g ? clampBpm(g) : null; // (there's a goal field only with an item)
+    goal.value = String(item!.goalTempo || '');
     save();
   };
 
@@ -170,10 +173,10 @@ export function mountMetronomePill() {
   pill.className = 'metro-pill';
   pill.hidden = true;
   document.body.appendChild(pill);
-  let raf = null;
+  let raf: number | null = null;
   metronome.subscribe((s) => {
     pill.hidden = !s.running;
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf ?? 0);
     if (!s.running) return;
     const item = s.itemId ? itemById(s.itemId) : null;
     const what = s.bass ? `Bass · ${s.bass.label}` : item ? item.name : 'bpm';
@@ -195,19 +198,19 @@ export function mountMetronomePill() {
 
 // ---------- Shared pieces for cards and detail sheets ----------
 
-export function tempoChip(t) {
+export function tempoChip(t: Item): string {
   return t.tempo
     ? `<button class="tempo-chip" data-metro="${t.id}" aria-label="Tempo ${t.tempo} bpm, open metronome">${ICON.quarter}<span>${t.tempo}</span></button>`
     : `<button class="tempo-chip empty" data-metro="${t.id}" aria-label="Set a tempo">${ICON.metro}</button>`;
 }
 
-export function tempoSuggestionHtml(sug) {
+export function tempoSuggestionHtml(sug: ReturnType<typeof tempoSuggestion>): string {
   if (!sug) return '';
   return `<div class="suggest tempo ${sug.up ? 'up' : 'down'}"><span>${esc(sug.text)}</span>
     ${sug.to ? `<button class="pill-btn" data-tempo-to="${sug.to}">${ICON.quarter}${sug.to}</button>` : ''}</div>`;
 }
 
-export function tempoRowHtml(t) {
+export function tempoRowHtml(t: Item): string {
   return `
     <div class="field-label row-label"><span>Tempo</span></div>
     <button class="tempo-row" data-metro="${t.id}">
@@ -217,14 +220,14 @@ export function tempoRowHtml(t) {
 }
 
 // Wires up tempo chips/rows ([data-metro]) and tempo suggestions ([data-tempo-to]) in root.
-export function bindTempo(root, { back, onChange } = {}) {
+export function bindTempo(root: HTMLElement, { back, onChange }: { back?: () => void; onChange?: () => void } = {}) {
   $$('[data-metro]', root).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
     openMetronome({ itemId: b.dataset.metro, back });
   }));
   $$('[data-tempo-to]', root).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
-    const id = b.closest('[data-item-id]')?.dataset.itemId;
+    const id = b.closest<HTMLElement>('[data-item-id]')?.dataset.itemId;
     const t = id && itemById(id);
     if (!t) return;
     setTempo(t, Number(b.dataset.tempoTo), { nextTime: true });

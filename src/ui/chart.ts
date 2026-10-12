@@ -9,6 +9,12 @@ import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { pickWarmup } from './pickers.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet, kn, hintHtml, hintDone } from './shell.js';
+import type { BarSection } from '../bass.js';
+import type { BassLoop } from '../metronome.js';
+import type { Bar, Chart, Key, Tune } from '../types.js';
+
+// How a chart's chords are written: shifted from its key, with sharps or flats.
+type ChordOpts = { shift: number; sharps: boolean };
 
 // The chord chart in a tune's details: shown in the key it's played in today (or its usual
 // key), written for the instrument; another key can be picked. Editable.
@@ -16,22 +22,22 @@ import { $, $$, ICON, render, toast, openSheet, closeSheet, kn, hintHtml, hintDo
 const view = () => store.state.settings.view;
 
 // The concert key a tune is played in today, or its usual key.
-function todaysKey(t) {
+function todaysKey(t: Tune): Key | null {
   const plan = store.state.plan;
-  const it = plan?.date === dateStr() && plan.items.find((i) => i.itemId === t.id);
+  const it = plan?.date === dateStr() ? plan.items.find((i) => i.itemId === t.id) : undefined;
   return it?.key ?? t.keys?.[0] ?? null;
 }
 
 // Bars are numbered (data-b) in playing order, as chordTimeline goes, for the bass to follow.
-function barHtml(b, opts, n) {
+function barHtml(b: Bar, opts: ChordOpts, n: number) {
   if (!b.chords.length) return `<div class="bar same" data-b="${n}">%</div>`;
   const alts = b.alts.length ? `<small>(${b.alts.map((c) => esc(chordName(c, opts))).join(' ')})</small>` : '';
   return `<div class="bar n${b.chords.length}" data-b="${n}">${b.chords.map((c) => `<span>${esc(chordName(c, opts))}</span>`).join('')}${alts}</div>`;
 }
 
-function chartHtml(chart, opts) {
+function chartHtml(chart: Chart, opts: ChordOpts) {
   let n = 0;
-  const barHtml_ = (b) => barHtml(b, opts, n++);
+  const barHtml_ = (b: Bar) => barHtml(b, opts, n++);
   return chart.sections.map((s) => `
     <div class="chart-section">
       <span class="chart-label">${esc(s.label || '')}</span>
@@ -43,7 +49,7 @@ function chartHtml(chart, opts) {
 }
 
 // The chart's main progressions, named by Roman numeral, in the key shown.
-function progsHtml(chart, { shift, sharps }) {
+function progsHtml(chart: Chart, { shift, sharps }: ChordOpts) {
   const ps = progressions(chart).filter((p) => p.chords.length >= 3).slice(0, 4);
   if (!ps.length) return '';
   return `<p class="progs"><span>Progressions</span> ${ps.map((p) => `<b>${esc(p.name)}</b> in ${esc(noteName(p.target + shift, sharps))}${p.minor ? 'm' : ''}${p.count > 1 ? ` ×${p.count}` : ''}`).join(' · ')}</p>`;
@@ -51,20 +57,22 @@ function progsHtml(chart, { shift, sharps }) {
 
 // Fills `box` with the chart for tune `t`. back: reopens the tune's details after the editor.
 // compact: just the chart, its key and the bass (shown with an exercise taken through the tune).
-export function mountChart(box, t, { back, key: startKey = null, compact = false } = {}) {
-  let key = startKey; // the concert key shown; null = today's / usual
+export function mountChart(box: HTMLElement, t: Tune, { back, key: startKey = null, compact = false }: {
+  back?: () => void; key?: Key | null; compact?: boolean;
+} = {}): void {
+  let key: Key | null = startKey; // the concert key shown; null = today's / usual
   // A walking bass through the chart (a mode of the metronome), round and round, at the tune's
   // tempo, in the key shown; the bar it's on lights up while the chart is showing.
   const owner = `chart:${t.id}`;
   const bassMine = () => metronome.state.running && metronome.state.bass?.owner === owner;
   // A loop of part of the chart (a section, or bars tapped: first then last): { from, to, name }
   // in bar numbers (data-b), or null for the whole tune. `pick`: the first bar tapped.
-  let loop = bassMine() ? metronome.state.bass.loop || null : null;
-  let pick = null;
-  const loopHtml = (chart) => {
+  let loop: BassLoop | null = bassMine() ? metronome.state.bass!.loop || null : null; // (bassMine: there's a bass)
+  let pick: number | null = null;
+  const loopHtml = (chart: Chart) => {
     const { sections } = chartBars(chart);
-    const chip = (v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-loop="${v}">${esc(label)}</button>`;
-    const isSection = (s) => loop && loop.from === s.from && loop.to === s.to;
+    const chip = (v: string | number, label: string, on: boolean | null) => `<button class="chip ${on ? 'on' : ''}" data-loop="${v}">${esc(label)}</button>`;
+    const isSection = (s: BarSection) => loop && loop.from === s.from && loop.to === s.to;
     return `<div class="loop-row"><span class="field-label">Loop</span><div class="chips">
       ${chip('all', 'Whole tune', !loop)}${sections.length > 1 ? sections.map((s, i) => chip(i, s.name, isSection(s))).join('') : ''}
       ${loop && !sections.some(isSection) ? chip('all', `${loop.name} ×`, true) : ''}</div></div>
@@ -73,7 +81,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
   let gen = 0; // (one bar-follower at a time)
   const follow = () => {
     const mine = ++gen;
-    let lit = null;
+    let lit: Element | null = null;
     const step = () => {
       if (mine !== gen || !box.isConnected) return;
       if (!bassMine()) {
@@ -83,7 +91,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
         return;
       }
       const i = metronome.bassBeat();
-      const from = metronome.state.bass.loop?.from ?? 0;
+      const from = metronome.state.bass!.loop?.from ?? 0; // (bassMine, above)
       const bar = i < 0 ? null : box.querySelector(`[data-b="${from + Math.floor(i / metronome.state.beats)}"]`);
       if (bar !== lit) { lit?.classList.remove('now'); bar?.classList.add('now'); lit = bar; }
       requestAnimationFrame(step);
@@ -92,7 +100,8 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
   };
   const startBass = () => {
     const chart = chartFor(t);
-    const { chords, beats } = chartChords(t, key ?? todaysKey(t) ?? chart.key ?? 0, loop || {});
+    // (only from a chart that's showing)
+    const { chords, beats } = chartChords(t, key ?? todaysKey(t) ?? chart!.key ?? 0, loop || {})!;
     if (!chords.length) return;
     const label = loop ? `${t.name} · ${loop.name}` : t.name;
     metronome.start({ bpm: t.tempo || store.state.settings.metroBpm || 120, beats, itemId: t.id, bass: { chords, owner, label, loop }, click: store.state.settings.bassClick });
@@ -123,7 +132,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
           ${compact ? '' : `<span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>`}
         </div>`;
       $('#chart-key', box).onchange = (e) => {
-        key = Number(e.target.value);
+        key = Number((e.target as HTMLSelectElement).value);
         if (bassMine()) startBass(); // on in the new key
         draw();
       };
@@ -133,7 +142,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
         el.classList.toggle('in-loop', !!loop && n >= loop.from && n <= loop.to);
         el.classList.toggle('pick', n === pick);
       });
-      const setLoop = (l) => {
+      const setLoop = (l: BassLoop | null) => {
         loop = l;
         pick = null;
         if (bassMine()) startBass();
@@ -168,7 +177,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
 }
 
 // Edit (or add) a tune's chart as text, in the key and transposition it's shown in.
-export async function openChartEditor(t, { key = 0, back } = {}) {
+export async function openChartEditor(t: Tune, { key = 0, back }: { key?: Key; back?: () => void } = {}): Promise<void> {
   if (t.chartEdited) await loadSeedCharts(); // to offer going back to the original
   const existing = chartFor(t);
   const base = existing?.key ?? key;
@@ -177,7 +186,7 @@ export async function openChartEditor(t, { key = 0, back } = {}) {
   const written = (((key % 12) + TRANSPOSITIONS[view()].offset) % 12) + (minor ? 12 : 0);
   const text = existing ? chartToText(existing, { shift, sharps: usesSharps(written) }) : 'A: ';
   const original = { chart: t.chart ? structuredClone(t.chart) : null, edited: !!t.chartEdited };
-  let pending = null; // the last edit, if it didn't read as a chart
+  let pending: string | null = null; // the last edit, if it didn't read as a chart
   const sheet = openSheet(`
     <p class="eyebrow">Chords · ${esc(t.name)} · in ${esc(kn(key))}</p>
     <label class="field">
@@ -194,9 +203,9 @@ export async function openChartEditor(t, { key = 0, back } = {}) {
   const msg = $('#ce-msg', sheet);
   const help = msg.innerHTML;
   // Each edit is saved once the text reads as a chart; until then the last good one stays.
-  let timer = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const keep = () => {
-    const r = chartFromText($('#ce-text', sheet).value, { key: base, meter: existing?.meter || '4/4', shift });
+    const r = chartFromText($<HTMLTextAreaElement>('#ce-text', sheet).value, { key: base, meter: existing?.meter || '4/4', shift });
     pending = r.error || null;
     msg.classList.toggle('error', !!r.error);
     if (r.error) { msg.textContent = r.error; return; }
@@ -207,13 +216,13 @@ export async function openChartEditor(t, { key = 0, back } = {}) {
   };
   $('#ce-text', sheet).oninput = () => {
     $('#ce-revert', sheet).hidden = false;
-    clearTimeout(timer);
+    clearTimeout(timer ?? undefined);
     timer = setTimeout(keep, 400);
   };
   // Done: stays open to show what's wrong if the text doesn't read as a chart.
-  $('#ce-save', sheet).onclick = () => { clearTimeout(timer); keep(); if (!pending) closeSheet(); };
+  $('#ce-save', sheet).onclick = () => { clearTimeout(timer ?? undefined); keep(); if (!pending) closeSheet(); };
   $('#ce-revert', sheet).onclick = () => {
-    clearTimeout(timer);
+    clearTimeout(timer ?? undefined);
     t.chart = original.chart ? structuredClone(original.chart) : null;
     t.chartEdited = original.edited;
     pending = null;
@@ -223,7 +232,7 @@ export async function openChartEditor(t, { key = 0, back } = {}) {
   };
   const reset = $('#ce-reset', sheet);
   if (reset) reset.onclick = () => {
-    clearTimeout(timer);
+    clearTimeout(timer ?? undefined);
     t.chart = seedChart(t);
     t.chartEdited = false;
     pending = null;

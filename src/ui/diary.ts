@@ -6,22 +6,26 @@ import { FLAGS, addEntry, entryById, deleteEntry, openTodos, diaryDays, todoText
 import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize, playOnSpeaker } from '../media.js';
 import { openRecorder } from './recorder.js';
 import { $, $$, ICON, ui, render, goTo, toast, withUndo, openSheet, closeSheet } from './shell.js';
+import type { DateStr, DiaryEntry, Id } from '../types.js';
 
-const FLAG_ICON = { remember: ICON.pin, teacher: ICON.teacher };
-const FILTERS = [
+type Flag = NonNullable<DiaryEntry['flag']>;
+type Filter = 'all' | Flag;
+
+const FLAG_ICON: Record<Flag, string> = { remember: ICON.pin, teacher: ICON.teacher };
+const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'remember', label: 'To remember' },
   { id: 'teacher', label: 'For teacher' },
 ];
 
-const dayLabel = (d) => {
+const dayLabel = (d: DateStr) => {
   const today = dateStr();
   if (d === today) return 'Today';
   return niceDate(d, { weekday: 'short', month: 'short', day: 'numeric' });
 };
-const timeLabel = (at) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+const timeLabel = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
-export function noteHtml(e, { showDate = false } = {}) {
+export function noteHtml(e: DiaryEntry, { showDate = false } = {}): string {
   const tune = e.itemId ? itemById(e.itemId) : null;
   const meta = [showDate ? dayLabel(e.date) : timeLabel(e.at), tune?.name, e.flag ? FLAGS[e.flag].label : null].filter(Boolean);
   return `
@@ -38,7 +42,7 @@ export function noteHtml(e, { showDate = false } = {}) {
     </li>`;
 }
 
-function clipPills(e) {
+function clipPills(e: DiaryEntry) {
   if (!e.media?.length) return '';
   return `<div class="clip-pills">${e.media.map((c) => `
     <button class="clip-pill ${c.kind}" ${c.kind === 'audio' ? `data-play="${e.id}:${c.id}"` : ''} aria-label="Play ${c.kind} recording, ${fmtDuration(c.ms)}">
@@ -47,9 +51,9 @@ function clipPills(e) {
 }
 
 // One shared player for audio clips played straight from a list.
-let listPlayer = null;
-async function toggleListPlay(btn) {
-  const [entryId, clipId] = btn.dataset.play.split(':');
+let listPlayer: { audio: HTMLAudioElement; url: string; btn: HTMLElement } | null = null;
+async function toggleListPlay(btn: HTMLElement) {
+  const [entryId, clipId] = btn.dataset.play!.split(':'); // (a [data-play] button)
   const playing = btn.classList.contains('playing');
   if (listPlayer) {
     listPlayer.audio.pause();
@@ -69,10 +73,10 @@ async function toggleListPlay(btn) {
 }
 
 // Tapping a note opens it; tapping its check toggles done. Works in any list of notes.
-export function bindNotes(root, back, onChange = render) {
+export function bindNotes(root: HTMLElement, back?: () => void, onChange: () => void = render): void {
   $$('[data-done]', root).forEach((b) => (b.onclick = (ev) => {
     ev.stopPropagation();
-    const e = entryById(b.dataset.done);
+    const e = entryById(b.dataset.done!)!; // (the note it was drawn for)
     e.done = !e.done;
     save();
     onChange();
@@ -103,12 +107,12 @@ export function bindNotes(root, back, onChange = render) {
       onChange();
     } });
   }));
-  $$('[data-note]', root).forEach((li) => (li.onclick = () => openNote(li.dataset.note, { back })));
+  $$('[data-note]', root).forEach((li) => (li.onclick = () => openNote(li.dataset.note!, { back })));
   $$('[data-goto-diary]', root).forEach((b) => (b.onclick = () => goTo('diary')));
 }
 
 // Open "remember" items, for the top of the Today screen.
-export function rememberPanel() {
+export function rememberPanel(): string {
   const items = openTodos('remember');
   if (!items.length) return '';
   return `
@@ -119,9 +123,9 @@ export function rememberPanel() {
     </section>`;
 }
 
-export function renderDiary(root) {
-  const filter = ui.diaryFilter || 'all';
-  const counts = { remember: openTodos('remember').length, teacher: openTodos('teacher').length };
+export function renderDiary(root: HTMLElement): void {
+  const filter = (ui.diaryFilter || 'all') as Filter; // (set from FILTERS)
+  const counts: Partial<Record<Filter, number>> = { remember: openTodos('remember').length, teacher: openTodos('teacher').length };
   const days = diaryDays(filter === 'all' ? undefined : filter);
   const todos = filter === 'all' ? [] : openTodos(filter);
 
@@ -148,13 +152,13 @@ export function renderDiary(root) {
   const rec = $('#diary-rec', root);
   if (rec) rec.onclick = () => openRecorder({ flag: filter === 'all' ? null : filter });
   $$('[data-add-today]', root).forEach((b) => (b.onclick = () => openNote(null)));
-  $$('[data-df]', root).forEach((c) => (c.onclick = () => { ui.diaryFilter = c.dataset.df; render(); }));
+  $$('[data-df]', root).forEach((c) => (c.onclick = () => { ui.diaryFilter = c.dataset.df as Filter; render(); }));
   const share = $('#share-todos', root);
-  if (share) share.onclick = () => shareText(todoText(filter));
+  if (share) share.onclick = () => shareText(todoText(filter as Flag)); // (only in a flag's view)
   bindNotes(root);
 }
 
-function renderDays(days, filter) {
+function renderDays(days: ReturnType<typeof diaryDays>, filter: Filter) {
   // In a filtered view the open items are listed above, so the days below show only done ones.
   const shown = days
     .map((d) => ({ ...d, entries: filter === 'all' ? d.entries : d.entries.filter((e) => e.done) }))
@@ -172,9 +176,9 @@ function renderDays(days, filter) {
     </section>`).join('');
 }
 
-async function shareText(text) {
+async function shareText(text: string) {
   if (navigator.share) {
-    try { await navigator.share({ text }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ text }); return; } catch (e) { if ((e as DOMException).name === 'AbortError') return; }
   }
   try {
     await navigator.clipboard.writeText(text);
@@ -191,11 +195,14 @@ async function shareText(text) {
 const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 const START_WAIT_MS = 6000;
 
+// A note in the editor: a saved entry, or a new one (no id, time or recordings until it's saved).
+type NoteDraft = Pick<DiaryEntry, 'text' | 'flag' | 'itemId' | 'done' | 'date'> & Partial<DiaryEntry>;
+
 // id null = new note. opts.itemId links a new note to a tune; opts.flag preselects a flag;
 // opts.back reopens whatever sheet the note was opened from.
-export function openNote(id, opts = {}) {
+export function openNote(id: Id | null, opts: { flag?: Flag | null; itemId?: Id | null; back?: () => void } = {}): void {
   const isNew = !id;
-  const e = isNew ? { text: '', flag: opts.flag || null, itemId: opts.itemId || null, done: false, date: dateStr() } : entryById(id);
+  const e: NoteDraft | undefined = isNew ? { text: '', flag: opts.flag || null, itemId: opts.itemId || null, done: false, date: dateStr() } : entryById(id);
   if (!e) return;
   const tunes = linkableItems();
   const tuneName = () => (e.itemId ? itemById(e.itemId)?.name || '' : '');
@@ -208,7 +215,7 @@ export function openNote(id, opts = {}) {
     </div>
     ${Recognition ? '' : '<p class="fine">Tip: use the microphone on your keyboard to dictate.</p>'}
     <div class="flag-row">${Object.entries(FLAGS).map(([k, f]) => `
-      <button class="flag-btn flag-${k} ${e.flag === k ? 'on' : ''}" data-flag="${k}" aria-pressed="${e.flag === k}">${FLAG_ICON[k]}${f.label}</button>`).join('')}
+      <button class="flag-btn flag-${k} ${e.flag === k ? 'on' : ''}" data-flag="${k}" aria-pressed="${e.flag === k}">${FLAG_ICON[k as Flag]}${f.label}</button>`).join('')}
     </div>
     <label class="field">
       <span class="field-label">Tune (optional)</span>
@@ -238,8 +245,8 @@ export function openNote(id, opts = {}) {
     else opts.back?.();
   });
   let finished = false;
-  let next = null; // where to go after closing, instead of opts.back (e.g. the recorder)
-  const urls = [];
+  let next: (() => void) | null = null; // where to go after closing, instead of opts.back (e.g. the recorder)
+  const urls: string[] = [];
 
   // Players for this note's clips.
   (e.media || []).forEach(async (c, i) => {
@@ -249,14 +256,14 @@ export function openNote(id, opts = {}) {
     if (!url) { slot.innerHTML = '<span class="fine">Not on this device (recordings aren’t included in backups).</span>'; return; }
     urls.push(url);
     slot.innerHTML = c.kind === 'video' ? `<video src="${url}" controls playsinline preload="metadata"></video>` : `<audio src="${url}" controls preload="metadata"></audio>`;
-    playOnSpeaker(slot.querySelector('audio, video'));
+    playOnSpeaker(slot.querySelector<HTMLMediaElement>('audio, video')!);
   });
   $$('[data-clip-share]', sheet).forEach((b) => (b.onclick = async () => {
-    const c = e.media[Number(b.dataset.clipShare)];
+    const c = e.media![Number(b.dataset.clipShare)]; // (its clips are listed)
     const file = await clipFile(c, `woodshed-${e.date}-${c.id.slice(0, 4)}`);
     if (!file) return toast('This recording isn’t on this device');
     if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file] }); return; } catch (err) { if (err.name === 'AbortError') return; }
+      try { await navigator.share({ files: [file] }); return; } catch (err) { if ((err as DOMException).name === 'AbortError') return; }
     }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(file);
@@ -269,18 +276,18 @@ export function openNote(id, opts = {}) {
   $$('[data-clip-rm]', sheet).forEach((b) => (b.onclick = () => {
     if (!confirm('Remove this recording?')) return;
     const i = Number(b.dataset.clipRm);
-    e.media = e.media.filter((_, j) => j !== i);
+    e.media = e.media!.filter((_, j) => j !== i);
     // The clip file itself is cleaned up the next time the app starts.
     if (!commit()) {
       // Nothing left in the note: no text and no recordings.
-      deleteEntry(e.id);
+      deleteEntry(e.id!); // (a saved note: it has recordings)
       save();
       finished = true;
       closeSheet();
       return toast('Note deleted');
     }
     finished = true;
-    next = () => openNote(e.id, opts); // reopen to redraw the clip list
+    next = () => openNote(e.id!, opts); // reopen to redraw the clip list
     closeSheet();
   }));
   const recBtn = $('#n-record', sheet);
@@ -289,31 +296,31 @@ export function openNote(id, opts = {}) {
     if (!isNew) {
       commit();
       finished = true;
-      next = () => openRecorder({ entryId: e.id, back: () => openNote(e.id, { back }) });
+      next = () => openRecorder({ entryId: e.id, back: () => openNote(e.id!, { back }) }); // (saved: it has an id)
     } else if (text.value.trim()) {
       commit();
       const created = store.state.diary[store.state.diary.length - 1];
       finished = true;
       next = () => openRecorder({ entryId: created.id, back: () => openNote(created.id, { back }) });
     } else {
-      const tune = findItemByName($('#n-tune', sheet).value);
+      const tune = findItemByName($<HTMLInputElement>('#n-tune', sheet).value);
       finished = true;
       next = () => openRecorder({ itemId: tune?.id || opts.itemId, flag: e.flag, back });
     }
     closeSheet();
   };
 
-  const text = $('#n-text', sheet);
+  const text = $<HTMLTextAreaElement>('#n-text', sheet);
   $$('[data-flag]', sheet).forEach((b) => (b.onclick = () => {
-    e.flag = e.flag === b.dataset.flag ? null : b.dataset.flag;
+    e.flag = e.flag === b.dataset.flag ? null : b.dataset.flag as Flag; // (data-flag: from FLAGS)
     $$('[data-flag]', sheet).forEach((x) => {
       x.classList.toggle('on', x.dataset.flag === e.flag);
-      x.setAttribute('aria-pressed', x.dataset.flag === e.flag);
+      x.setAttribute('aria-pressed', String(x.dataset.flag === e.flag));
     });
   }));
 
   // Dictation, where the browser supports speech recognition.
-  let rec = null;
+  let rec: SpeechRecognition | null = null;
   function stopListening() {
     const r0 = rec;
     rec = null;
@@ -323,7 +330,7 @@ export function openNote(id, opts = {}) {
   const mic = $('#n-mic', sheet);
   if (mic) mic.onclick = () => {
     if (rec) return stopListening();
-    rec = new Recognition();
+    rec = new Recognition!(); // (the mic button is there only with it)
     const mine = rec;
     rec.continuous = true;
     rec.interimResults = false;
@@ -355,13 +362,13 @@ export function openNote(id, opts = {}) {
   };
 
   const commit = () => {
-    const tune = findItemByName($('#n-tune', sheet).value);
+    const tune = findItemByName($<HTMLInputElement>('#n-tune', sheet).value);
     const fields = { text: text.value, flag: e.flag, itemId: tune?.id || null };
     if (!fields.text.trim() && !e.media?.length) return false;
     if (isNew) addEntry(fields);
     else {
       Object.assign(e, fields, { text: fields.text.trim() });
-      const done = $('#n-done', sheet);
+      const done = $<HTMLInputElement>('#n-done', sheet);
       if (done) e.done = done.checked;
       if (!e.flag) e.done = false;
     }
@@ -377,9 +384,9 @@ export function openNote(id, opts = {}) {
     closeSheet();
   };
   const del = $('#n-delete', sheet);
-  if (del) del.onclick = () => {
+  if (del) del.onclick = () => { // (only for a saved note)
     finished = true;
     closeSheet();
-    withUndo('Note deleted', () => deleteEntry(e.id));
+    withUndo('Note deleted', () => deleteEntry(e.id!));
   };
 }
