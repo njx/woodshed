@@ -11,7 +11,7 @@ import { getUsage, summarize, resetUsage, fmtCost, type Usage } from '../assista
 import { openKeySetup, openAssistant } from './assistant.js';
 import { ICON, render, toast, goTo, openChoice } from './shell.js';
 import { customElement, state } from 'lit/decorators.js';
-import { View, mount, html, nothing, live, raw, infoParts, settingRows } from './lit.js';
+import { View, mount, html, nothing, live, raw, settingRows, segButtons, stepperButtons } from './lit.js';
 import type { ListenService, Settings, Transposition } from '../types.js';
 
 // The settings changed with a stepper, with a choice in a sheet, and with a segmented control.
@@ -80,17 +80,10 @@ export class SettingsView extends View {
     const stepper = (key: CountKey, label: string, hint: string) => html`
       <div class="setting">
         <div><b>${label}</b><span>${hint}</span></div>
-        <div class="stepper" data-key=${key}>
-          <button data-d="-1" aria-label="Fewer" @click=${() => set(key, Math.max(0, s[key] - 1))}>−</button><output>${s[key]}</output><button data-d="1" aria-label="More" @click=${() => set(key, Math.min(8, s[key] + 1))}>+</button>
-        </div>
+        <div class="stepper" data-key=${key}>${stepperButtons(s[key], (v) => set(key, v), 0, 8)}</div>
       </div>`;
-    const seg = <K extends SegKey>(key: K, opts: [Settings[K], string][], after?: () => void) => html`<div class="seg" data-setting=${key}>${opts.map(([v, l]) => html`
-      <button class=${s[key] === v ? 'on' : ''} data-v=${v} @click=${() => { set(key, v); after?.(); }}>${l}</button>`)}</div>`;
-    // A section's heading, with what it's about behind an ⓘ.
-    const heading = (id: string, label: string, help: string) => {
-      const h = infoParts(`info-settings-${id}`, help);
-      return html`<h3 class="section-label">${label}${h.btn}</h3>${h.text}`;
-    };
+    const seg = <K extends SegKey>(key: K, opts: [Settings[K], string][], after?: () => void) =>
+      html`<div class="seg" data-setting=${key}>${segButtons(opts, s[key], (v) => { set(key, v); after?.(); })}</div>`;
     const m = mediaStats(store.state);
     const wishes = store.state.assistantWishes || [];
     const spent = this.usage && Object.keys(this.usage.days).length ? summarize(this.usage) : null;
@@ -99,7 +92,7 @@ export class SettingsView extends View {
       <header class="top"><div><p class="eyebrow">Woodshed</p><h1>Settings</h1></div></header>
 
       <section class="panel">
-        ${heading('instruments', 'Instruments you play', 'Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch.')}
+        <ws-heading label="Instruments you play" help="Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch."></ws-heading>
         <ul class="instruments">${(Object.entries(TRANSPOSITIONS) as [Transposition, (typeof TRANSPOSITIONS)[Transposition]][]).map(([id, tr]) => html`
           <li><label>
             <input type="checkbox" data-ins=${id} .checked=${live(s.instruments.includes(id))} @change=${(e: Event) => this.toggleInstrument(id, (e.target as HTMLInputElement).checked)}>
@@ -109,7 +102,7 @@ export class SettingsView extends View {
       </section>
 
       <section class="panel">
-        ${heading('mix', 'Daily mix', 'Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>.')}
+        <ws-heading label="Daily mix" help="Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>."></ws-heading>
         ${stepper('exercises', 'Exercises', 'Scales, arpeggios, patterns, licks')}
         ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
         ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
@@ -130,12 +123,12 @@ export class SettingsView extends View {
       </section>
 
       <section class="panel">
-        ${heading('listen', 'Open recordings in', 'Recording links in a tune’s details search this service for that recording.')}
+        <ws-heading label="Open recordings in" help="Recording links in a tune’s details search this service for that recording."></ws-heading>
         ${seg('listen', (Object.entries(LISTEN_SERVICES) as [ListenService, { label: string }][]).map(([v, x]) => [v, x.label]))}
       </section>
 
       <section class="panel">
-        ${heading('assistant', 'Assistant', 'The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures.')}
+        <ws-heading label="Assistant" help="The assistant (Ask, on the Today screen) is Claude using your own key, which stays on this device and isn’t included in backups. API use is billed by Anthropic at standard per-token prices, separately from any Claude Pro or Max plan. Costs shown are worked out from the token counts each reply reports; your Anthropic console has the official figures."></ws-heading>
         <div class="setting">
           <div><b>Anthropic API key</b><span id="key-status">${this.key == null ? 'Checking…' : this.key ? `Set (…${this.key.slice(-4)})` : 'Not set'}</span></div>
           <button class="pill-btn" id="key-btn" @click=${() => this.keyButton()}>${this.key ? 'Remove' : 'Set'}</button>

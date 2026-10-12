@@ -1208,3 +1208,6 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .card-actions { margin-top: 8px; }
 .card-actions .keychip { flex: 1 1 auto; min-width: 0; }
 .card-actions > h2 { flex: 1; min-width: 0; margin: 0; }
+
+/* Components that only group their parts: laid out as if they weren't there. */
+ws-heading { display: contents; }

@@ -1,4 +1,5 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
 // Screens and sheets as Lit components (https://lit.dev), moving over from template strings one
@@ -30,13 +31,33 @@ export function mount(root: HTMLElement, tag: string): View {
 // Our own markup (the ICON svgs, help text with <b>): never anything typed in.
 export const raw = (s: string) => unsafeHTML(s);
 
-// The ⓘ by a heading and the text it shows and hides (see info() in shell.js, which wires every
-// .info-btn on the page): id names the text, so it stays open or shut across updates.
-export function infoParts(id: string, help: string) {
-  return {
-    btn: html`<button type="button" class="info-btn" aria-controls=${id} aria-expanded="false" aria-label="What’s this?">i</button>`,
-    text: html`<p class="fine info-text" id=${id} hidden>${raw(help)}</p>`,
-  };
+// ---------- Shared pieces ----------
+// Stateless controls are template functions; the caller wraps them in its own element (with the
+// class and attributes it's styled and found by). Pieces with state of their own are components.
+
+// A segmented control's buttons: the one for value is on; tapping one calls pick.
+export function segButtons<V extends string | number>(options: readonly (readonly [V, unknown])[], value: V | null | undefined, pick: (v: V) => void) {
+  return options.map(([v, label]) => html`<button class=${v === value ? 'on' : ''} data-v=${v} @click=${() => pick(v)}>${label}</button>`);
+}
+
+// A stepper's −, value and +, kept within min…max.
+export function stepperButtons(value: number, change: (v: number) => void, min: number, max: number) {
+  return html`<button data-d="-1" aria-label="Fewer" @click=${() => change(Math.max(min, value - 1))}>−</button><output>${value}</output><button data-d="1" aria-label="More" @click=${() => change(Math.min(max, value + 1))}>+</button>`;
+}
+
+// A section's heading, with what it's about behind an ⓘ: tapped, the text shows under it.
+// (Its ⓘ toggles itself — data-own — rather than through shell.ts's info().)
+let headingN = 0;
+@customElement('ws-heading')
+export class Heading extends View {
+  @property() label = '';
+  @property() help = '';
+  @state() open = false;
+  private textId = `heading-${++headingN}`;
+  render() {
+    return html`<h3 class="section-label">${this.label}${this.help ? html`<button type="button" class="info-btn" data-own aria-controls=${this.textId} aria-expanded=${String(this.open)} aria-label="What’s this?" @click=${() => (this.open = !this.open)}>i</button>` : nothing}</h3>
+      ${this.help ? html`<p class="fine info-text" id=${this.textId} ?hidden=${!this.open}>${raw(this.help)}</p>` : nothing}`;
+  }
 }
 
 // A list of settings, each row showing what it's set to; tapping one calls open(key) (see

@@ -491,7 +491,7 @@ export function info(html: string): { btn: string; text: string } {
 }
 document.addEventListener('click', (e) => {
   const b = (e.target as Element).closest?.('.info-btn');
-  if (!b) return;
+  if (!b || b.hasAttribute('data-own')) return; // (<ws-heading>'s: its own)
   e.preventDefault();
   e.stopPropagation();
   const el = document.getElementById(b.getAttribute('aria-controls')!); // (set by info())
