@@ -8,7 +8,7 @@ import { chordName, chartShift, usesSharps, chartToText, chartFromText, progress
 import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { pickWarmup } from './pickers.js';
-import { $, $$, ICON, render, toast, openSheet, closeSheet, kn } from './shell.js';
+import { $, $$, ICON, render, toast, openSheet, closeSheet, kn, hintHtml, hintDone } from './shell.js';
 
 // The chord chart in a tune's details: shown in the key it's played in today (or its usual
 // key), written for the instrument; another key can be picked. Editable.
@@ -68,7 +68,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
     return `<div class="loop-row"><span class="field-label">Loop</span><div class="chips">
       ${chip('all', 'Whole tune', !loop)}${sections.length > 1 ? sections.map((s, i) => chip(i, s.name, isSection(s))).join('') : ''}
       ${loop && !sections.some(isSection) ? chip('all', `${loop.name} ×`, true) : ''}</div></div>
-      <p class="fine loop-hint">${pick != null ? `From bar ${pick + 1}: now tap the last bar to loop.` : 'Or tap a bar, then another, to loop just those.'}</p>`;
+      ${pick != null ? `<p class="fine loop-hint">From bar ${pick + 1}: now tap the last bar to loop.</p>` : hintHtml('loop-bars', 'Or tap a bar, then another, to loop just those.', 'fine loop-hint')}`;
   };
   let gen = 0; // (one bar-follower at a time)
   const follow = () => {
@@ -113,15 +113,13 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
       box.innerHTML = `
         <div class="field-label row-label"><span>${compact ? `${esc(t.name)}’s chords` : 'Chords'}</span><span class="row-links">
           <select class="chart-key" id="chart-key" aria-label="Key">${keys.map((k) => `<option value="${k}" ${k === shown ? 'selected' : ''}>in ${esc(kn(k))}</option>`).join('')}</select>
+          <button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="chart-bass" aria-label="Walking bass">${bassMine() ? ICON.stop : ICON.play}Bass</button>
           ${compact ? '' : '<button class="link-btn" id="chart-edit">Edit</button>'}</span></div>
+        ${bassMine() || loop || pick != null ? loopHtml(chart) : ''}
         <div class="chart ${loop ? 'looping' : ''}">${chartHtml(chart, opts)}</div>
-        ${loopHtml(chart)}
         ${progsHtml(chart, opts)}
         <div class="chart-foot">
-          <span class="chart-btns">
-            ${compact ? '' : `<button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>`}
-            <button class="pill-btn bass-btn ${bassMine() ? 'on' : ''}" id="chart-bass">${bassMine() ? ICON.stop : ICON.play}Bass</button>
-          </span>
+          ${compact ? '' : `<button class="pill-btn" id="chart-warmup">${ICON.plus}Add a warm-up</button>`}
           ${compact ? '' : `<span class="fine">${chartSource(t) === 'mine' ? 'Your chart' : 'From iReal Pro’s playlists (via JazzStandards)'}</span>`}
         </div>`;
       $('#chart-key', box).onchange = (e) => {
@@ -151,6 +149,7 @@ export function mountChart(box, t, { back, key: startKey = null, compact = false
         const n = Number(el.dataset.b);
         if (pick == null) { pick = n; draw(); return; }
         const [from, to] = [Math.min(pick, n), Math.max(pick, n)];
+        hintDone('loop-bars');
         setLoop({ from, to, name: from === to ? `bar ${from + 1}` : `bars ${from + 1}–${to + 1}` });
       }));
       $('#chart-bass', box).onclick = () => {

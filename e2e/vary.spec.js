@@ -10,6 +10,7 @@ async function openExercise(page, ui, name) {
 test('a scale exercise shows each scale type, and settings change what comes up @narrow', async ({ page, ui }) => {
   await ui.start({ instruments: ['bb'] });
   await openExercise(page, ui, 'Scales: major and minors');
+  await ui.more(); // its settings, under Details
   await expect(page.locator('#x-vary [data-vary="scale"]')).toHaveClass(/on/);
   await expect(page.locator('.type-strip button')).toHaveText(['maj', 'dor', 'aeol', 'harm min', 'mel min', 'dim H/W']);
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
@@ -32,6 +33,8 @@ test('a scale exercise shows each scale type, and settings change what comes up 
   await expect(page.locator('#x-pattern')).toHaveText('1 3 2 4 3 5 4 6 5 7 6 8 7 9 8');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await page.locator('[data-shape="updown"]').click();
+  await expect(page.locator('[data-pn]')).toHaveCount(0); // the number pad is for Custom
+  await page.locator('[data-shape="custom"]').click(); // starts from up and down
   for (let i = 0; i < 7; i++) await page.click('[data-pn="back"]'); // drop the way down
   await expect(page.locator('#x-pattern')).toHaveText('1 2 3 4 5 6 7 8');
   await expect(page.locator('[data-shape="custom"]')).toHaveClass(/on/);
@@ -49,10 +52,14 @@ test('a scale exercise shows each scale type, and settings change what comes up 
 test('chord types; a written exercise can be switched to vary @narrow', async ({ page, ui }) => {
   await ui.start();
   await openExercise(page, ui, 'Seventh-chord arpeggios');
+  await ui.more();
   await expect(page.locator('.type-strip button')).toHaveText(['maj7', 'm7', '7', 'ø7', '°7']);
   await expect(page.locator('[data-shape]')).toHaveText(['Up and down', 'Two octaves', 'Inversions', 'Custom']);
   await expect(page.locator('#x-pattern')).toHaveText('1 3 5 7 8 7 5 3 1');
+  await page.locator('[data-shape="custom"]').click();
+  await expect(page.locator('#x-pattern')).toHaveText('1 3 5 7 8 7 5 3 1');
   await expect(page.locator('[data-pn]')).toHaveText(['1', '3', '5', '7', '8', '10', '12', '14', '15', '⌫', 'Clear']);
+  await page.locator('[data-shape="updown"]').click();
   await page.locator('.type-strip button', { hasText: '°7' }).click();
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('chords.png') });
@@ -61,6 +68,7 @@ test('chord types; a written exercise can be switched to vary @narrow', async ({
   // "Major scale" is written out; switching it to vary by scale uses generated notation.
   await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
   await expect(page.locator('#x-edit-abc')).toHaveCount(1);
+  await ui.more();
   await page.click('#x-vary [data-vary="scale"]');
   await expect(page.locator('#x-edit-abc')).toHaveCount(0);
   await page.click('#x-to-pattern');
@@ -94,7 +102,7 @@ test('today’s card names the scale or chord for each key, and the log keeps it
 test('change today’s keys and types for an exercise, even after playing it @narrow', async ({ page, ui }) => {
   await ui.start();
   await openExercise(page, ui, 'Seventh-chord arpeggios');
-  await page.click('#x-today'); // into today's set
+  await ui.menu('Add to today’s set');
   await ui.backdrop();
   await ui.tab('today');
   const card = page.locator('.card', { hasText: 'Seventh-chord arpeggios' }).filter({ hasNot: page.locator('.bucket', { hasText: 'Warm-up' }) });
@@ -113,7 +121,7 @@ test('change today’s keys and types for an exercise, even after playing it @na
   }).toEqual([n + 1, 'dim7']);
   await ui.expectNoSideScroll();
   await ui.backdrop();
-  await expect(card.locator('.keychip')).toContainText('°7'); // the card shows it
+  await expect(card.locator('.rating')).toBeVisible(); // played: rated on the card
 });
 
 test('change the key a tune is played in today', async ({ page, ui }) => {

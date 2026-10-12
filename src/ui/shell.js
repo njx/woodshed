@@ -12,7 +12,7 @@ const UI_KEY = 'woodshed.ui';
 export const ui = { tab: 'today', query: '', filter: 'all', sort: 'priority' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch {}
 export function saveUi() {
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, exFilter: ui.exFilter, sort: ui.sort, library: ui.library })); } catch {}
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, filter: ui.filter, exFilter: ui.exFilter, sort: ui.sort, library: ui.library, moreOpen: ui.moreOpen })); } catch {}
 }
 
 // ---------- Rendering ----------
@@ -105,8 +105,9 @@ export function pips(level) {
   const n = level ?? 0;
   return `<span class="pips" aria-label="${esc(levelLabel(level))}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 }
+// Only for the priorities that stand out (critical, high); medium and low show nothing.
 export function priBadge(p) {
-  return `<span class="pri p${p}" title="${PRIORITIES[p - 1].label} priority">P${p}</span>`;
+  return p <= 2 ? `<span class="pri p${p}" title="${PRIORITIES[p - 1].label} priority">P${p}</span>` : '';
 }
 
 export function transposeToggle() {
@@ -372,8 +373,77 @@ const STATUS_HINTS = {
   on: { tune: 'Picked for your set when it’s due.', exercise: 'Picked for your set now and then, and offered as a warm-up.' },
   off: { tune: 'Left out for now: not picked for your set.', exercise: 'Left out for now: not picked, and not offered as a warm-up.' },
 };
+// At the top of a tune's or exercise's details: Focus / On / Off, and a ⋯ menu (#item-menu) for
+// the rest. What Focus or Off means shows under it (On is the usual, and says nothing).
 export function statusHtml(t, status) {
   const hint = STATUS_HINTS[status];
-  return `<div class="seg item-status" id="item-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${status === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
-    <p class="fine" id="item-status-hint">${esc(typeof hint === 'string' ? hint : hint[t.type])}</p>`;
+  return `<div class="item-top"><div class="seg item-status" id="item-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${status === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
+    <button class="icon-btn small item-menu" id="item-menu" aria-label="More">⋯</button></div>
+    ${status === 'on' ? '' : `<p class="fine" id="item-status-hint">${esc(typeof hint === 'string' ? hint : hint[t.type])}</p>`}`;
+}
+
+// ---------- Hints shown until dismissed (or done) ----------
+// A line of help with an ×; once dismissed, or once the thing it explains has been done
+// (hintDone), it isn't shown again.
+export function hintHtml(id, html, cls = 'hint') {
+  if ((store.state.hintsSeen || []).includes(id)) return '';
+  return `<p class="${cls} once-hint" data-hint="${id}"><span>${html}</span><button class="hint-x" aria-label="Got it">×</button></p>`;
+}
+export function hintDone(id) {
+  const seen = (store.state.hintsSeen ||= []);
+  if (seen.includes(id)) return;
+  seen.push(id);
+  save();
+  document.querySelectorAll(`[data-hint="${id}"]`).forEach((el) => el.remove());
+}
+// The ×: wired once, for any hint on the page or in a sheet.
+document.addEventListener('click', (e) => {
+  const x = e.target.closest?.('.hint-x');
+  if (!x) return;
+  e.stopPropagation();
+  hintDone(x.closest('[data-hint]').dataset.hint);
+}, true);
+
+// ---------- A "⋯" menu ----------
+// items: [{ label, fn, danger? }] (falsy ones are skipped). Opens under `anchor`; a tap outside
+// (or on an item) closes it.
+export function openMenu(anchor, items) {
+  closeMenu();
+  const list = items.filter(Boolean);
+  const pop = document.createElement('div');
+  pop.className = 'menu-pop';
+  pop.setAttribute('role', 'menu');
+  pop.innerHTML = list.map((it, i) => `<button role="menuitem" class="${it.danger ? 'danger' : ''}" data-mi="${i}">${esc(it.label)}</button>`).join('');
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = `${Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 10)}px`;
+  pop.style.right = `${Math.max(10, window.innerWidth - r.right)}px`;
+  pop.onclick = (e) => {
+    const b = e.target.closest('[data-mi]');
+    if (!b) return;
+    closeMenu();
+    list[Number(b.dataset.mi)].fn();
+  };
+  setTimeout(() => document.addEventListener('pointerdown', outside, true));
+  openPop = pop;
+}
+let openPop = null;
+function outside(e) { if (openPop && !openPop.contains(e.target)) closeMenu(); }
+export function closeMenu() {
+  openPop?.remove();
+  openPop = null;
+  document.removeEventListener('pointerdown', outside, true);
+}
+
+// A collapsed section of set-once fields ("Details"), remembered open or shut per kind of sheet.
+export function moreHtml(key, summary, inner) {
+  const open = (ui.moreOpen || []).includes(key);
+  return `<details class="more" data-more="${key}" ${open ? 'open' : ''}><summary><b>Details</b><span>${esc(summary)}</span></summary><div class="more-body">${inner}</div></details>`;
+}
+export function bindMore(root) {
+  root.querySelectorAll('details.more').forEach((d) => d.addEventListener('toggle', () => {
+    const k = d.dataset.more;
+    ui.moreOpen = [...new Set([...(ui.moreOpen || []).filter((x) => x !== k), ...(d.open ? [k] : [])])];
+    saveUi();
+  }));
 }

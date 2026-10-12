@@ -151,12 +151,13 @@ test('loop a section, or bars tapped, with the bass going round just those @narr
   await ui.start();
   await openTune(page, ui, 'Autumn Leaves');
   const chips = page.locator('.loop-row [data-loop]');
+  await expect(chips).toHaveCount(0); // Loop shows with the bass
+  await page.click('#chart-bass');
   await expect(chips.first()).toHaveText('Whole tune');
   await chips.nth(2).click(); // the second section
   const name = await chips.nth(2).textContent();
   await expect(chips.nth(2)).toHaveClass(/\bon\b/);
   await expect(page.locator('.chart')).toHaveClass(/\blooping\b/);
-  await page.click('#chart-bass');
   await expect(page.locator('.chart .bar.now')).toHaveCount(1);
   await expect(page.locator('.chart .bar.now')).toHaveClass(/\bin-loop\b/);
   await ui.backdrop();

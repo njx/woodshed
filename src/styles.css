@@ -492,16 +492,9 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .kc-text span, .kc-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-actions .keychip small { flex-basis: auto; padding: 0; margin: 0; }
 .card.done .card-actions .keychip { max-width: calc(100% - 60px); }
-.card-actions .swap { margin-left: auto; }
-.card-actions .swap + .check { margin-left: 0; }
-.rating { margin-top: 10px; align-items: center; }
-.rating > span { flex: 1; padding-left: 9px; font-size: 13.5px; color: var(--ink-3); white-space: nowrap; }
-.rating > span { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
-.rating button { flex: 0 1 auto; }
-@media (max-width: 359px) {
-  .rating > span { display: none; }
-  .rating button { flex: 1; }
-}
+/* Played: Rough / OK / Solid on the check's row. */
+.card-actions .rating { flex: 1; min-width: 0; }
+.card-actions .rating button { flex: 1; padding: 8px 6px; }
 
 /* ---------- Listen (recordings in the detail sheet) ---------- */
 .link-btn {
@@ -943,11 +936,11 @@ textarea.mono { font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .progs b { color: var(--ink); white-space: nowrap; }
 
 /* Practice timer (Today) */
-.ptimer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; margin: 0 0 12px; padding: 10px 12px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; color: var(--ink-2); }
+.ptimer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; margin: 0 0 12px; padding: 6px 6px 6px 14px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; color: var(--ink-2); }
 .ptimer b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .pt-text { flex: 1 1 10em; line-height: 1.4; }
 .pt-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.pt-btns .pill-btn { padding: 0 12px; }
+.pt-btns .pill-btn { padding: 0 12px; min-height: 36px; }
 .pt-dot { display: inline-block; vertical-align: 1px; margin-right: 7px; width: 9px; height: 9px; border-radius: 50%; background: var(--good); animation: pt-pulse 2s ease-in-out infinite; }
 @keyframes pt-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .pt-dot { animation: none; } }
@@ -1132,3 +1125,31 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 /* Pickers: a warm-up for a tune, a tune for an exercise. */
 .pick-search { width: 100%; font-size: 16px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); margin: 4px 0 6px; }
 .pick-list .row { cursor: pointer; }
+
+/* Hints shown until dismissed (×) or done. */
+.once-hint { display: flex; align-items: flex-start; gap: 8px; }
+.once-hint > span { flex: 1; }
+.hint-x { flex: none; width: 28px; height: 28px; margin: -4px -4px 0 0; border-radius: 50%; font-size: 18px; line-height: 1; color: var(--ink-3); background: transparent; }
+.hint-x:active { background: var(--surface-2); }
+
+/* The top of a tune's or exercise's details: Focus/On/Off and ⋯; the ⋯ menu. */
+.item-top { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.item-top .item-status { flex: 1; margin: 0; }
+.item-menu { flex: none; font-size: 20px; letter-spacing: 1px; }
+.menu-pop { position: fixed; z-index: 60; min-width: 200px; max-width: calc(100vw - 20px); padding: 6px; border-radius: 14px; background: var(--raised); box-shadow: 0 8px 30px rgba(0, 0, 0, .22); display: grid; }
+.menu-pop button { text-align: left; padding: 12px 14px; border-radius: 10px; font-size: 16px; color: var(--ink); background: transparent; }
+.menu-pop button:active { background: var(--surface-2); }
+.menu-pop button.danger { color: var(--danger); }
+/* Details: set-once fields, collapsed. */
+details.more { margin-top: 16px; border-radius: 14px; background: var(--surface); }
+details.more > summary { list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 12px 14px; cursor: pointer; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: '▸'; margin-left: auto; color: var(--ink-3); transition: transform .15s; }
+details.more[open] > summary::after { transform: rotate(90deg); }
+details.more > summary span { color: var(--ink-3); font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-body { padding: 0 14px 14px; }
+.more-body > :first-child { margin-top: 0; }
+/* The chart's header: key, Bass, Edit on one line. */
+.chart-box .row-links { flex-wrap: nowrap; gap: 8px; align-items: center; }
+.chart-box .bass-btn { min-height: 34px; padding: 0 12px; }
+.chart-box .loop-row { margin: 4px 0 8px; }

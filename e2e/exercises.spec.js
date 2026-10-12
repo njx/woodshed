@@ -72,7 +72,7 @@ test('delete an exercise from its details, and undo', async ({ page, ui }) => {
   const count = await page.locator('#tune-list .row').count();
   await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
   page.once('dialog', (d) => d.accept());
-  await page.click('#x-delete');
+  await ui.menu('Delete exercise');
   await expect(page.locator('#tune-list .row')).toHaveCount(count - 1);
   await expect(page.locator('#tune-list .row', { hasText: 'Major scale' })).toHaveCount(0);
   await page.click('#toast button'); // Undo
@@ -123,6 +123,7 @@ test('a lick’s chords: guessed from its chord symbols, or typed; then it comes
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.locator('#tune-list .row', { hasText: 'ii–V–I, 1-2-3-5' }).click();
+  await ui.more();
   await expect(page.locator('#x-harmony')).toHaveValue('Dm7 G7 Cmaj7'); // from its notation
   await page.fill('#x-harmony', 'Dm7 G7 Cmaj7 nonsense');
   await expect(page.locator('#x-harmony-msg')).toHaveClass(/\berror\b/);
@@ -176,12 +177,15 @@ test('try an exercise through a tune: it goes before the tune, with the tune’s
   await page.click('[data-lib="exercises"]');
   // Technical ones aren't for tunes.
   await page.locator('#tune-list .row', { hasText: 'Long tones' }).click();
+  await ui.more();
   await expect(page.locator('#x-tunes')).not.toBeChecked();
-  await expect(page.locator('#x-try')).toHaveCount(0);
+  await page.click('#item-menu');
+  await expect(page.locator('.menu-pop button', { hasText: 'Try it through a tune' })).toHaveCount(0);
+  await page.mouse.click(5, 5); // (closes the menu)
   await ui.backdrop();
   await page.locator('#tune-list .row', { hasText: 'Cross-arpeggios' }).click();
   await expect(page.locator('#x-tunes')).toBeChecked();
-  await page.click('#x-try');
+  await ui.menu('Try it through a tune');
   // Pick the tune: today's first, or search.
   await expect(page.locator('.sheet .section-label').first()).toHaveText('In today’s set');
   await page.fill('#pick-q', 'blue bossa');
@@ -312,7 +316,7 @@ test('add an exercise or tune to today’s set from its details', async ({ page,
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.locator('#tune-list .row', { hasText: 'Chromatic scale' }).click();
-  await page.click('#x-today');
+  await ui.menu('Add to today’s set');
   await expect(page.locator('#toast')).toContainText('Added Chromatic scale to today’s set');
   await expect(page.locator('.in-today')).toHaveText('In today’s set');
   await ui.backdrop();
@@ -401,7 +405,7 @@ test('add a tune to today’s set from its details', async ({ page, ui }) => {
   await ui.tab('tunes');
   await page.fill('#q', 'Killer Joe');
   await page.locator('#tune-list .row').first().click();
-  await page.click('#f-today');
+  await ui.menu('Add to today’s set');
   await expect(page.locator('.in-today')).toHaveText('In today’s set');
   await ui.backdrop();
   await ui.tab('today');
@@ -416,6 +420,8 @@ test('a warm-up opened from today says what it’s for, and has full screen', as
   const forTune = (await warm.locator('.style').textContent()).replace(/^for /, '');
   await warm.locator('h2').click();
   await expect(page.locator('.in-today')).toHaveText(`In today’s set, as a warm-up for ${forTune}`);
-  await expect(page.locator('#x-today')).toHaveCount(0);
+  await page.click('#item-menu'); // (no Add to today for a warm-up)
+  await expect(page.locator('.menu-pop button', { hasText: 'Add to today’s set' })).toHaveCount(0);
+  await page.mouse.click(5, 5);
   await expect(page.locator('#x-full')).toBeVisible();
 });

@@ -18,7 +18,7 @@ import { mountChart } from './chart.js';
 import { canRecord } from '../media.js';
 import { autoStart } from '../practicetime.js';
 import {
-  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml, statusHtml,
+  $, $$, ICON, ui, render, toast, withUndo, haptic, openSheet, closeSheet, goTo, kn, suggestionHtml, statusHtml, openMenu, moreHtml, bindMore, keysText,
 } from './shell.js';
 
 // Detail sheet for a tune: edit it, listen to recordings, see its history. id null = new tune.
@@ -72,33 +72,20 @@ export function openItem(id, opts) {
     const s = itemStats().get(t.id);
     const entries = state.log.filter((e) => e.itemId === t.id).sort((a, b) => b.date.localeCompare(a.date));
     const played = isPlayedToday(t.id);
-    const tr = TRANSPOSITIONS[view];
     return `
       <textarea class="title-input" id="f-name" rows="1" placeholder="Tune name" aria-label="Tune name" enterkeyhint="done" ${isNew ? 'autofocus' : ''}>${esc(t.name)}</textarea>
       ${isNew ? '' : statusHtml(t, itemStatus(t))}
-      ${isNew ? '' : inToday(t)
-        ? `<p class="in-today">${ICON.check}In today’s set</p>`
-        : `<button class="ghost-btn add-today" id="f-today">${ICON.plus}<span>Add to today’s set</span></button>`}
+      ${!isNew && inToday(t) ? `<p class="in-today">${ICON.check}In today’s set</p>` : ''}
       ${isNew ? '' : todayKeyHtml()}
-      ${isNew ? '' : '<div id="chart-box" class="chart-box"></div>'}
-      ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
-      ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
-      <label class="field-label">How well do you know it?</label>
       ${isNew ? '' : suggestionHtml(t, levelSuggestion(t))}
-      <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
-      <label class="field-label">Priority</label>
-      <div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>
-      <div class="field-label row-label"><span>Usual keys</span><small>${esc(tr.label)}${tr.offset ? '' : ' pitch'} · first = most common</small></div>
-      <div id="keygrids">${keyGrid()}</div>
-      <label class="field">
-        <span class="field-label">Style</span>
-        <input id="f-style" list="styles" value="${esc(t.style)}">
-        <datalist id="styles">${styles.map((s) => `<option value="${esc(s)}">`).join('')}</datalist>
-      </label>
+      ${isNew ? '' : `<div data-item-id="${t.id}">${tempoRowHtml(t)}${tempoSuggestionHtml(tempoSuggestion(t))}</div>`}
+      ${isNew ? '' : '<div id="chart-box" class="chart-box"></div>'}
       <label class="field">
         <span class="field-label">Notes</span>
         <textarea id="f-notes" rows="2" placeholder="Tricky bars, ideas…">${esc(t.notes)}</textarea>
       </label>
+      ${isNew ? detailsHtml() : moreHtml('tune', [LEVELS[t.level ?? 0].label, `${PRIORITIES[(t.priority || 3) - 1].label} priority`, keysText(t), t.style].filter(Boolean).join(' · '), detailsHtml())}
+      ${isNew ? '' : `<div id="listen">${listenHtml()}</div>`}
       ${isNew ? `<button class="primary-btn" id="save-new">Add tune</button>` : `
         <div class="history">
           <div class="history-head">
@@ -118,10 +105,26 @@ export function openItem(id, opts) {
           return notes.length
             ? `<ul class="notes panel-list">${notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>`
             : '<p class="fine">Notes you write about this tune show up here.</p>';
-        })()}
-        <button class="danger-btn" id="delete">Delete tune</button>`}
+        })()}`}
     `;
   };
+
+  // Set once and seldom changed: under Details (open for a new tune).
+  function detailsHtml() {
+    const tr = TRANSPOSITIONS[view];
+    return `
+      <label class="field-label">How well do you know it?</label>
+      <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
+      <label class="field-label">Priority</label>
+      <div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>
+      <div class="field-label row-label"><span>Usual keys</span><small>${esc(tr.label)}${tr.offset ? '' : ' pitch'} · first = most common</small></div>
+      <div id="keygrids">${keyGrid()}</div>
+      <label class="field">
+        <span class="field-label">Style</span>
+        <input id="f-style" list="styles" value="${esc(t.style)}">
+        <datalist id="styles">${styles.map((s) => `<option value="${esc(s)}">`).join('')}</datalist>
+      </label>`;
+  }
 
   // Today's key, changeable (the chart and its warm-ups follow).
   function todayKeyHtml() {
@@ -214,7 +217,7 @@ export function openItem(id, opts) {
       $('#keygrids', sheet).innerHTML = keyGrid();
       commit();
     };
-    $$('.seg', sheet).forEach((seg) => {
+    $$('.seg[data-field]', sheet).forEach((seg) => {
       seg.onclick = (e) => {
         const b = e.target.closest('button');
         if (!b) return;
@@ -234,8 +237,17 @@ export function openItem(id, opts) {
       setTodayKey(todayItem(t), Number(keySel.value));
       refresh();
     };
-    const addBtn = $('#f-today', sheet);
-    if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
+    bindMore(sheet);
+    // ⋯: add to today, delete.
+    const menu = $('#item-menu', sheet);
+    if (menu) menu.onclick = () => openMenu(menu, [
+      !inToday(t) && { label: 'Add to today’s set', fn: () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); } },
+      { label: 'Delete tune', danger: true, fn: () => {
+        if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
+        closeSheet();
+        withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
+      } },
+    ]);
     if (isNew) {
       $('#save-new', sheet).onclick = () => {
         if (!t.name.trim()) { $('#f-name', sheet).focus(); return toast('Give the tune a name'); }
@@ -259,11 +271,6 @@ export function openItem(id, opts) {
       const recTune = $('#rec-tune', sheet);
       if (recTune) recTune.onclick = () => openRecorder({ itemId: t.id, back });
       bindNotes(sheet, back, refresh);
-      $('#delete', sheet).onclick = () => {
-        if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
-        closeSheet();
-        withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
-      };
     }
   };
   bind();

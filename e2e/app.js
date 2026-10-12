@@ -44,6 +44,16 @@ function helpers(page) {
       await page.locator(`.tab[data-tab="${name}"]`).click();
       await expect(page.locator(`.tab[data-tab="${name}"]`)).toHaveClass(/\bon\b/);
     },
+    // Open a details sheet's collapsed Details (set-once fields).
+    async more() {
+      const d = page.locator('.sheet details.more');
+      if (!(await d.evaluate((el) => el.open))) await d.locator('summary').click();
+    },
+    // Pick from a details sheet's ⋯ menu.
+    async menu(label) {
+      await page.click('#item-menu');
+      await page.locator('.menu-pop button', { hasText: label }).click();
+    },
     // Close the open sheet by tapping outside it.
     async backdrop() {
       await page.evaluate(() => document.querySelector('.sheet-backdrop').click());

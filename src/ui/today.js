@@ -9,7 +9,7 @@ import {
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
 import {
   $, $$, ICON, render, toast, withUndo, haptic, attachSwipe, pips, priBadge, kn, keysText,
-  levelLabel, bindTransposeToggle, suggestionHtml,
+  levelLabel, bindTransposeToggle, suggestionHtml, hintHtml, hintDone,
 } from './shell.js';
 import { rowHtml } from './tunes.js';
 import { openItem } from './item.js';
@@ -65,7 +65,7 @@ export function renderToday(root) {
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
       <ul class="list">${extras.map((t) => rowHtml(t, stats)).join('')}</ul>` : ''}
-    <p class="hint">Swipe a card right when you’ve played it, left to swap or remove it. Tap for details.</p>
+    ${hintHtml('swipe', 'Swipe a card right when you’ve played it, left to swap or remove it. Tap for details.')}
   `;
 
   bindTransposeToggle(root);
@@ -99,11 +99,11 @@ function toolsHtml() {
     <span class="hd-icon">${icon}</span>${live ? '<b class="hd-live" aria-hidden="true"></b>' : ''}</button>`;
   const s = store.state.settings;
   const multi = s.instruments.length > 1;
-  // The keys shown: tap to switch instruments (or, with one, to pick them in Settings).
+  // The keys shown, with more than one instrument: tap to switch.
   const keys = `<button class="hd-tool" id="transpose" aria-label="Keys in ${esc(TRANSPOSITIONS[s.view].label)}${multi ? '. Tap to switch' : ''}">
     <span class="hd-icon hd-key">${esc(s.view === 'c' ? 'C' : TRANSPOSITIONS[s.view].label)}</span></button>`;
   return `<div class="hd-tools" role="toolbar" aria-label="Tools">
-    ${keys}
+    ${multi ? keys : ''}
     ${tool('today-ask', ICON.ask, 'Ask the assistant')}
     ${tool('today-note', ICON.note, 'New note')}
     ${canRecord() ? tool('today-rec', ICON.rec, 'Record') : ''}
@@ -203,8 +203,6 @@ function bindCard(card) {
     });
   };
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
-  const swapBtn = $('.swap', card);
-  if (swapBtn) swapBtn.onclick = (e) => { e.stopPropagation(); swap(); };
   $$('.rating button', card).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();
     rate(item.itemId, b.dataset.v, item);
@@ -242,9 +240,11 @@ function bindCard(card) {
     openRecorder({ itemId: t.id, text, back: render });
   };
   card.onclick = (e) => { if (!card._swiped && !e.target.closest('.rating, .suggest, .tempo-chip, .add-warm')) openItem(item.itemId, { keys: item.keys, pid: item.pid }); };
+  // (Once a card's been swiped, the hint about swiping goes.)
+  const swiped = (fn) => () => { hintDone('swipe'); fn(); };
   attachSwipe(card, {
-    right: toggle,
-    actions: isPlanItemPlayed(item) ? [] : leftActions(item).map((a) => (a === 'swap' ? swap : skip)),
+    right: swiped(toggle),
+    actions: isPlanItemPlayed(item) ? [] : leftActions(item).map((a) => swiped(a === 'swap' ? swap : skip)),
   });
 }
 
@@ -280,7 +280,7 @@ function timerHtml() {
   const bar = (cls, text, buttons) => `<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
   if (running()) {
     return bar('on', `<span class="pt-dot" aria-hidden="true"></span>Practicing · <b id="pt-clock">${fmtClock(total)}</b> today`,
-      `<button class="pill-btn" id="pt-end">${ICON.stop}End practice</button>`);
+      `<button class="pill-btn" id="pt-end" aria-label="End practice">${ICON.stop}End</button>`);
   }
   const away = awayStop();
   if (away) {
@@ -289,7 +289,7 @@ function timerHtml() {
       `<button class="pill-btn" id="pt-away">${ICON.plus}Count since then</button><button class="pill-btn" id="pt-start">${ICON.play}Start again</button>`);
   }
   if (total) return bar('', `Practiced <b>${fmtDuration(total)}</b> today`, `<button class="pill-btn" id="pt-start">${ICON.play}Resume</button>`);
-  return bar('', 'Practice timer', `<button class="pill-btn" id="pt-start">${ICON.play}Start practice</button>`);
+  return bar('', 'Practice timer', `<button class="pill-btn" id="pt-start" aria-label="Start practice">${ICON.play}Start</button>`);
 }
 
 let clock = null;
@@ -326,7 +326,6 @@ function cardHtml(it, i, stats) {
   const entry = planEntry(it);
   const played = !!entry;
   const late = !played && (it.bucket === 'hone' || it.bucket === 'learn') && s?.count && overdue(t, stats) >= 1.5;
-  const focus = it.bucket === 'focus';
   return `
   <li class="card-wrap">
     <div class="swipe-bg" aria-hidden="true">
@@ -343,12 +342,12 @@ function cardHtml(it, i, stats) {
       <h2>${esc(t.name)}</h2>
       <div class="card-sub">${pips(t.level)}<span>${esc([levelLabel(t.level), s?.last !== dateStr() && ago(s?.last), s?.count && `${s.count}×`].filter(Boolean).join(' · '))}${late ? ' · <em>overdue</em>' : ''}</span>${noteChip(t)}${recChip(t)}${tempoChip(tempoSource(t, it))}</div>
       <div class="card-actions">
-        ${keyChip(it, t)}
-        ${played ? '' : `<button class="swap icon-btn small" aria-label="${focus ? `Swap for another focus ${t.type}` : it.warmup ? 'Swap for another warm-up' : t.type === 'exercise' ? 'Swap for a different exercise' : 'Swap for a different tune'}">${ICON.swap}</button>`}
+        ${played
+          ? `<div class="rating" role="group" aria-label="How did it go?">${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>`
+          : keyChip(it, t)}
         <button class="check ${played ? 'on' : ''}" aria-label="${played ? 'Unmark played' : 'Mark played'}" aria-pressed="${played}">${ICON.check}</button>
       </div>
       ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? `<button class="link-btn add-warm" data-add-warm>${ICON.plus}Warm-up</button>` : ''}
-      ${played ? `<div class="rating" role="group" aria-label="How did it go?"><span>How did it go?</span>${RATINGS.map((r) => `<button class="${entry.rating === r.v ? 'on' : ''}" data-v="${r.v}">${r.label}</button>`).join('')}</div>` : ''}
       ${played ? suggestionHtml(t, levelSuggestion(t)) : ''}
       ${played && !it.warmup ? tempoSuggestionHtml(tempoSuggestion(t)) : ''}
     </article>

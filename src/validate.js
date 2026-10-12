@@ -200,6 +200,8 @@ export function sanitizeState(s) {
   s.settings = settings(s.settings);
   s.sessions = (Array.isArray(s.sessions) ? s.sessions : []).map(session).filter(Boolean);
   s.greetedOn = isDate(s.greetedOn) ? s.greetedOn : null;
+  // Hints dismissed (or done): shown no more (see ui/shell.js hintHtml).
+  s.hintsSeen = (Array.isArray(s.hintsSeen) ? s.hintsSeen : []).filter((h) => typeof h === 'string' && /^[a-z-]{1,30}$/.test(h));
   s.timing = s.sessions.some((x) => x.id === s.timing) ? s.timing : null;
   s.assistantWishes = (Array.isArray(s.assistantWishes) ? s.assistantWishes : [])
     .filter((w) => w && typeof w === 'object')

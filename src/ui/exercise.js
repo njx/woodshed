@@ -24,7 +24,7 @@ import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
 import {
-  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn,
+  $, $$, ICON, render, statusHtml, toast, withUndo, haptic, openSheet, closeSheet, suggestionHtml, kn, priBadge, openMenu, moreHtml, bindMore,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -151,10 +151,7 @@ export function openExercise(id, opts = {}) {
       ${isNew ? '' : statusHtml(t, itemStatus(t))}
       ${isNew ? '' : planItem?.warmup
         ? `<p class="in-today">${ICON.check}In today’s set, as a warm-up for ${esc(itemById(planItem.warmup)?.name || 'a tune')}</p>`
-        : inToday(t)
-        ? `<p class="in-today">${ICON.check}In today’s set</p>`
-        : `<button class="ghost-btn add-today" id="x-today">${ICON.plus}<span>Add to today’s set</span></button>`}
-      ${isNew || t.solo ? '' : `<button class="ghost-btn add-today" id="x-try">${ICON.plus}<span>Try it through a tune</span></button>`}
+        : inToday(t) ? `<p class="in-today">${ICON.check}In today’s set</p>` : ''}
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? '<button class="link-btn" id="x-to-pattern">Edit pattern</button>'
         : t.abc ? '<button class="link-btn" id="x-edit-abc">Edit</button>' : ''}</div>
@@ -187,6 +184,11 @@ export function openExercise(id, opts = {}) {
         </div>` : `<button class="ghost-btn" id="x-add-abc">${ICON.plus}<span>Add notation</span></button>`}
       ${planItem?.warmup && !prog && chartFor(tempoFrom) ? '<div class="x-tune-chart" id="x-tune-chart"></div>' : ''}
       ${todayHtml()}
+      <label class="field">
+        <span class="field-label">How to practice it</span>
+        <textarea id="x-notes" rows="3" placeholder="Tempo, articulation, range, variations…">${esc(t.notes)}</textarea>
+      </label>
+      ${isNew ? '' : suggestionHtml(t, levelSuggestion(t))}
 
       ${isNew ? '' : tempoFrom !== t
         ? `<div data-item-id="${tempoFrom.id}">${tempoRowHtml(tempoFrom)}<p class="fine">As a warm-up it’s played at ${esc(tempoFrom.name)}’s tempo.</p></div>`
@@ -197,6 +199,28 @@ export function openExercise(id, opts = {}) {
         ${takes.length ? `<ul class="notes panel-list" id="x-takes">${takes.slice(0, 3).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>
           ${takes.length > 3 ? `<p class="fine">${takes.length - 3} more in the Diary.</p>` : ''}`
           : '<p class="fine">Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.</p>'}`}
+      ${isNew ? settingsHtml() : moreHtml('exercise', [CATEGORIES[t.category] || 'Other', t.vary ? `varies the ${t.vary.kind} type` : '', t.keyMode === 'none' ? 'no key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''}, ${KEY_MODES[t.keyMode].label.toLowerCase()}`, LEVELS[t.level ?? 0].label].filter(Boolean).join(' · '), settingsHtml())}
+
+      ${isNew ? `<button class="primary-btn" id="x-save">Add exercise</button>` : `
+        <div class="history">
+          <div class="history-head">
+            <div><b>${s?.count || 0}×</b> played · last ${esc(ago(s?.last))}</div>
+            <button class="pill-btn ${played ? 'on' : ''}" id="x-log">${ICON.check}${played ? 'Played today' : 'Log for today'}</button>
+          </div>
+          ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
+            <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
+            <span>${esc(e.progName ? `${e.progName} in ${rootName(entryKeys(e)[0] ?? 0)}` : exerciseKeysText(entryKeys(e), t, e.types))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
+            <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
+        </div>
+        <div class="field-label row-label"><span>Diary</span><span class="row-links">
+          <button class="link-btn" id="x-note">${ICON.plus}Add a note</button></span></div>
+        ${notes.length ? `<ul class="notes panel-list">${notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>` : '<p class="fine">Notes about this exercise show up here.</p>'}`}
+    `;
+  };
+
+  // How it's set up, seldom changed: under Details (open for a new exercise).
+  function settingsHtml() {
+    return `
       ${harmonyHtml()}
       ${isNew || t.fromTune ? '' : `<label class="as-written use-tunes"><input type="checkbox" id="x-tunes" ${t.solo ? '' : 'checked'}>
         <span>Use with tunes — as a warm-up, or through a tune’s form. Off for technical work like long tones.</span></label>`}
@@ -219,9 +243,9 @@ ${t.fromTune ? '' : `
           <button class="chip ${t.vary.shape === id ? 'on' : ''}" data-shape="${id}">${esc(x.label)}</button>`).join('')}</div>
         <div class="pattern-card">
           <div class="pattern-line" id="x-pattern" aria-live="polite">${esc(patternText(t.vary.kind, t.vary.shape, t.vary.pattern)) || '&nbsp;'}</div>
-          <div class="keypad pattern-pad" id="x-pad">${PATTERN_PAD[t.vary.kind].map((n) => `<button data-pn="${n}">${n}</button>`).join('')}
+          ${t.vary.shape === 'custom' ? `<div class="keypad pattern-pad" id="x-pad">${PATTERN_PAD[t.vary.kind].map((n) => `<button data-pn="${n}">${n}</button>`).join('')}
             <button data-pn="back" aria-label="Delete the last number">⌫</button><button data-pn="clear">Clear</button></div>
-          <p class="fine" id="x-pattern-msg">${patternHint(t.vary.kind)}</p>
+          <p class="fine" id="x-pattern-msg">${patternHint(t.vary.kind)}</p>` : ''}
         </div>` : ''}
 
       <label class="field-label">Choose keys by</label>
@@ -239,32 +263,11 @@ ${t.fromTune ? '' : `
 
 `}
       <label class="field-label">How well do you know it?</label>
-      ${isNew ? '' : suggestionHtml(t, levelSuggestion(t))}
       <div class="seg four" data-field="level">${LEVELS.map((l) => `<button class="${t.level === l.v ? 'on' : ''}" data-v="${l.v}">${l.label}</button>`).join('')}</div>
       <label class="field-label">Priority</label>
       <div class="seg four" data-field="priority">${PRIORITIES.map((p) => `<button class="${t.priority === p.v ? 'on' : ''}" data-v="${p.v}">${p.label}</button>`).join('')}</div>
-      <label class="field">
-        <span class="field-label">How to practice it</span>
-        <textarea id="x-notes" rows="3" placeholder="Tempo, articulation, range, variations…">${esc(t.notes)}</textarea>
-      </label>
-
-      ${isNew ? `<button class="primary-btn" id="x-save">Add exercise</button>` : `
-        <div class="history">
-          <div class="history-head">
-            <div><b>${s?.count || 0}×</b> played · last ${esc(ago(s?.last))}</div>
-            <button class="pill-btn ${played ? 'on' : ''}" id="x-log">${ICON.check}${played ? 'Played today' : 'Log for today'}</button>
-          </div>
-          ${entries.length ? `<ul class="history-list">${entries.slice(0, 8).map((e) => `
-            <li><span>${esc(niceDate(e.date, { weekday: 'short', month: 'short', day: 'numeric' }))}</span>
-            <span>${esc(e.progName ? `${e.progName} in ${rootName(entryKeys(e)[0] ?? 0)}` : exerciseKeysText(entryKeys(e), t, e.types))}${e.bpm ? ` · ${e.bpm} bpm` : ''}</span>
-            <span class="r-${e.rating || 'ok'}">${esc(RATINGS.find((r) => r.v === (e.rating || 'ok')).label)}</span></li>`).join('')}</ul>` : ''}
-        </div>
-        <div class="field-label row-label"><span>Diary</span><span class="row-links">
-          <button class="link-btn" id="x-note">${ICON.plus}Add a note</button></span></div>
-        ${notes.length ? `<ul class="notes panel-list">${notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join('')}</ul>` : '<p class="fine">Notes about this exercise show up here.</p>'}
-        <button class="danger-btn" id="x-delete">Delete exercise</button>`}
-    `;
-  };
+`;
+  }
 
   // Today's keys (and types) for this exercise, changeable: not for a warm-up (its come from its
   // tune), or one without keys.
@@ -521,10 +524,20 @@ ${t.fromTune ? '' : `
       if (!t.vary.types.includes(previewType)) previewType = t.vary.types[0];
       varyChanged();
     }));
-    $$('[data-shape]', sheet).forEach((b) => (b.onclick = () => { t.vary.shape = b.dataset.shape; commit(); refresh(); }));
+    $$('[data-shape]', sheet).forEach((b) => (b.onclick = () => {
+      // Custom starts from the preset that was chosen (its numbers to change).
+      if (b.dataset.shape === 'custom' && t.vary.shape !== 'custom') t.vary.pattern = patternText(t.vary.kind, t.vary.shape, t.vary.pattern);
+      t.vary.shape = b.dataset.shape;
+      commit();
+      refresh();
+    }));
     // Varying exercises are written out from their pattern, further down.
     const toPattern = $('#x-to-pattern', sheet);
-    if (toPattern) toPattern.onclick = () => $('#x-shape', sheet)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (toPattern) toPattern.onclick = () => {
+      const more = $('details.more', sheet);
+      if (more) more.open = true; // (the pattern is under Details)
+      $('#x-shape', sheet)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
     // The number pad edits the pattern; changing a preset makes it your own.
     $$('[data-pn]', sheet).forEach((b) => (b.onclick = async () => {
       const nums = patternText(t.vary.kind, t.vary.shape, t.vary.pattern).split(' ').filter(Boolean);
@@ -583,8 +596,6 @@ ${t.fromTune ? '' : `
       msg.textContent = t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).' : 'From the chord symbols in its notation.';
       commit();
     };
-    const tryBtn = $('#x-try', sheet);
-    if (tryBtn) tryBtn.onclick = () => goTo(() => pickTune(t, { back }));
     const useTunes = $('#x-tunes', sheet);
     if (useTunes) useTunes.onchange = () => {
       if (useTunes.checked) delete t.solo;
@@ -594,8 +605,18 @@ ${t.fromTune ? '' : `
     };
     const tuneChart = $('#x-tune-chart', sheet);
     if (tuneChart) mountChart(tuneChart, tempoFrom, { key: todayItem(tempoFrom)?.key ?? (planItem.form ? planItem.overKey : null), compact: true }); // in the tune's key
-    const addBtn = $('#x-today', sheet);
-    if (addBtn) addBtn.onclick = () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); };
+    bindMore(sheet);
+    // ⋯: add to today, try it through a tune, delete.
+    const menu = $('#item-menu', sheet);
+    if (menu) menu.onclick = () => openMenu(menu, [
+      !planItem?.warmup && !inToday(t) && { label: 'Add to today’s set', fn: () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); } },
+      !t.solo && { label: 'Try it through a tune…', fn: () => goTo(() => pickTune(t, { back })) },
+      { label: 'Delete exercise', danger: true, fn: () => {
+        if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
+        closeSheet();
+        withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
+      } },
+    ]);
 
     if (isNew) {
       $('#x-save', sheet).onclick = () => {
@@ -623,11 +644,6 @@ ${t.fromTune ? '' : `
     bindNotes(sheet, back, refresh);
     // Opening a note replaces this sheet without closing it: stop any playback first.
     $$('[data-note]', sheet).forEach((li) => li.addEventListener('click', () => stopFn?.(), true));
-    $('#x-delete', sheet).onclick = () => {
-      if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
-      closeSheet();
-      withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
-    };
   }
   bind();
 }
@@ -904,6 +920,6 @@ export function exerciseRowHtml(t, stats) {
       <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.abc ? ' <span class="has-abc" title="Has notation">♪</span>' : ''}${t.off ? ' <span class="off-mark">off</span>' : ''}</b>
       <span class="row-sub">${esc(CATEGORIES[t.category] || 'Other')} · ${esc(mode)} · ${esc(ago(s?.last))}</span>
     </div>
-    <span class="pri p${t.priority}">P${t.priority}</span>
+    ${priBadge(t.priority)}
   </li>`;
 }
