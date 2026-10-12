@@ -291,24 +291,25 @@ document.addEventListener('pointerdown', (e) => { if (openWrap && !openWrap.cont
 // (_swiped: just swiped, so the click that ends it isn't a tap.)
 export type SwipeCard = HTMLElement & { _swiped?: boolean };
 export interface SwipeOpts { right?: () => void; actions?: (() => void)[] }
-export function attachSwipe(card: SwipeCard, { right, actions = [] }: SwipeOpts): void {
+// opts: what the card's swipes do, asked for as each swipe starts (a card's actions change once
+// it's played). Its action buttons call closeSwipes() and the action themselves.
+export function attachSwipe(card: SwipeCard, opts: () => SwipeOpts): void {
   const wrap = card.parentElement!; // the .card-wrap
   const THRESH = 90;
-  const openW = actions.length * ACTION_W;
+  let right: SwipeOpts['right'], actions: (() => void)[] = [], openW = 0;
+  const current = () => {
+    ({ right, actions = [] } = opts());
+    openW = actions.length * ACTION_W;
+    wrap.style.setProperty('--open', `${openW}px`);
+  };
+  current();
   let sx = 0, sy = 0, dx = 0, base = 0, active = false, decided = false, horiz = false, pid: number | null = null;
   const full = () => Math.max(openW + 70, card.offsetWidth * 0.6);
-  wrap.style.setProperty('--open', `${openW}px`);
-
-  $$('.swipe-actions [data-act]', wrap).forEach((b) => (b.onclick = (e) => {
-    e.stopPropagation();
-    const fn = actions[Number(b.dataset.act)];
-    closeSwipes();
-    fn?.();
-  }));
 
   // (A swipe can start on one of the card's buttons, its chips; then it isn't a tap on it.)
   card.addEventListener('click', (e) => { if (card._swiped && (e.target as Element).closest('button')) { e.stopPropagation(); e.preventDefault(); } }, true);
   card.addEventListener('pointerdown', (e) => {
+    current();
     sx = e.clientX; sy = e.clientY; dx = 0;
     base = wrap.classList.contains('open') ? -openW : 0;
     active = true; decided = false; horiz = false; pid = e.pointerId;

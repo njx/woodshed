@@ -20,8 +20,12 @@ export class View extends LitElement {
     // Laid out as if it weren't there: its parts are the page's, as before it was a component.
     this.style.display = 'contents';
   }
-  // Called by mount() each time the app redraws this screen.
-  refresh() { this.requestUpdate(); }
+  // Called by mount() each time the app redraws this screen. The components in it show the same
+  // data (changed in place, so their properties needn't change): they're redrawn too.
+  refresh() {
+    this.requestUpdate();
+    this.querySelectorAll('*').forEach((el) => { if (el instanceof View) el.requestUpdate(); });
+  }
 }
 
 // A screen's component in the #view container: made the first time, then refreshed.

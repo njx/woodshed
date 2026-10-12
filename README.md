@@ -394,8 +394,10 @@ of album track lists checked online.
 It's a small Vite project in TypeScript (strict; `npm run typecheck`, which runs before every
 deploy), with Vitest for unit tests and Playwright for end-to-end tests. `src/types.ts` has the
 app's data model (what `store.state` holds).
-The screens are moving over to [Lit](https://lit.dev) components, one at a time (Settings so
-far; `src/ui/lit.ts` has the shared pieces); the rest build HTML from template strings.
+The screens are moving over to [Lit](https://lit.dev) components, one at a time: Today (with
+its cards and the practice timer), the library, Progress, Settings and the pickers so far;
+`src/ui/lit.ts` has the shared pieces. The details sheets, Diary and the tools still build HTML
+from template strings.
 
 ```sh
 git submodule update --init   # chord charts (vendor/JazzStandards)

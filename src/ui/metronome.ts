@@ -198,12 +198,6 @@ export function mountMetronomePill() {
 
 // ---------- Shared pieces for cards and detail sheets ----------
 
-export function tempoChip(t: Item): string {
-  return t.tempo
-    ? `<button class="tempo-chip" data-metro="${t.id}" aria-label="Tempo ${t.tempo} bpm, open metronome">${ICON.quarter}<span>${t.tempo}</span></button>`
-    : `<button class="tempo-chip empty" data-metro="${t.id}" aria-label="Set a tempo">${ICON.metro}</button>`;
-}
-
 export function tempoSuggestionHtml(sug: ReturnType<typeof tempoSuggestion>): string {
   if (!sug) return '';
   return `<div class="suggest tempo ${sug.up ? 'up' : 'down'}"><span>${esc(sug.text)}</span>

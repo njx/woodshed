@@ -11,13 +11,13 @@ import type { Exercise, PlanItem, Tune } from '../types.js';
 // Picking what goes with what: a warm-up for a tune, or a tune to take an exercise through.
 
 interface Row { name: string; sub?: string; hidden?: boolean; pick: () => void }
-const rowHtml = (r: Row, i: number) => html`<li class="row" data-pick=${i} role="button" tabindex="0" ?hidden=${r.hidden} @click=${r.pick}>
+const row = (r: Row, i: number) => html`<li class="row" data-pick=${i} role="button" tabindex="0" ?hidden=${r.hidden} @click=${r.pick}>
   <div class="row-main"><b>${r.name}</b>${r.sub ? html`<span class="row-sub">${r.sub}</span>` : nothing}</div></li>`;
 // Groups of rows under their headings (numbered across groups); an empty group isn't shown.
 function groups(list: { label: string; rows: Row[] }[], { labels = true } = {}): TemplateResult[] {
   let n = 0;
   return list.filter((g) => g.rows.length).map((g) => html`
-    <h3 class="section-label" ?hidden=${!labels}>${g.label}</h3><ul class="list pick-list">${g.rows.map((r) => rowHtml(r, n++))}</ul>`);
+    <h3 class="section-label" ?hidden=${!labels}>${g.label}</h3><ul class="list pick-list">${g.rows.map((r) => row(r, n++))}</ul>`);
 }
 
 // How a warm-up goes: "Over ii–V7–I in B♭", "iiø–V7–i in G", "Gm6 · Aø7 · D7", "Through the form".

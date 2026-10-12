@@ -967,16 +967,3 @@ export function exerciseRow(t: Exercise, stats: Map<Id, ItemStats>): TemplateRes
     ${raw(priBadge(t.priority))}
   </li>`;
 }
-// (The same, as HTML, for Today's "Also played today" until Today is a component.)
-export function exerciseRowHtml(t: Exercise, stats: Map<Id, ItemStats>): string {
-  const s = stats.get(t.id);
-  const mode = t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''} · ${KEY_MODES[t.keyMode].label.toLowerCase()}`;
-  return `
-  <li class="row ${t.off ? 'off' : ''}" data-id="${t.id}" role="button" tabindex="0">
-    <div class="row-main">
-      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.abc ? ' <span class="has-abc" title="Has notation">♪</span>' : ''}${t.off ? ' <span class="off-mark">off</span>' : ''}</b>
-      <span class="row-sub">${esc(CATEGORIES[t.category] || 'Other')} · ${esc(mode)} · ${esc(ago(s?.last))}</span>
-    </div>
-    ${priBadge(t.priority)}
-  </li>`;
-}

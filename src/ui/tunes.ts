@@ -1,6 +1,5 @@
 import { store } from '../store.js';
 import { ago } from '../dates.js';
-import { esc } from '../util.js';
 import { itemStats, isDue } from '../practice.js';
 import { ICON, ui, saveUi, pips, priBadge, keysText, switchView } from './shell.js';
 import { openItem } from './item.js';
@@ -28,21 +27,6 @@ export function tuneRow(t: Tune, stats: Stats): TemplateResult {
     ${raw(priBadge(t.priority))}
   </li>`;
 }
-// (The same, as HTML, for Today's "Also played today" until Today is a component.)
-export function rowHtml(t: Tune, stats: Stats): string {
-  const s = stats.get(t.id);
-  const keys = keysText(t);
-  return `
-  <li class="row ${t.off ? 'off' : ''}" data-id="${t.id}" role="button" tabindex="0">
-    <div class="row-main">
-      <b>${t.focus ? `<span class="focus-mark" title="Focus">${ICON.focus}</span>` : ''}${esc(t.name)}${t.mine ? ' <span class="mine">mine</span>' : ''}${t.off ? ' <span class="off-mark">off</span>' : ''}</b>
-      <span class="row-sub">${keys ? `<span class="row-key">${esc(keys)}</span> · ` : ''}${esc(t.style)} · ${esc(ago(s?.last))}${s?.count ? ` · ${s.count}×` : ''}</span>
-    </div>
-    ${pips(t.level)}
-    ${priBadge(t.priority)}
-  </li>`;
-}
-
 export const FILTERS: Filter<Tune>[] = [
   { id: 'all', label: 'All', fn: () => true },
   { id: 'due', label: 'Due', fn: isDue },
