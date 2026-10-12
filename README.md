@@ -435,6 +435,10 @@ Layout:
   tempo suggestions, the tuner (a generated sax-like tone as the mic), the assistant (against a
   mock of the API), the 4am day rollover, offline use, and upgrading from the first version.
   `Math.random` is seeded, so each run sees the same set. They run before every deploy.
+  `e2e/visual.spec.js` compares screenshots of the main screens with the saved ones (local only:
+  the app uses system fonts, which differ in CI); after a deliberate change to the look, run
+  `npx playwright test visual --update-snapshots` and check the new images.
+  `scripts/e2e-coverage.mjs` lists the code the end-to-end tests never run (instructions at its top).
 
 ## Deploying
 

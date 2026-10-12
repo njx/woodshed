@@ -26,6 +26,18 @@ export const test = base.extend({
     await use();
   }, { auto: true }],
 
+  // COVERAGE_DIR=…: the page's JS coverage, one file a test (see scripts/e2e-coverage.mjs).
+  jsCoverage: [async ({ page }, use, info) => {
+    const dir = process.env.COVERAGE_DIR;
+    if (dir) await page.coverage.startJSCoverage({ resetOnNavigation: false });
+    await use();
+    if (!dir) return;
+    const entries = (await page.coverage.stopJSCoverage()).filter((e) => /\/assets\/.*\.js$/.test(e.url));
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}/${info.testId}.json`, JSON.stringify(entries.map(({ url, functions }) => ({ url, functions }))));
+  }, { auto: true }],
+
   ui: async ({ page }, use) => {
     await use(helpers(page));
   },
@@ -44,7 +56,6 @@ function helpers(page) {
       await page.locator(`.tab[data-tab="${name}"]`).click();
       await expect(page.locator(`.tab[data-tab="${name}"]`)).toHaveClass(/\bon\b/);
     },
-    // Open a details sheet's collapsed Details (set-once fields).
     // Open one of a details sheet's settings (its row) in the panel over the sheet.
     async setting(key) {
       await page.locator(`.sheet [data-open="${key}"]`).click();
