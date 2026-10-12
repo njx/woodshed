@@ -24,6 +24,7 @@ import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './m
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
+import { html, nothing, raw, type TemplateResult } from './lit.js';
 import type { TuneObject } from 'abcjs';
 import type { Duration } from '../abc.js';
 import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, Level, Priority, Progression, Shape, Tune, Vary } from '../types.js';
@@ -953,6 +954,20 @@ export function openNotationEditor(t: Exercise, back?: () => void): void {
 
 // ---------- Library list ----------
 
+// An exercise's row in the library.
+export function exerciseRow(t: Exercise, stats: Map<Id, ItemStats>): TemplateResult {
+  const s = stats.get(t.id);
+  const mode = t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''} · ${KEY_MODES[t.keyMode].label.toLowerCase()}`;
+  return html`
+  <li class="row ${t.off ? 'off' : ''}" data-id=${t.id} role="button" tabindex="0">
+    <div class="row-main">
+      <b>${t.focus ? html`<span class="focus-mark" title="Focus">${raw(ICON.focus)}</span>` : nothing}${t.name}${t.abc ? html` <span class="has-abc" title="Has notation">♪</span>` : nothing}${t.off ? html` <span class="off-mark">off</span>` : nothing}</b>
+      <span class="row-sub">${CATEGORIES[t.category] || 'Other'} · ${mode} · ${ago(s?.last)}</span>
+    </div>
+    ${raw(priBadge(t.priority))}
+  </li>`;
+}
+// (The same, as HTML, for Today's "Also played today" until Today is a component.)
 export function exerciseRowHtml(t: Exercise, stats: Map<Id, ItemStats>): string {
   const s = stats.get(t.id);
   const mode = t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''} · ${KEY_MODES[t.keyMode].label.toLowerCase()}`;

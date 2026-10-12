@@ -135,23 +135,17 @@ export function priBadge(p: Priority): string {
   return p <= 2 ? `<span class="pri p${p}" title="${PRIORITIES[p - 1].label} priority">P${p}</span>` : '';
 }
 
-export function transposeToggle(): string {
+// The keys' instrument (the Keys in … button): the next one you play, or Settings to pick more.
+export function switchView(): void {
   const s = store.state.settings;
-  const cur = TRANSPOSITIONS[s.view];
-  const multi = s.instruments.length > 1;
-  return `<button class="transpose ${multi ? '' : 'solo'}" id="transpose" aria-label="Keys shown for ${esc(cur.label)} instruments${multi ? '. Tap to switch' : ''}">
-    <span>Keys in</span><b>${esc(cur.label)}</b>${multi ? ICON.swap : ''}</button>`;
+  if (s.instruments.length < 2) return goTo('settings');
+  s.view = s.instruments[(s.instruments.indexOf(s.view) + 1) % s.instruments.length];
+  save();
+  render();
 }
 export function bindTransposeToggle(root: Root): void {
   const b = $('#transpose', root);
-  if (!b) return;
-  b.onclick = () => {
-    const s = store.state.settings;
-    if (s.instruments.length < 2) return goTo('settings');
-    s.view = s.instruments[(s.instruments.indexOf(s.view) + 1) % s.instruments.length];
-    save();
-    render();
-  };
+  if (b) b.onclick = switchView;
 }
 
 // ---------- Bottom sheet ----------
