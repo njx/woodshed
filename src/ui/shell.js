@@ -132,7 +132,8 @@ export function bindTransposeToggle(root) {
 // ---------- Bottom sheet ----------
 
 let sheetClose = null;
-let sheetGen = 0; // which sheet is current (a closed one's cleanup mustn't clear the next)
+let sheetGen = 0;
+let opening = null; // the frame a sheet slides in on (closing before it still closes it) // which sheet is current (a closed one's cleanup mustn't clear the next)
 export function openSheet(html, onClose) {
   sheetGen++;
   closeMenu();
@@ -144,7 +145,8 @@ export function openSheet(html, onClose) {
       <div class="sheet-body">${html}</div>
     </section>`;
   const sheet = $('.sheet', root);
-  requestAnimationFrame(() => root.classList.add('open'));
+  cancelAnimationFrame(opening);
+  opening = requestAnimationFrame(() => { opening = null; root.classList.add('open'); });
   $('.sheet-backdrop', root).onclick = closeSheet;
   $('.sheet-x', root).onclick = closeSheet;
   sheetClose = onClose;
@@ -232,7 +234,9 @@ function dragToDismiss(root, sheet) {
 export function closeSheet() {
   closeMenu();
   const root = $('#sheet-root');
-  if (!root.classList.contains('open')) return;
+  if (!root.classList.contains('open') && opening == null) return;
+  cancelAnimationFrame(opening);
+  opening = null;
   root.classList.remove('open');
   const sheet = $('.sheet', root);
   if (sheet) sheet.style.transform = '';
