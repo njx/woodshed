@@ -85,7 +85,8 @@ export const tempoSource = (t: Item, planItem?: Partial<PlanItem> | null): Item 
 
 export function markPlayed(itemId: Id, planItem?: Partial<PlanItem> | null): void {
   if (entryFor(itemId, planItem)) return;
-  const t = itemById(itemId)!; // TODO(ts): not checked; callers pass an item that exists
+  const t = itemById(itemId);
+  if (!t) return;
   // Played again today (before another tune): scheduled from where it was this morning.
   const earlier = todaysEntry(itemId);
   const entry: LogEntry = {

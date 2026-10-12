@@ -16,7 +16,7 @@ import { openItem } from './item.js';
 import { rememberPanel, bindNotes, openNote } from './diary.js';
 import { pickWarmup } from './pickers.js';
 import { openRecorder } from './recorder.js';
-import { exerciseKeysText, rootName, takeLabel } from './exercise.js';
+import { exerciseKeysText, exerciseRowHtml, rootName, takeLabel } from './exercise.js';
 import { entriesFor } from '../diary.js';
 import { openMetronome, tempoChip, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { openTuner } from './tuner.js';
@@ -42,7 +42,6 @@ export function renderToday(root: HTMLElement): void {
   const today = dateStr();
   const planIds = new Set(items.map((i) => i.itemId));
   const extras = state.log.filter((e) => e.date === today && !planIds.has(e.itemId)).map((e) => itemById(e.itemId)).filter(Boolean) as Item[];
-  // TODO(ts): extras can be exercises too (logged from their details), drawn here as tune rows.
 
   root.innerHTML = `
     <header class="top today-top">
@@ -67,7 +66,7 @@ export function renderToday(root: HTMLElement): void {
     <button class="ghost-btn" id="more">${ICON.plus}<span>One more tune</span></button>
     ${extras.length ? `
       <h3 class="section-label">Also played today</h3>
-      <ul class="list">${extras.map((t) => rowHtml(t as Tune, stats)).join('')}</ul>` : ''}
+      <ul class="list">${extras.map((t) => (t.type === 'exercise' ? exerciseRowHtml(t, stats) : rowHtml(t, stats))).join('')}</ul>` : ''}
     ${hintHtml('swipe', 'Swipe a card right when you’ve played it, left to swap or remove it. Tap for details.')}
   `;
 

@@ -84,6 +84,21 @@ describe('checking imported data', () => {
     expect(s.settings).toMatchObject({ instruments: ['bb'], view: 'bb', exercises: 2 });
   });
 
+  it('doesn’t take names every object has (like "constructor") for scale types, shapes or instruments', () => {
+    const s = migrate({
+      version: 11,
+      items: [
+        { id: 'x1', type: 'exercise', name: 'A', vary: { kind: 'constructor', types: ['major'] } },
+        { id: 'x2', type: 'exercise', name: 'B', vary: { kind: 'scale', types: ['toString', 'major'], shape: 'constructor' } },
+      ],
+      log: [],
+      settings: { instruments: ['toString', 'bb'] },
+    });
+    expect(s.items[0].vary).toBeNull();
+    expect(s.items[1].vary).toMatchObject({ kind: 'scale', types: ['major'], shape: 'updown' });
+    expect(s.settings.instruments).toEqual(['bb']);
+  });
+
   it('leaves good data as it is', () => {
     const s = migrate({ version: 3, items: [tune({ id: 'a', name: 'Solar', keys: [12], level: 2, priority: 1, tempo: 140 })], log: [] });
     expect(s.items[0]).toMatchObject({ id: 'a', name: 'Solar', keys: [12], level: 2, priority: 1, tempo: 140 });

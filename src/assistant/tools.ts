@@ -652,13 +652,12 @@ export const TOOLS: Tool[] = [
       const keys = readKeys(a.keys);
       if (name.error || keys.error) return name.error ? name : keys;
       if (a.key_mode === 'fixed' && !keys.keys!.length) return { error: 'key_mode fixed needs at least one key.' };
-      // TODO(ts): no `focus` (Exercise requires it); it's undefined until validate.ts sets it on the next load.
       const t = {
         id: uid(), type: 'exercise', name: name.name!, category: a.category, keyMode: a.key_mode,
         keysPerSession: Math.max(1, Math.min(12, a.keys_per_session || 1)),
         keys: [...new Set(keys.keys!.map((k) => k % 12))],
         abc: a.abc?.trim() || '', meter: a.meter || '4/4', notes: a.notes || '',
-        tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: 0, ivl: null, due: null, vary: null,
+        tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: 0, focus: false, ivl: null, due: null, vary: null,
       } as Exercise;
       const varyError = applyVary(t, a);
       if (varyError) return { error: varyError };
@@ -685,14 +684,13 @@ export const TOOLS: Tool[] = [
       const name = readName(a.name);
       const keys = readKeys(a.keys);
       if (name.error || keys.error) return name.error ? name : keys;
-      // TODO(ts): no `focus` (Tune requires it); it's undefined until validate.ts sets it on the next load.
       const t = {
         id: uid(), type: 'tune', name: name.name!, style: a.style || 'Standard',
         keys: [...new Set(keys.keys!)],
         // (a.level and a.priority are names from LEVELS and PRIORITIES: checked against the schema)
         level: a.level ? LEVELS.findIndex((l) => l.label.toLowerCase() === a.level) as Level : 0,
         priority: a.priority ? (PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1) as Priority : 2,
-        notes: '', mine: true, ivl: null, due: null,
+        notes: '', mine: true, focus: false, ivl: null, due: null,
       } as Tune;
       store.state.items.push(t);
       if (a.add_to_today) addToPlan(t, null);

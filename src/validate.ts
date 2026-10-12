@@ -2,7 +2,7 @@ import { uid } from './util.js';
 import { VARY, SHAPES, CHORDS } from './theory.js';
 import { SOUNDS, SWING } from './sounds.js';
 import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
-import type { Chart, ChordType, DateStr, DiaryEntry, Id, Item, Key, LogEntry, Plan, PracticeSession, Progression, Settings, Shape, State, Vary } from './types.js';
+import type { Chart, DateStr, DiaryEntry, Id, Item, Key, LogEntry, Plan, PracticeSession, Progression, Settings, Shape, State, Vary } from './types.js';
 
 // Makes saved or imported state safe to use: every field the app reads gets the type it expects.
 // Ids and enum values end up in HTML attributes and class names, so anything unexpected is
@@ -19,6 +19,8 @@ const isDate = (x: unknown): x is DateStr => typeof x === 'string' && DATE.test(
 const str = (x: unknown, max = 20000): string => (typeof x === 'string' ? x.slice(0, max) : x == null ? '' : String(x).slice(0, max));
 const num = (x: unknown, min: number, max: number): number | null => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : null);
 const int = (x: Raw, min: number, max: number): number | null => (Number.isInteger(x) && x >= min && x <= max ? x : null);
+// A table's own key (not one every object has, like 'constructor').
+const has = (table: object, k: unknown): boolean => typeof k === 'string' && Object.hasOwn(table, k);
 const oneOf = <T, F>(x: Raw, allowed: readonly T[], fallback: F): T | F => (allowed.includes(x) ? x : fallback);
 const keyList = (a: unknown, max: number): Key[] => (Array.isArray(a) ? a.filter((k) => int(k, 0, max) != null) : []);
 
@@ -67,7 +69,7 @@ function item(t: Raw, ids: Set<Id>): Item | null {
 // A progression for a warm-up: { name, chords: [{ d, family }] }.
 function prog(p: Raw): Progression | null {
   const chords = (Array.isArray(p?.chords) ? p.chords : []).slice(0, 16)
-    .filter((c: Raw) => int(c?.d, 0, 11) != null && CHORDS[c.family as ChordType]).map((c: Raw) => ({ d: c.d, family: c.family }));
+    .filter((c: Raw) => int(c?.d, 0, 11) != null && has(CHORDS, c.family)).map((c: Raw) => ({ d: c.d, family: c.family }));
   return chords.length ? { name: str(p.name, 60), chords } : null;
 }
 
@@ -90,14 +92,11 @@ function chart(c: Raw): Chart | null {
 }
 
 // An exercise's scale or chord variation, or null.
-// (Table lookups by keys from the data: an unknown key finds nothing.)
-// TODO(ts): …except an Object.prototype name: kind 'constructor' passes the check and then
-// VARY[kind].types is undefined, so known[id] throws (shape 'constructor' too: .kinds.includes).
 function vary(v: Raw): Vary | null {
-  if (!v || typeof v !== 'object' || !VARY[v.kind as Vary['kind']]) return null;
+  if (!v || typeof v !== 'object' || !has(VARY, v.kind)) return null;
   const known: Record<string, object> = VARY[v.kind as Vary['kind']].types;
-  const types = (Array.isArray(v.types) ? v.types : []).filter((id: Raw, i: number, a: Raw[]) => known[id] && a.indexOf(id) === i);
-  const shape = SHAPES[v.shape as Shape]?.kinds.includes(v.kind) ? v.shape : 'updown';
+  const types = (Array.isArray(v.types) ? v.types : []).filter((id: Raw, i: number, a: Raw[]) => has(known, id) && a.indexOf(id) === i);
+  const shape = has(SHAPES, v.shape) && SHAPES[v.shape as Shape].kinds.includes(v.kind) ? v.shape : 'updown';
   return { kind: v.kind, types: types.length ? types : [...VARY[v.kind as Vary['kind']].defaults], shape, pattern: str(v.pattern, 200) };
 }
 const typeList = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && ID.test(x)) : []);
@@ -179,7 +178,7 @@ function plan(p: Raw, ids: Set<Id>): Plan | null {
 function settings(s: Raw): Settings {
   s = { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
   for (const k of ['exercises', 'hone', 'learn', 'fresh', 'focusTunes', 'focusExercises'] as const) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
-  s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x: Raw) => x in TRANSPOSITIONS);
+  s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x: Raw) => has(TRANSPOSITIONS, x));
   if (!s.instruments.length) s.instruments = ['c'];
   if (!s.instruments.includes(s.view)) s.view = s.instruments[0];
   s.listen = oneOf(s.listen, Object.keys(LISTEN_SERVICES), DEFAULT_SETTINGS.listen);

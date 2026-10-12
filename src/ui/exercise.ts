@@ -79,9 +79,8 @@ export interface ExerciseOpts { pid?: Id; keys?: Key[] | null; types?: string[];
 export function openExercise(id: Id | null, opts: ExerciseOpts = {}): void {
   const state = store.state;
   const isNew = !id;
-  // TODO(ts): a new exercise has no `focus` or `vary` (validate.ts fills them in on the next load).
   const item: Item | undefined = isNew
-    ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', notes: '', priority: 2, level: 0, ivl: null, due: null } as Omit<Exercise, 'focus' | 'vary'> as Exercise
+    ? { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', vary: null, notes: '', priority: 2, level: 0, focus: false, ivl: null, due: null } satisfies Exercise
     : itemById(id!);
   if (!item || item.type !== 'exercise') return;
   const t = item;

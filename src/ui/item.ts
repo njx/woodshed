@@ -29,13 +29,12 @@ export function openItem(id: Id | null, opts?: ExerciseOpts): void {
   const state = store.state;
   if (id && itemById(id)?.type === 'exercise') return openExercise(id, opts);
   const isNew = !id;
-  // (A new tune has no `focus` yet: unset reads as not.)
   const t = isNew
-    ? { id: uid(), type: 'tune', name: ui.query.trim(), style: 'Standard', priority: 2, level: 0, keys: [] as Key[], notes: '', mine: true, ivl: null, due: null } satisfies Omit<Tune, 'focus'> as Tune
+    ? { id: uid(), type: 'tune', name: ui.query.trim(), style: 'Standard', priority: 2, level: 0, keys: [] as Key[], notes: '', mine: true, focus: false, ivl: null, due: null } satisfies Tune as Tune
     : itemById(id) as Tune | undefined; // (an exercise opened above)
   if (!t) return;
-  // TODO(ts): exercises have no style, so this has undefined in it too (an empty <option> below).
-  const styles = [...new Set(state.items.map((x) => ('style' in x ? x.style : undefined)))].sort();
+  // The styles in use, to pick from.
+  const styles = [...new Set(state.items.flatMap((x) => (x.type === 'tune' ? [x.style] : [])))].sort();
   const view = state.settings.view;
 
   // Key chips are laid out by written pitch for the current transposition.

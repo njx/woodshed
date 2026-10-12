@@ -269,9 +269,7 @@ export function twoFives(chart: Chart): { target: number; minor: boolean; count:
     if (!['m7', 'm7b5'].includes(fa) || !isDominant(fb) || (b.root - a.root + 12) % 12 !== 5) continue;
     const target = (b.root + 5) % 12;
     const next = seq[i + 2];
-    // TODO(ts): next is undefined for a ii–V at the very end, so minor is undefined, not false, and
-    // the id ("…:undefined") counts it apart from the same ii–V elsewhere ("…:false").
-    const minor = fa === 'm7b5' || (next && next.root === target && ['m6', 'm7', 'mMaj7'].includes(chordFamily(next.q)));
+    const minor = fa === 'm7b5' || (!!next && next.root === target && ['m6', 'm7', 'mMaj7'].includes(chordFamily(next.q)));
     const id = `${target}:${minor}`;
     const f = found.get(id) || { target, minor, count: 0 };
     f.count++;

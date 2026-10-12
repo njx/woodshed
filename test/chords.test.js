@@ -99,6 +99,10 @@ describe('what’s in a chart', () => {
     expect(iiv[0]).toMatchObject({ target: 7, minor: true }); // Am7b5 D7 → Gm
     expect(iiv.some((x) => x.target === 10 && !x.minor)).toBe(true); // Cm7 F7 → B♭
   });
+  it('counts a ii–V at the very end with the same one elsewhere', () => {
+    const { chart: c } = chartFromText('A: Dm7 G7 | Cmaj7 | Dm7 | G7');
+    expect(twoFives(c)).toEqual([{ target: 0, minor: false, count: 2 }]);
+  });
 });
 
 it('doesn’t mistake maj for minor', async () => {
