@@ -8,6 +8,7 @@ import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmar
 import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { mountChart } from './chart.js';
+import { swapInToday, removeFromToday } from './today.js';
 import { pickTune } from './pickers.js';
 import { harmonyOf } from '../warmups.js';
 import { entryKeys } from '../keystats.js';
@@ -608,8 +609,12 @@ ${t.fromTune ? '' : `
     bindMore(sheet);
     // ⋯: add to today, try it through a tune, delete.
     const menu = $('#item-menu', sheet);
+    // (From its card in today's set: swap it or take it out, as a swipe left does.)
+    const card = opts.pid && planItem?.pid === opts.pid && !isPlanItemPlayed(planItem) ? planItem : null;
     if (menu) menu.onclick = () => openMenu(menu, [
       !planItem?.warmup && !inToday(t) && { label: 'Add to today’s set', fn: () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); } },
+      card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
+      card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
       !t.solo && { label: 'Try it through a tune…', fn: () => goTo(() => pickTune(t, { back })) },
       { label: 'Delete exercise', danger: true, fn: () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;

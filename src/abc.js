@@ -180,7 +180,8 @@ export function chordTimes(body, meter = '4/4') {
   const out = [];
   let pending = 0; // eighths before the first chord symbol
   let triplet = 0;
-  const re = /"([^"]*)"|![^!]*!|\{[^}]*\}|\((\d)|[_^=]*[A-Ga-gzx][,']*(\d*)(\/*)(\d*)/g;
+  // (Inline fields like [K:Bb] are skipped; notes sounded together, [DFA]2, count once.)
+  const re = /"([^"]*)"|![^!]*!|\{[^}]*\}|\[[A-Za-z]:[^\]]*\]|\((\d)|(?:\[[^\]]*\]|[_^=]*[A-Ga-gzx][,']*)(\d*)(\/*)(\d*)/g;
   for (const m of String(body).matchAll(re)) {
     if (m[1] != null) {
       const c = parseChord(m[1]);
@@ -192,7 +193,7 @@ export function chordTimes(body, meter = '4/4') {
       continue;
     }
     if (m[2]) { triplet = Number(m[2]); continue; }
-    if (m[0].startsWith('!') || m[0].startsWith('{')) continue;
+    if (m[0].startsWith('!') || m[0].startsWith('{') || /^\[[A-Za-z]:/.test(m[0])) continue;
     let len = m[3] ? Number(m[3]) : 1;
     if (m[4]) len /= m[5] ? Number(m[5]) : 2 ** m[4].length;
     if (triplet > 0) { len *= 2 / 3; triplet--; }

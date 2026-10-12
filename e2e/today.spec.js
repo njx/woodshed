@@ -194,3 +194,26 @@ test('a tune can be focus, on, or off (left out of the pool) @narrow', async ({ 
   await expect(page.locator('.chip[data-f="focus"] .count')).toHaveText('1');
   await ui.expectNoSideScroll();
 });
+
+test('a card’s Swap and Remove are also in its details’ ⋯ menu (no swipe needed)', async ({ page, ui }) => {
+  await ui.start();
+  const card = page.locator('.card').first();
+  const name = await card.locator('h2').textContent();
+  await card.locator('h2').click();
+  await ui.menu('Swap for another');
+  await expect(page.locator('#toast')).toContainText(`Swapped out ${name}`);
+  await expect(page.locator('.card').first().locator('h2')).not.toHaveText(name);
+  const next = await page.locator('.card').first().locator('h2').textContent();
+  await page.locator('.card').first().locator('h2').click();
+  await ui.menu('Take out of today’s set');
+  await expect(page.locator('.card h2', { hasText: next })).toHaveCount(0);
+  // The menu closes with its button, and with the sheet.
+  await page.locator('.card').first().locator('h2').click();
+  await page.click('#item-menu');
+  await expect(page.locator('.menu-pop')).toHaveCount(1);
+  await page.click('#item-menu');
+  await expect(page.locator('.menu-pop')).toHaveCount(0);
+  await page.click('#item-menu');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.menu-pop')).toHaveCount(0);
+});

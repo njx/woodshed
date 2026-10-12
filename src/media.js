@@ -32,6 +32,14 @@ export function constraints(kind, facingMode = 'user', mic = null) {
   return { audio, video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
 }
 
+// Recordings being saved (the file, then the note): an update mustn't reload the app meanwhile.
+let saving = 0;
+export const savingMedia = () => saving > 0;
+export async function whileSaving(fn) {
+  saving++;
+  try { return await fn(); } finally { saving--; }
+}
+
 export async function saveClip(blob, kind, ms) {
   const clip = { id: uid(), kind, mime: blob.type, ms: Math.round(ms), size: blob.size };
   await mediaPut(clip.id, blob);
@@ -86,7 +94,9 @@ export async function strayClips() {
 // Puts stray recordings back, each in a note of its own ("Recovered recording"). Returns how many.
 export async function restoreStrayClips(addEntry) {
   let n = 0;
+  const seen = (await kvGet(ORPHANS).catch(() => null)) || {};
   for (const id of await strayClips()) {
+    if (!orphanIds(store.state, [id]).length) continue; // (in a note by now)
     const blob = await mediaGet(id).catch(() => null);
     if (!blob) continue;
     const kind = (blob.type || '').startsWith('video') ? 'video' : 'audio';
@@ -100,9 +110,12 @@ export async function restoreStrayClips(addEntry) {
       el.preload = 'metadata';
       el.src = url;
     });
+    if (!orphanIds(store.state, [id]).length) continue;
     addEntry({ text: 'Recovered recording', media: [{ id, kind, mime: blob.type || '', ms: Math.round(ms), size: blob.size }], take: true });
+    delete seen[id]; // in a note again: if it's ever let go, its 30 days start afresh
     n++;
   }
+  await kvSet(ORPHANS, seen).catch(() => {});
   return n;
 }
 

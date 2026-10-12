@@ -56,3 +56,11 @@ describe('chords in notation, timed', async () => {
     expect(chordTimes('C D "^swing" E F')).toEqual([]);
   });
 });
+
+describe('chord times with notes together and inline fields', async () => {
+  const { chordTimes } = await import('../src/abc.js');
+  it('counts [DFA]4 once and skips [K:…]', () => {
+    expect(chordTimes('"Dm7"[DFA]4 [DFA]4|"G7"G8|').map((c) => c.beats)).toEqual([4, 4]);
+    expect(chordTimes('"Dm7"[K:Bb]B2 b2 z4|').map((c) => c.beats)).toEqual([4]);
+  });
+});

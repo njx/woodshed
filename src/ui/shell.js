@@ -135,6 +135,7 @@ let sheetClose = null;
 let sheetGen = 0; // which sheet is current (a closed one's cleanup mustn't clear the next)
 export function openSheet(html, onClose) {
   sheetGen++;
+  closeMenu();
   const root = $('#sheet-root');
   root.innerHTML = `
     <div class="sheet-backdrop"></div>
@@ -229,6 +230,7 @@ function dragToDismiss(root, sheet) {
   grab.addEventListener('pointercancel', (e) => { if (e.pointerType === 'mouse') end(e.clientY, true); });
 }
 export function closeSheet() {
+  closeMenu();
   const root = $('#sheet-root');
   if (!root.classList.contains('open')) return;
   root.classList.remove('open');
@@ -408,6 +410,8 @@ document.addEventListener('click', (e) => {
 // items: [{ label, fn, danger? }] (falsy ones are skipped). Opens under `anchor`; a tap outside
 // (or on an item) closes it.
 export function openMenu(anchor, items) {
+  // (Its button again closes it.)
+  if (openPop && openPop._anchor === anchor) return closeMenu();
   closeMenu();
   const list = items.filter(Boolean);
   const pop = document.createElement('div');
@@ -425,10 +429,12 @@ export function openMenu(anchor, items) {
     list[Number(b.dataset.mi)].fn();
   };
   setTimeout(() => document.addEventListener('pointerdown', outside, true));
+  pop._anchor = anchor;
   openPop = pop;
 }
 let openPop = null;
-function outside(e) { if (openPop && !openPop.contains(e.target)) closeMenu(); }
+// A tap outside closes it — not on its own button, whose click does (see openMenu).
+function outside(e) { if (openPop && !openPop.contains(e.target) && !openPop._anchor.contains(e.target)) closeMenu(); }
 export function closeMenu() {
   openPop?.remove();
   openPop = null;

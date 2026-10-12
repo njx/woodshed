@@ -7,7 +7,7 @@ import { renderTunes } from './ui/tunes.js';
 import { renderProgress } from './ui/progress.js';
 import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
-import { cleanupMedia } from './media.js';
+import { cleanupMedia, savingMedia } from './media.js';
 import { mountMetronomePill } from './ui/metronome.js';
 import { mountTunerPill } from './ui/tuner.js';
 import { heartbeat, HEARTBEAT_MS } from './practicetime.js';
@@ -79,7 +79,7 @@ loadState().then(
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   let hadController = !!navigator.serviceWorker.controller;
   let pendingReload = false;
-  const idle = () => !document.querySelector('#sheet-root.open') && !metronome.state.running && !tuner.state.running;
+  const idle = () => !document.querySelector('#sheet-root.open') && !metronome.state.running && !tuner.state.running && !savingMedia();
   // Whatever hasn't been written yet is saved first (a reload mid-save would lose it).
   const reload = () => flush().finally(() => location.reload());
   navigator.serviceWorker.register('sw.js').then((reg) => {

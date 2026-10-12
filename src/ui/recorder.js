@@ -2,7 +2,7 @@ import { store, save, flush } from '../store.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
-import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker } from '../media.js';
+import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving } from '../media.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
 import { keepAwake } from '../keepawake.js';
@@ -342,7 +342,9 @@ export function openRecorder(opts = {}) {
     raf = requestAnimationFrame(draw);
   }
 
-  async function keep() {
+  // (Saving a take holds off an update's reload until the note pointing to it is saved too.)
+  const keep = () => whileSaving(keepTake);
+  async function keepTake() {
     if (!take || handled) return;
     handled = true;
     const t = take;

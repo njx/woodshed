@@ -151,6 +151,50 @@ function liveTools() {
 metronome.subscribe(() => liveTools());
 tuner.subscribe(() => liveTools());
 
+// Swap (for another pick, warm-up or focus item) or take out an unplayed item of today's set —
+// from its card (swipe left) or its details (⋯).
+  // Take it out of today's set: a focus item for today, a warm-up, or a pick (not suggested again today).
+export function removeFromToday(item) {
+  const state = store.state;
+  const i = state.plan.items.indexOf(item);
+  const name = () => itemById(item.itemId).name;
+  if (i < 0 || isPlanItemPlayed(item)) return;
+  const msg = item.warmup ? `Took out the ${name()} warm-up` : `Took ${name()} out of today’s set`;
+  withUndo(msg, () => {
+    if (item.bucket === 'focus') state.plan.focusSkipped.push(item.itemId);
+    else if (!item.warmup) state.plan.skipped.push(item.itemId);
+    state.plan.items.splice(i, 1);
+    dropOrphanWarmups(); // a tune's warm-ups go with it
+  });
+}
+export function swapInToday(item) {
+  const state = store.state;
+  const i = state.plan.items.indexOf(item);
+  const name = () => itemById(item.itemId).name;
+  if (i < 0 || isPlanItemPlayed(item)) return;
+  if (item.warmup) {
+    const was = name();
+    if (!swapWarmup(i)) { render(); return toast('No other warm-up for this tune'); }
+    save();
+    render();
+    return toast(`Swapped the ${was} warm-up`);
+  }
+  const focus = item.bucket === 'focus';
+  const was = itemById(item.itemId);
+  // A focus item swaps for another focus one; anything else, for a pick from its group.
+  const t = focus ? pickFocus(was) : pickItem(item.bucket, excludedIds(), itemStats());
+  if (!t) {
+    render();
+    return toast(focus ? `No other focus ${was.type === 'exercise' ? 'exercises' : 'tunes'} to swap in` : item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
+  }
+  withUndo(`Swapped out ${name()}`, () => {
+    if (focus) state.plan.focusSkipped.push(item.itemId);
+    else state.plan.skipped.push(item.itemId);
+    state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
+    dropOrphanWarmups();
+  });
+}
+
 function bindCard(card) {
   const state = store.state;
   const i = Number(card.dataset.i);
@@ -166,42 +210,8 @@ function bindCard(card) {
     save();
     render();
   };
-  const name = () => itemById(item.itemId).name;
-  // Take it out of today's set: a focus item for today, a warm-up, or a pick (not suggested again today).
-  const skip = () => {
-    if (isPlanItemPlayed(item)) return;
-    const msg = item.warmup ? `Took out the ${name()} warm-up` : `Took ${name()} out of today’s set`;
-    withUndo(msg, () => {
-      if (item.bucket === 'focus') state.plan.focusSkipped.push(item.itemId);
-      else if (!item.warmup) state.plan.skipped.push(item.itemId);
-      state.plan.items.splice(i, 1);
-      dropOrphanWarmups(); // a tune's warm-ups go with it
-    });
-  };
-  const swap = () => {
-    if (isPlanItemPlayed(item)) return;
-    if (item.warmup) {
-      const was = name();
-      if (!swapWarmup(i)) { render(); return toast('No other warm-up for this tune'); }
-      save();
-      render();
-      return toast(`Swapped the ${was} warm-up`);
-    }
-    const focus = item.bucket === 'focus';
-    const was = itemById(item.itemId);
-    // A focus item swaps for another focus one; anything else, for a pick from its group.
-    const t = focus ? pickFocus(was) : pickItem(item.bucket, excludedIds(), itemStats());
-    if (!t) {
-      render();
-      return toast(focus ? `No other focus ${was.type === 'exercise' ? 'exercises' : 'tunes'} to swap in` : item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
-    }
-    withUndo(`Swapped out ${name()}`, () => {
-      if (focus) state.plan.focusSkipped.push(item.itemId);
-      else state.plan.skipped.push(item.itemId);
-      state.plan.items[i] = makePlanItem(t, itemStats(), item.bucket);
-      dropOrphanWarmups();
-    });
-  };
+  const skip = () => removeFromToday(item);
+  const swap = () => swapInToday(item);
   $('.check', card).onclick = (e) => { e.stopPropagation(); toggle(); };
   $$('.rating button', card).forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();

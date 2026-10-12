@@ -4,7 +4,7 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { writtenToConcert } from '../keys.js';
 import { esc, uid } from '../util.js';
 import {
-  itemStats, itemById, isPlayedToday, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
+  itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
 } from '../practice.js';
 import { setItemStatus, itemStatus, addToToday, inToday, todayItem, setTodayKey } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
@@ -15,6 +15,7 @@ import { openExercise } from './exercise.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
 import { mountChart } from './chart.js';
+import { swapInToday, removeFromToday } from './today.js';
 import { canRecord } from '../media.js';
 import { autoStart } from '../practicetime.js';
 import {
@@ -240,8 +241,12 @@ export function openItem(id, opts) {
     bindMore(sheet);
     // ⋯: add to today, delete.
     const menu = $('#item-menu', sheet);
+    // (From its card in today's set: swap it or take it out, as a swipe left does.)
+    const card = opts?.pid && store.state.plan?.items.find((i) => i.pid === opts.pid && !isPlanItemPlayed(i));
     if (menu) menu.onclick = () => openMenu(menu, [
       !inToday(t) && { label: 'Add to today’s set', fn: () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); refresh(); } },
+      card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
+      card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
       { label: 'Delete tune', danger: true, fn: () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
         closeSheet();

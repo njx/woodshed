@@ -50,7 +50,7 @@ export function pickWarmup(t, { back } = {}) {
 export function pickTune(x, { back } = {}) {
   const { today, fit, known, other } = tunesToTry(x);
   const all = [...today, ...fit, ...known, ...other];
-  if (!all.length) return toast('No tune with a chart to try it with');
+  if (!all.length) { toast('No tune with a chart to try it with'); return back?.(); }
   let n = 0;
   const rows = (list) => list.map((t) => row(n++, t.name, t.style || '')).join('');
   const sheet = openSheet(`

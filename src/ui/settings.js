@@ -189,7 +189,8 @@ export function renderSettings(root) {
     if (!box || !ids.length) return;
     box.hidden = false;
     $('#stray-text', root).textContent = `${ids.length} recording${ids.length > 1 ? 's aren’t' : ' isn’t'} in any note (from a deleted note, or one that didn’t get saved). ${ids.length > 1 ? 'They’re' : 'It’s'} kept for 30 days.`;
-    $('#stray-restore', root).onclick = async () => {
+    $('#stray-restore', root).onclick = async (e) => {
+      e.currentTarget.disabled = true; // (once)
       const n = await restoreStrayClips(addEntry);
       await flush();
       render();

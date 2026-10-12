@@ -41,15 +41,23 @@ export function swingTime(t, ratio = 0.5) {
 
 // Decoded samples, per sound: { midi: AudioBuffer }. Loaded the first time a sound is used; the
 // service worker keeps the files for offline use. (Also the walking bass's: 'bass'.)
+// Decoded on a context of their own that's never closed (a player's is closed when it stops, and
+// a decode left on a closed one may never finish); the buffers play in any context.
 const loaded = new Map();
+let decoder = null;
 export function loadSamples(ctx, id) {
   if (!loaded.has(id)) {
-    const p = Promise.all(sampleNotes(id).map(async (m) => {
-      const res = await fetch(`samples/${id}/${m}.mp3`);
-      if (!res.ok) throw new Error(`sample ${id}/${m}: ${res.status}`);
-      const data = await res.arrayBuffer();
-      return [m, await new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject))];
-    })).then(Object.fromEntries);
+    const Offline = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+    decoder ||= Offline ? new Offline(1, 1, 44100) : ctx;
+    const p = Promise.race([
+      Promise.all(sampleNotes(id).map(async (m) => {
+        const res = await fetch(`samples/${id}/${m}.mp3`);
+        if (!res.ok) throw new Error(`sample ${id}/${m}: ${res.status}`);
+        const data = await res.arrayBuffer();
+        return [m, await new Promise((resolve, reject) => decoder.decodeAudioData(data, resolve, reject))];
+      })),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`sounds ${id}: too slow`)), 20000)),
+    ]).then(Object.fromEntries);
     p.catch(() => loaded.delete(id)); // try again next time
     loaded.set(id, p);
   }
