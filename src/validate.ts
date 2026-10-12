@@ -91,6 +91,8 @@ function chart(c: Raw): Chart | null {
 
 // An exercise's scale or chord variation, or null.
 // (Table lookups by keys from the data: an unknown key finds nothing.)
+// TODO(ts): …except an Object.prototype name: kind 'constructor' passes the check and then
+// VARY[kind].types is undefined, so known[id] throws (shape 'constructor' too: .kinds.includes).
 function vary(v: Raw): Vary | null {
   if (!v || typeof v !== 'object' || !VARY[v.kind as Vary['kind']]) return null;
   const known: Record<string, object> = VARY[v.kind as Vary['kind']].types;

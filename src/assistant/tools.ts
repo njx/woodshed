@@ -8,24 +8,96 @@ import { itemStats, itemById, isDue, isPlanItemPlayed, planEntry, setLevel, dele
 import { ensurePlan, makePlanItem, syncFocus, setFocus, setItemStatus, refreshTypes, addWarmups, dropOrphanWarmups, todayItem, setTodayKeys, setTodayKey, typeCounts } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
-import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern, chooseTypes } from '../theory.js';
+import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern, chooseTypes, type TypeInfo } from '../theory.js';
 import { keyFamiliarity, keySessions, entryKeys } from '../keystats.js';
 import { setTempo, clampBpm } from '../tempo.js';
 import { addEntry, openTodos, entriesFor } from '../diary.js';
 import { recordingsFor } from '../listen.js';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { Category, DateStr, Exercise, Id, Item, Key, KeyMode, Level, Priority, Shape, Tune, Vary } from '../types.js';
 
 // Tools the practice assistant can call. Each has a JSON schema (strict: every property is
 // listed in `required`; optional ones accept null) and a run function over the app state.
 // Key names going in and out are as written for the instrument the user is viewing, which is
 // what they see in the app.
 
+// Tool inputs, as the model sends them (untrusted JSON): runTool checks each against its tool's
+// schema before the tool runs. Optional fields may be left out or sent as null.
+type LevelName = "don't know" | 'familiar' | 'proficient' | 'mastered';
+type PriorityName = 'critical' | 'high' | 'medium' | 'low';
+interface VaryInput {
+  vary?: 'scale' | 'chord' | 'none' | null;
+  types?: string[] | null;
+  shape?: Shape | null;
+  pattern?: string | null;
+}
+interface SearchInput {
+  query?: string | null;
+  type?: 'tune' | 'exercise' | null;
+  levels?: LevelName[] | null;
+  style?: string | null;
+  key?: string | null;
+  due_only?: boolean | null;
+  focus_only?: boolean | null;
+  not_played_in_days?: number | null;
+  sort?: 'priority' | 'longest_ago' | 'recent' | 'most_played' | 'name' | null;
+  limit?: number | null;
+}
+interface ItemInput { item_id: Id }
+interface DiaryInput { open_todos_only?: boolean | null; flag?: 'remember' | 'teacher' | null; limit?: number | null }
+interface AddToTodayInput { items: { item_id: Id; keys?: string[] | null; types?: string[] | null }[] }
+interface ChangeTodayInput { item_id: Id; keys: string[]; types?: string[] | null }
+interface RemoveFromTodayInput { item_ids: Id[] }
+interface AddWarmupsInput { tune_id: Id; count?: number | null }
+interface UpdateItemInput extends VaryInput {
+  item_id: Id;
+  level?: LevelName | null;
+  priority?: PriorityName | null;
+  focus?: boolean | null;
+  enabled?: boolean | null;
+  tempo?: number | null;
+  goal_tempo?: number | null;
+  keys?: string[] | null;
+  notes_append?: string | null;
+}
+interface CreateExerciseInput extends VaryInput {
+  name: string;
+  category: Category;
+  key_mode: KeyMode;
+  keys_per_session: number;
+  keys?: string[] | null;
+  abc?: string | null;
+  meter?: '4/4' | '3/4' | '5/4' | '6/8' | '2/4' | null;
+  tempo?: number | null;
+  notes?: string | null;
+  add_to_today: boolean;
+}
+interface CreateTuneInput {
+  name: string;
+  style?: string | null;
+  keys?: string[] | null;
+  level?: LevelName | null;
+  priority?: PriorityName | null;
+  add_to_today: boolean;
+}
+interface DiaryNoteInput { text: string; flag?: 'remember' | 'teacher' | null; item_id?: Id | null }
+interface WishInput { request: string }
+
+// What a tool returns, sent back to the model as JSON (an object, or a list): `error` is set when
+// it couldn't do what was asked.
+export interface ToolResult { error?: string }
+
+// An item, as the tools read it: `vary`, `style` and `category` on either type (undefined on the
+// type that doesn't have it).
+type AnyItem = (Tune & { vary?: undefined; category?: undefined }) | (Exercise & { style?: undefined });
+
 const view = () => store.state.settings.view;
-const levelLabel = (l) => LEVELS[l ?? 0].label.toLowerCase();
-const writtenName = (k) => keyName(k, view());
-const rootName = (r) => keyName(r % 12, view());
+const levelLabel = (l: Level) => LEVELS[l ?? 0].label.toLowerCase();
+const writtenName = (k: Key) => keyName(k, view());
+const rootName = (r: number) => keyName(r % 12, view());
 
 // A written key name ("F", "Gm", "B♭") → concert key index (0–23), or null.
-export function concertKey(name) {
+export function concertKey(name: string | undefined): Key | null {
   const k = parseKey(String(name).replace('♭', 'b').replace('♯', '#'));
   if (k == null) return null;
   const root = (k % 12 - TRANSPOSITIONS[view()].offset + 12) % 12;
@@ -33,13 +105,13 @@ export function concertKey(name) {
 }
 
 // Key names → concert keys, or an error naming the ones that couldn't be read.
-function readKeys(names) {
+function readKeys(names: string[] | null | undefined) {
   const keys = (names || []).map(concertKey);
   const bad = (names || []).filter((_, i) => keys[i] == null);
   if (bad.length) return { error: `Couldn’t read these key names: ${bad.join(', ')}. Use names like C, Bb, F#, Ebm.` };
-  return { keys };
+  return { keys: keys as Key[] }; // none null: checked above
 }
-function readName(name) {
+function readName(name: string) {
   const n = String(name || '').trim().replace(/\s+/g, ' ');
   if (!n) return { error: 'The name is empty.' };
   if (n.length > 120) return { error: 'The name is too long (120 characters at most).' };
@@ -49,15 +121,15 @@ function readName(name) {
 // Optional fields: may be left out, or sent as null.
 const OPTIONAL = new WeakSet();
 // Scale or chord variation from tool input, applied to an exercise. Returns an error, or null.
-const typeLabel = (kind, id) => typeInfo(kind, id)?.label || id;
-function applyVary(t, a) {
+const typeLabel = (kind: Vary['kind'], id: string) => typeInfo(kind, id)?.label || id;
+function applyVary(t: { vary: Vary | null }, a: VaryInput): string | null {
   const kind = a.vary === 'none' ? null : a.vary || t.vary?.kind || null;
   if (!kind) {
     if (a.types?.length || a.shape || a.pattern) return 'Set vary to "scale" or "chord" to choose types, a shape or a pattern.';
     if (a.vary === 'none') t.vary = null;
     return null;
   }
-  const known = VARY[kind].types;
+  const known: Record<string, TypeInfo> = VARY[kind].types;
   const bad = (a.types || []).filter((id) => !known[id]);
   if (bad.length) return `Not ${kind} types: ${bad.join(', ')}. Use: ${Object.keys(known).join(', ')}.`;
   if (a.shape && !SHAPES[a.shape]?.kinds.includes(kind)) return `The shape "${a.shape}" isn't available for ${kind}s.`;
@@ -67,14 +139,14 @@ function applyVary(t, a) {
     const { error } = parsePattern(pattern, kind);
     if (error) return `Pattern: ${error}`;
   }
-  const types = a.types?.length ? Object.keys(known).filter((id) => a.types.includes(id))
+  const types = a.types?.length ? Object.keys(known).filter((id) => a.types!.includes(id))
     : t.vary?.kind === kind ? t.vary.types : [...VARY[kind].defaults];
   t.vary = { kind, types, shape, pattern: pattern || '' };
   return null;
 }
-const varySummary = (t) => (t.vary ? {
+const varySummary = (t: { vary: Vary | null }) => (t.vary ? {
   varies: t.vary.kind,
-  types: t.vary.types.map((id) => typeLabel(t.vary.kind, id)),
+  types: t.vary.types.map((id) => typeLabel(t.vary!.kind, id)),
   shape: SHAPES[t.vary.shape]?.label,
   ...(t.vary.shape === 'custom' ? { pattern: t.vary.pattern } : {}),
 } : {});
@@ -85,19 +157,33 @@ const varyFields = () => ({
   pattern: nullable({ type: 'string', description: 'For shape custom: note numbers. Scales: notes of the scale, 1 = root (8 = octave on a 7-note scale), e.g. "1 2 3 5". Chords: chord tones 1 3 5 7, and 8 10 12 14 an octave up.' }),
 });
 
-const nullable = (schema) => {
-  const s = { ...schema, type: [schema.type, 'null'], ...(schema.enum ? { enum: [...schema.enum, null] } : {}) };
+// JSON schemas for tool inputs (the parts used here). Type aliases rather than interfaces, so
+// they fit the API's input_schema type.
+type SchemaType = 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
+export type Schema = {
+  type: SchemaType | SchemaType[];
+  description?: string;
+  enum?: (string | null)[];
+  items?: Schema;
+  properties?: Record<string, Schema>;
+  required?: string[];
+  additionalProperties?: boolean;
+};
+type ObjectSchema = Schema & { type: 'object'; properties: Record<string, Schema>; required: string[] };
+
+const nullable = (schema: Schema & { type: SchemaType }): Schema => {
+  const s: Schema = { ...schema, type: [schema.type, 'null'], ...(schema.enum ? { enum: [...schema.enum, null] } : {}) };
   OPTIONAL.add(s);
   return s;
 };
-const obj = (properties) => ({
+const obj = (properties: Record<string, Schema>): ObjectSchema => ({
   type: 'object',
   properties,
   required: Object.keys(properties).filter((k) => !OPTIONAL.has(properties[k])),
   additionalProperties: false,
 });
 
-function itemSummary(t, stats) {
+function itemSummary(t: Item, stats: ReturnType<typeof itemStats>) {
   const s = stats.get(t.id);
   return {
     id: t.id,
@@ -122,7 +208,7 @@ function itemSummary(t, stats) {
 }
 
 // A tune's chart as text, in its first usual key, written for the instrument being viewed.
-function chartText(t) {
+function chartText(t: Tune) {
   const chart = chartFor(t);
   if (!chart) return null;
   const key = t.keys?.[0] ?? chart.key ?? 0;
@@ -131,7 +217,7 @@ function chartText(t) {
 }
 
 // A tune's main progressions, named by Roman numeral, in its first usual key (written).
-function progressionList(t) {
+function progressionList(t: Tune) {
   const chart = chartFor(t);
   if (!chart) return null;
   const key = t.keys?.[0] ?? chart.key ?? 0;
@@ -143,8 +229,8 @@ function progressionList(t) {
 function planSummary() {
   ensurePlan();
   const stats = itemStats();
-  return store.state.plan.items.map((it) => {
-    const t = itemById(it.itemId);
+  return store.state.plan!.items.map((it) => { // (ensurePlan made it)
+    const t: AnyItem | undefined = itemById(it.itemId);
     if (!t) return null;
     const e = planEntry(it);
     return {
@@ -155,7 +241,7 @@ function planSummary() {
       key: it.key != null ? writtenName(it.key) : null,
       new_key: !!it.alt,
       keys: it.keys?.map(rootName),
-      ...(it.types?.length && t.vary ? { types: it.types.map((id) => typeLabel(t.vary.kind, id)) } : {}),
+      ...(it.types?.length && t.vary ? { types: it.types.map((id) => typeLabel(t.vary!.kind, id)) } : {}),
       tempo: t.tempo || null,
       ...(it.warmup ? { warm_up_for: itemById(it.warmup)?.name } : {}),
       ...(it.prog ? { progression: it.prog.name } : {}),
@@ -164,11 +250,11 @@ function planSummary() {
       level: levelLabel(t.level),
       last_played: stats.get(t.id)?.last || null,
     };
-  }).filter(Boolean);
+  }).filter((p) => p !== null);
 }
 
 // A short snapshot added to each message so the assistant starts with the basics.
-export function appSnapshot() {
+export function appSnapshot(): string {
   const s = store.state.settings;
   const stats = itemStats();
   const today = dateStr();
@@ -182,14 +268,14 @@ export function appSnapshot() {
   ].join('\n');
 }
 
-const changes = []; // what the assistant changed this turn, for the summary shown to the user
-export function takeChanges() {
+const changes: string[] = []; // what the assistant changed this turn, for the summary shown to the user
+export function takeChanges(): string[] {
   return changes.splice(0);
 }
 
-function addToPlan(t, keys, types = null) {
+function addToPlan(t: AnyItem, keys: string[] | null | undefined, types: string[] | null = null): string | null {
   ensurePlan();
-  const plan = store.state.plan;
+  const plan = store.state.plan!; // (ensurePlan made it)
   if (plan.items.some((i) => i.itemId === t.id && !i.warmup)) return `${t.name} is already in today's set.`;
   const item = makePlanItem(t, itemStats());
   if (keys?.length) {
@@ -212,13 +298,23 @@ function addToPlan(t, keys, types = null) {
   return null;
 }
 
-function findItem(id) {
+function findItem(id: Id): AnyItem {
   const t = itemById(id);
   if (!t) throw new Error(`No item with id ${id}. Use search_library to find ids.`);
   return t;
 }
 
-export const TOOLS = [
+interface Tool {
+  name: string;
+  description: string;
+  input_schema: ObjectSchema;
+  write?: boolean;
+  // Each tool declares its own input type (what its schema describes): a method, so that it can.
+  // runTool checks the input against the schema before calling it.
+  run(input: unknown): object;
+}
+
+export const TOOLS: Tool[] = [
   {
     name: 'get_today',
     description: "Today's practice set: each item with its group (focus, exercise, hone = proficient/mastered, learn = familiar, fresh = new), suggested key(s), working tempo, and whether it's been played and how it was rated.",
@@ -240,15 +336,15 @@ export const TOOLS = [
       sort: nullable({ type: 'string', enum: ['priority', 'longest_ago', 'recent', 'most_played', 'name'] }),
       limit: nullable({ type: 'integer', description: 'Default 25, max 100' }),
     }),
-    run: (a) => {
+    run: (a: SearchInput) => {
       const stats = itemStats();
       const q = a.query?.toLowerCase().trim();
       const levels = a.levels?.map((l) => LEVELS.findIndex((x) => x.label.toLowerCase() === l));
       const key = a.key ? concertKey(a.key) : null;
       const today = dateStr();
-      let list = store.state.items.filter((t) => {
+      let list = store.state.items.filter((t: AnyItem) => {
         if (a.type && t.type !== a.type) return false;
-        if (q && !`${t.name} ${t.style || ''} ${CATEGORIES[t.category] || ''}`.toLowerCase().includes(q)) return false;
+        if (q && !`${t.name} ${t.style || ''} ${(t.category && CATEGORIES[t.category]) || ''}`.toLowerCase().includes(q)) return false;
         if (levels && !levels.includes(t.level ?? 0)) return false;
         if (a.style && (t.style || '').toLowerCase() !== a.style.toLowerCase()) return false;
         if (key != null && !(t.type === 'tune' && t.keys.includes(key))) return false;
@@ -260,13 +356,13 @@ export const TOOLS = [
         }
         return true;
       });
-      const last = (t) => stats.get(t.id)?.last || '';
+      const last = (t: Item) => stats.get(t.id)?.last || '';
       const sorts = {
-        priority: (x, y) => x.priority - y.priority || x.name.localeCompare(y.name),
-        longest_ago: (x, y) => last(x).localeCompare(last(y)) || x.priority - y.priority,
-        recent: (x, y) => last(y).localeCompare(last(x)),
-        most_played: (x, y) => (stats.get(y.id)?.count || 0) - (stats.get(x.id)?.count || 0),
-        name: (x, y) => x.name.localeCompare(y.name),
+        priority: (x: Item, y: Item) => x.priority - y.priority || x.name.localeCompare(y.name),
+        longest_ago: (x: Item, y: Item) => last(x).localeCompare(last(y)) || x.priority - y.priority,
+        recent: (x: Item, y: Item) => last(y).localeCompare(last(x)),
+        most_played: (x: Item, y: Item) => (stats.get(y.id)?.count || 0) - (stats.get(x.id)?.count || 0),
+        name: (x: Item, y: Item) => x.name.localeCompare(y.name),
       };
       list = list.sort(sorts[a.sort || 'priority']);
       const limit = Math.max(1, Math.min(100, a.limit || 25));
@@ -277,7 +373,7 @@ export const TOOLS = [
     name: 'get_item',
     description: 'Everything about one tune or exercise: details, notes, notation (exercises), the chord chart (tunes, in its first usual key, written for the instrument being viewed: one section per line, bars separated by |, % = the chord carries on), recent practice history with keys, ratings and tempos, diary notes, and recordings to listen to (tunes).',
     input_schema: obj({ item_id: { type: 'string' } }),
-    run: ({ item_id }) => {
+    run: ({ item_id }: ItemInput) => {
       const t = findItem(item_id);
       const stats = itemStats();
       const history = store.state.log
@@ -313,7 +409,7 @@ export const TOOLS = [
       const fam = keyFamiliarity();
       const sess = keySessions(30);
       const tunes = store.state.items.filter((t) => t.type === 'tune');
-      const lastWeek = {};
+      const lastWeek: Record<DateStr, (string | undefined)[]> = {};
       for (const e of log) {
         if (daysBetween(e.date, today) >= 7) continue;
         (lastWeek[e.date] ||= []).push(itemById(e.itemId)?.name);
@@ -322,7 +418,7 @@ export const TOOLS = [
         streak_days: streak,
         days_practiced_last_30: [...days].filter((d) => daysBetween(d, today) < 30).length,
         keys: [...Array(12).keys()].map((r) => ({ key: rootName(r), sessions_30d: sess[r], familiarity: Math.round(fam[r] * 10) / 10 })),
-        tunes_by_level: Object.fromEntries([3, 2, 1, 0].map((l) => [levelLabel(l), tunes.filter((t) => (t.level ?? 0) === l).length])),
+        tunes_by_level: Object.fromEntries(([3, 2, 1, 0] as const).map((l) => [levelLabel(l), tunes.filter((t) => (t.level ?? 0) === l).length])),
         last_7_days: lastWeek,
         minutes_practiced_by_day: Object.fromEntries([...practicedByDay()].filter(([d]) => daysBetween(d, today) < 30).sort().map(([d, ms]) => [d, Math.round(ms / 60000)])),
       };
@@ -336,7 +432,7 @@ export const TOOLS = [
       flag: nullable({ type: 'string', enum: ['remember', 'teacher'] }),
       limit: nullable({ type: 'integer' }),
     }),
-    run: (a) => {
+    run: (a: DiaryInput) => {
       let list = [...store.state.diary].sort((x, y) => y.date.localeCompare(x.date) || y.at - x.at);
       if (a.flag) list = list.filter((e) => e.flag === a.flag);
       if (a.open_todos_only) list = list.filter((e) => e.flag && !e.done);
@@ -360,13 +456,13 @@ export const TOOLS = [
       },
     }),
     write: true,
-    run: ({ items }) => {
-      const added = [];
-      const notes = [];
+    run: ({ items }: AddToTodayInput) => {
+      const added: string[] = [];
+      const notes: string[] = [];
       for (const { item_id, keys, types } of items) {
-        const t = itemById(item_id);
+        const t: AnyItem | undefined = itemById(item_id);
         if (!t) { notes.push(`No item with id ${item_id}; use search_library to find ids.`); continue; }
-        const unknown = t.vary ? (types || []).filter((id) => !t.vary.types.includes(id)) : [];
+        const unknown = t.vary ? (types || []).filter((id) => !t.vary!.types.includes(id)) : [];
         if (unknown.length) notes.push(`${t.name}: ${unknown.join(', ')} isn't turned on for it, so the app chose instead (turn types on with update_item).`);
         const msg = addToPlan(t, keys, types);
         if (msg) notes.push(msg);
@@ -387,7 +483,7 @@ export const TOOLS = [
       types: nullable({ type: 'array', items: { type: 'string' } }),
     }),
     write: true,
-    run: ({ item_id, keys, types }) => {
+    run: ({ item_id, keys, types }: ChangeTodayInput) => {
       const t = findItem(item_id);
       ensurePlan();
       const it = todayItem(t);
@@ -401,10 +497,11 @@ export const TOOLS = [
         if (!roots.length) return { error: 'Give at least one key, like "Eb".' };
         let typeList = null;
         if (t.vary) {
-          const known = Object.keys(VARY[t.vary.kind].types);
+          // (Wide, to look up types?.[i], which may be missing.)
+          const known: (string | undefined)[] = Object.keys(VARY[t.vary.kind].types);
           const was = Object.fromEntries((it.keys || []).map((k, i) => [k, it.types?.[i]]));
-          typeList = roots.map((k, i) => (known.includes(types?.[i]) ? types[i]
-            : was[k] || chooseTypes(t.vary, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] || t.vary.types[0]));
+          typeList = roots.map((k, i) => (known.includes(types?.[i]) ? types![i]
+            : was[k] || chooseTypes(t.vary!, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] || t.vary!.types[0]));
         }
         setTodayKeys(it, roots, typeList);
       }
@@ -418,11 +515,11 @@ export const TOOLS = [
     description: "Remove items from today's set (they won't be suggested again today). Items already played can't be removed.",
     input_schema: obj({ item_ids: { type: 'array', items: { type: 'string' } } }),
     write: true,
-    run: ({ item_ids }) => {
+    run: ({ item_ids }: RemoveFromTodayInput) => {
       ensurePlan();
-      const plan = store.state.plan;
-      const removed = [];
-      const kept = [];
+      const plan = store.state.plan!; // (ensurePlan made it)
+      const removed: string[] = [];
+      const kept: string[] = [];
       for (const id of item_ids) {
         const t = itemById(id);
         if (!t || !plan.items.some((i) => i.itemId === id)) continue;
@@ -446,13 +543,13 @@ export const TOOLS = [
     description: "Add warm-ups for a tune to today's set, just before it (and the tune too, if it isn't there), from its chord chart in the key it's played in today. They take turns between (1) a lick or pattern whose chords fit part of one of its progressions — a ii–V lick can go over the ii–V of a iii–VI–ii–V–I, or be played up a step for the iii–VI then on the ii–V — or else its progression arpeggiated through the changes, and (2) something on its chords: arpeggios, scales, or a one-chord exercise. Each call adds `count` more (default 1), never ones it already has.",
     input_schema: obj({ tune_id: { type: 'string' }, count: nullable({ type: 'integer' }) }),
     write: true,
-    run: ({ tune_id, count }) => {
+    run: ({ tune_id, count }: AddWarmupsInput) => {
       const t = findItem(tune_id);
       if (t.type !== 'tune') return { error: 'Warm-ups are for tunes.' };
       if (!chartFor(t)) return { error: `There's no chord chart for ${t.name}, so warm-ups can't be picked. (Charts can be added in the tune's details.)` };
       const n = addWarmups(t, Math.max(1, Math.min(4, count || 1)));
       if (!n) return { error: 'No more warm-ups to add for it.' };
-      const added = store.state.plan.items.filter((i) => i.warmup === t.id).map((i) => itemById(i.itemId)?.name);
+      const added = store.state.plan!.items.filter((i) => i.warmup === t.id).map((i) => itemById(i.itemId)?.name); // (addWarmups made the plan)
       changes.push(`Warm-ups for ${t.name}: ${added.join(', ')}`);
       return { added };
     },
@@ -462,7 +559,7 @@ export const TOOLS = [
     description: 'Delete a tune or exercise from the library, with its practice history (diary notes about it are kept). Only when the user asks, e.g. to remove an exercise you created by mistake. If it has practice history, check with the user first unless they already said to delete it anyway.',
     input_schema: obj({ item_id: { type: 'string' } }),
     write: true,
-    run: ({ item_id }) => {
+    run: ({ item_id }: ItemInput) => {
       const t = findItem(item_id);
       const { sessions } = deleteItem(t.id);
       changes.push(`Deleted ${t.type === 'exercise' ? 'exercise' : 'tune'}: ${t.name}${sessions ? ` (and ${sessions} practice session${sessions > 1 ? 's' : ''})` : ''}`);
@@ -486,7 +583,7 @@ export const TOOLS = [
       ...varyFields(),
     }),
     write: true,
-    run: (a) => {
+    run: (a: UpdateItemInput) => {
       const t = findItem(a.item_id);
       const keys = readKeys(a.keys);
       if (keys.error) return keys; // check before changing anything
@@ -499,8 +596,9 @@ export const TOOLS = [
         if (err) return { error: err };
       }
       const did = [];
-      if (a.level) { setLevel(t, LEVELS.findIndex((l) => l.label.toLowerCase() === a.level)); did.push(`level → ${a.level}`); }
-      if (a.priority) { t.priority = PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1; did.push(`priority → ${a.priority}`); }
+      // (a.level and a.priority are names from LEVELS and PRIORITIES: checked against the schema)
+      if (a.level) { setLevel(t, LEVELS.findIndex((l) => l.label.toLowerCase() === a.level) as Level); did.push(`level → ${a.level}`); }
+      if (a.priority) { t.priority = (PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1) as Priority; did.push(`priority → ${a.priority}`); }
       if (a.enabled != null) {
         if (!a.enabled) setItemStatus(t, 'off');
         else delete t.off;
@@ -514,16 +612,16 @@ export const TOOLS = [
       if (a.tempo) { setTempo(t, a.tempo, { nextTime: true }); did.push(`tempo → ${t.tempo}`); }
       if (a.goal_tempo) { t.goalTempo = clampBpm(a.goal_tempo); did.push(`goal tempo → ${t.goalTempo}`); }
       if (a.keys?.length) {
-        const ks = keys.keys;
+        const ks = keys.keys!; // (no error: checked first)
         if (t.type === 'exercise') { t.keys = [...new Set(ks.map((k) => k % 12))]; t.keyMode = 'fixed'; }
         else t.keys = [...new Set(ks)];
         did.push(`keys → ${a.keys.join(', ')}`);
       }
       if (a.notes_append) { t.notes = [t.notes, a.notes_append].filter(Boolean).join('\n'); did.push('notes added'); }
-      if (wantsVary) {
+      if (wantsVary && t.type === 'exercise') { // (only exercises get here: checked above)
         applyVary(t, a);
         if (JSON.stringify(t.vary ?? null) !== before) {
-          did.push(t.vary ? `varies ${t.vary.kind}: ${t.vary.types.map((id) => typeLabel(t.vary.kind, id)).join(', ')} (${SHAPES[t.vary.shape].label.toLowerCase()})` : 'same notes each time');
+          did.push(t.vary ? `varies ${t.vary.kind}: ${t.vary.types.map((id) => typeLabel(t.vary!.kind, id)).join(', ')} (${SHAPES[t.vary.shape].label.toLowerCase()})` : 'same notes each time');
           refreshTypes(t);
         }
       }
@@ -549,18 +647,19 @@ export const TOOLS = [
       add_to_today: { type: 'boolean' },
     }),
     write: true,
-    run: (a) => {
+    run: (a: CreateExerciseInput) => {
       const name = readName(a.name);
       const keys = readKeys(a.keys);
       if (name.error || keys.error) return name.error ? name : keys;
-      if (a.key_mode === 'fixed' && !keys.keys.length) return { error: 'key_mode fixed needs at least one key.' };
+      if (a.key_mode === 'fixed' && !keys.keys!.length) return { error: 'key_mode fixed needs at least one key.' };
+      // TODO(ts): no `focus` (Exercise requires it); it's undefined until validate.ts sets it on the next load.
       const t = {
-        id: uid(), type: 'exercise', name: name.name, category: a.category, keyMode: a.key_mode,
+        id: uid(), type: 'exercise', name: name.name!, category: a.category, keyMode: a.key_mode,
         keysPerSession: Math.max(1, Math.min(12, a.keys_per_session || 1)),
-        keys: [...new Set(keys.keys.map((k) => k % 12))],
+        keys: [...new Set(keys.keys!.map((k) => k % 12))],
         abc: a.abc?.trim() || '', meter: a.meter || '4/4', notes: a.notes || '',
         tempo: a.tempo ? clampBpm(a.tempo) : null, priority: 2, level: 0, ivl: null, due: null, vary: null,
-      };
+      } as Exercise;
       const varyError = applyVary(t, a);
       if (varyError) return { error: varyError };
       store.state.items.push(t);
@@ -582,17 +681,19 @@ export const TOOLS = [
       add_to_today: { type: 'boolean' },
     }),
     write: true,
-    run: (a) => {
+    run: (a: CreateTuneInput) => {
       const name = readName(a.name);
       const keys = readKeys(a.keys);
       if (name.error || keys.error) return name.error ? name : keys;
+      // TODO(ts): no `focus` (Tune requires it); it's undefined until validate.ts sets it on the next load.
       const t = {
-        id: uid(), type: 'tune', name: name.name, style: a.style || 'Standard',
-        keys: [...new Set(keys.keys)],
-        level: a.level ? LEVELS.findIndex((l) => l.label.toLowerCase() === a.level) : 0,
-        priority: a.priority ? PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1 : 2,
+        id: uid(), type: 'tune', name: name.name!, style: a.style || 'Standard',
+        keys: [...new Set(keys.keys!)],
+        // (a.level and a.priority are names from LEVELS and PRIORITIES: checked against the schema)
+        level: a.level ? LEVELS.findIndex((l) => l.label.toLowerCase() === a.level) as Level : 0,
+        priority: a.priority ? (PRIORITIES.findIndex((p) => p.label.toLowerCase() === a.priority) + 1) as Priority : 2,
         notes: '', mine: true, ivl: null, due: null,
-      };
+      } as Tune;
       store.state.items.push(t);
       if (a.add_to_today) addToPlan(t, null);
       changes.push(`New tune: ${t.name}${a.add_to_today ? ' (added to today)' : ''}`);
@@ -609,7 +710,7 @@ export const TOOLS = [
       item_id: nullable({ type: 'string' }),
     }),
     write: true,
-    run: (a) => {
+    run: (a: DiaryNoteInput) => {
       const e = addEntry({ text: a.text, flag: a.flag || null, itemId: a.item_id && itemById(a.item_id) ? a.item_id : null });
       changes.push(`Diary note${e.flag ? ` (${e.flag === 'teacher' ? 'for teacher' : 'to remember'})` : ''}: “${e.text.slice(0, 60)}${e.text.length > 60 ? '…' : ''}”`);
       save();
@@ -620,7 +721,7 @@ export const TOOLS = [
     name: 'report_unsupported',
     description: "Call this when the user asks for something the app or these tools can't do, so it can be added later. Then tell the user it isn't possible yet.",
     input_schema: obj({ request: { type: 'string', description: 'What they wanted, in a sentence' } }),
-    run: ({ request }) => {
+    run: ({ request }: WishInput) => {
       const s = store.state;
       (s.assistantWishes ||= []).push({ date: dateStr(), request });
       save();
@@ -632,9 +733,11 @@ export const TOOLS = [
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
 // Check tool input against its schema (tool inputs stream in unvalidated).
-export function validate(schema, value, path = 'input') {
-  const types = [].concat(schema.type);
-  const typeOf = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
+// value: the model's JSON, untyped until it's been checked here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function validate(schema: Schema, value: any, path = 'input'): string | null {
+  const types = ([] as string[]).concat(schema.type);
+  const typeOf = (v: unknown) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
   const actual = typeOf(value);
   if (!types.includes(actual) && !(actual === 'integer' && types.includes('number'))) {
     return `${path} should be ${types.join(' or ')}, got ${actual}`;
@@ -658,7 +761,7 @@ export function validate(schema, value, path = 'input') {
   return null;
 }
 
-export function runTool(name, input) {
+export function runTool(name: string, input: unknown): ToolResult {
   const tool = byName.get(name);
   if (!tool) return { error: `Unknown tool ${name}` };
   const err = validate(tool.input_schema, input);
@@ -666,16 +769,16 @@ export function runTool(name, input) {
   try {
     return tool.run(input);
   } catch (e) {
-    return { error: e.message };
+    return { error: (e as Error).message };
   }
 }
 
-export const isWriteTool = (name) => !!byName.get(name)?.write;
+export const isWriteTool = (name: string): boolean => !!byName.get(name)?.write;
 
 // Tool definitions for the API (without the run functions).
 // Not strict: the API's strict mode allows at most 16 optional (nullable) fields across all tools,
 // and these tools have more. Inputs are checked here instead (validate, before any tool runs).
-export const apiTools = () => TOOLS.map(({ name, description, input_schema }) => ({
+export const apiTools = (): Anthropic.Beta.BetaTool[] => TOOLS.map(({ name, description, input_schema }) => ({
   name, description, input_schema, eager_input_streaming: true,
 }));
 

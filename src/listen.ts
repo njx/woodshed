@@ -2,7 +2,9 @@ import { RECORDINGS, SEARCH_NAMES } from './data/recordings.js';
 import { normTitle } from './util.js';
 import type { ListenService, Recording, Tune } from './types.js';
 
-const byTitle = new Map(Object.entries(RECORDINGS).map(([k, v]) => [normTitle(k), v]));
+// data/recordings.ts's entries: [artist, album or null, year or null] (its inferred type is looser).
+type Curated = [artist: string, album: string | null, year: number | null];
+const byTitle = new Map((Object.entries(RECORDINGS) as [string, Curated[]][]).map(([k, v]) => [normTitle(k), v]));
 const searchByTitle = new Map(Object.entries(SEARCH_NAMES).map(([k, v]) => [normTitle(k), v]));
 
 // Match on the name the tune had in the original list first, so renaming a tune keeps its links.

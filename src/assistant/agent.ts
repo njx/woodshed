@@ -1,6 +1,7 @@
 import { kvGet, kvSet } from '../db.js';
-import { apiTools, runTool, isWriteTool, appSnapshot, takeChanges } from './tools.js';
+import { apiTools, runTool, isWriteTool, appSnapshot, takeChanges, type ToolResult } from './tools.js';
 import { messageCost, tokensOf, recordUsage } from './cost.js';
+import type Anthropic from '@anthropic-ai/sdk';
 
 // The practice assistant: Claude with tools over the app's data. Runs entirely in the browser
 // with the user's own API key (kept on this device only, never in backups).
@@ -32,16 +33,18 @@ How to help:
 - You can answer general music questions (theory, harmony, history, practice advice) from your own knowledge. Say so when you're unsure, especially about specific recordings.
 - Keep replies short and easy to read on a phone: a few sentences or a short list. Use **bold** sparingly and "- " for lists; no headings or tables.`;
 
-export async function getApiKey() {
-  return (await kvGet('anthropicKey')) || '';
+export async function getApiKey(): Promise<string> {
+  return ((await kvGet('anthropicKey')) as string | undefined) || '';
 }
-export async function setApiKey(key) {
+export async function setApiKey(key: string): Promise<void> {
   await kvSet('anthropicKey', key || '');
 }
 
-let clientPromise = null;
-let clientKey = null;
-async function getClient() {
+// The SDK (loaded when first needed) and a client for the current key.
+interface Sdk { Anthropic: typeof Anthropic; client: Anthropic }
+let clientPromise: Promise<Sdk> | null = null;
+let clientKey: string | null = null;
+async function getClient(): Promise<Sdk> {
   const key = await getApiKey();
   if (!key) throw Object.assign(new Error('No API key'), { code: 'no_key' });
   if (!clientPromise || clientKey !== key) {
@@ -55,16 +58,32 @@ async function getClient() {
   return clientPromise;
 }
 
-export function newConversation() {
+// A chat: the messages so far, and what it has cost (dollars).
+export interface Conversation { messages: Anthropic.Beta.BetaMessageParam[]; cost: number }
+
+export function newConversation(): Conversation {
   return { messages: [], cost: 0 };
 }
+
+export interface ToolCall { name: string; input: unknown; result: ToolResult; write: boolean }
+export interface SendOptions {
+  onText?: (delta: string) => void;
+  onTool?: (call: ToolCall) => void;
+  onStep?: () => void;
+  signal?: AbortSignal;
+}
+export type Stop = 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps';
+export interface TurnChanges { changes: string[]; cost: number }
+export interface TurnResult extends TurnChanges { stop: Stop }
+// What send() throws: the error, with what had already been changed (and code 'no_key' with no key).
+export type AssistantError = Error & { code?: 'no_key'; partial?: TurnChanges };
 
 // Sends one user message and runs the tool loop until Claude is done.
 // Callbacks: onText(delta), onTool({ name, input, result }), onStep() between model calls.
 // Returns { changes: [summaries of what was changed], cost (dollars, this message),
 //   stop: 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps' }.
 // On failure the thrown error has .partial = { changes, cost }.
-export async function send(conv, text, { onText, onTool, onStep, signal } = {}) {
+export async function send(conv: Conversation, text: string, { onText, onTool, onStep, signal }: SendOptions = {}): Promise<TurnResult> {
   const { Anthropic, client } = await getClient();
   takeChanges(); // start this turn's change list fresh
   // The history is append-only: each message starts with a snapshot of the app's state.
@@ -77,17 +96,17 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
   });
 
   let cost = 0;
-  const done = (stop) => ({ changes: takeChanges(), cost, stop });
+  const done = (stop: Stop): TurnResult => ({ changes: takeChanges(), cost, stop });
   // If a later step fails, earlier steps may already have changed things: the error carries them
   // (err.partial) so the app can still show them with an Undo.
   try {
     return await loop();
   } catch (err) {
-    if (err && typeof err === 'object') err.partial = { changes: takeChanges(), cost };
+    if (err && typeof err === 'object') (err as AssistantError).partial = { changes: takeChanges(), cost };
     throw err;
   }
 
-  async function loop() {
+  async function loop(): Promise<TurnResult> {
     let jsonRetries = 0;
     for (let step = 0; step < MAX_STEPS; step++) {
       if (step) onStep?.();
@@ -131,7 +150,7 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
       const uses = message.content.filter((b) => b.type === 'tool_use');
       if (!uses.length) return done('done');
 
-      const results = uses.map((u) => {
+      const results = uses.map((u): Anthropic.Beta.BetaToolResultBlockParam => {
         const result = runTool(u.name, u.input);
         onTool?.({ name: u.name, input: u.input, result, write: isWriteTool(u.name) });
         return {
@@ -148,9 +167,9 @@ export async function send(conv, text, { onText, onTool, onStep, signal } = {}) 
 }
 
 // Friendly text for API errors.
-export async function describeError(err) {
-  if (err?.code === 'no_key') return 'Add your Anthropic API key to use the assistant.';
-  const { Anthropic } = await getClient().catch(() => ({}));
+export async function describeError(err: unknown): Promise<string> {
+  if ((err as AssistantError | null)?.code === 'no_key') return 'Add your Anthropic API key to use the assistant.';
+  const { Anthropic } = await getClient().catch((): Partial<Sdk> => ({}));
   if (Anthropic) {
     if (err instanceof Anthropic.AuthenticationError) return 'That API key wasn’t accepted. Check it in Settings → Assistant.';
     if (err instanceof Anthropic.PermissionDeniedError) return 'This API key doesn’t have access to that model.';
