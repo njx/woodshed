@@ -3,8 +3,11 @@ import { LEVELS, PRIORITIES, TRANSPOSITIONS } from '../constants.js';
 import { keyName } from '../keys.js';
 import { esc, clone } from '../util.js';
 
-export const $ = (sel, root = document) => root.querySelector(sel);
-export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+// The element a selector finds (taken to be there: check the result where it may not be), and
+// all of them.
+type Root = Document | Element | DocumentFragment;
+export const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: Root = document): T => root.querySelector(sel) as T;
+export const $$ = <T extends HTMLElement = HTMLElement>(sel: string, root: Root = document): T[] => [...root.querySelectorAll<T>(sel)];
 
 // ---------- UI state (per device, not part of the backed-up data) ----------
 

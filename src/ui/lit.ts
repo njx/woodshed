@@ -18,21 +18,21 @@ export class View extends LitElement {
 }
 
 // A screen's component in the #view container: made the first time, then refreshed.
-export function mount(root, tag) {
-  let el = root.firstElementChild;
-  if (root.childElementCount !== 1 || el.localName !== tag) {
-    el = document.createElement(tag);
+export function mount(root: HTMLElement, tag: string): View {
+  let el = root.firstElementChild as View | null;
+  if (root.childElementCount !== 1 || !el || el.localName !== tag) {
+    el = document.createElement(tag) as View;
     root.replaceChildren(el);
   } else el.refresh();
   return el;
 }
 
 // Our own markup (the ICON svgs, help text with <b>): never anything typed in.
-export const raw = (s) => unsafeHTML(s);
+export const raw = (s: string) => unsafeHTML(s);
 
 // The ⓘ by a heading and the text it shows and hides (see info() in shell.js, which wires every
 // .info-btn on the page): id names the text, so it stays open or shut across updates.
-export function infoParts(id, help) {
+export function infoParts(id: string, help: string) {
   return {
     btn: html`<button type="button" class="info-btn" aria-controls=${id} aria-expanded="false" aria-label="What’s this?">i</button>`,
     text: html`<p class="fine info-text" id=${id} hidden>${raw(help)}</p>`,
@@ -40,8 +40,9 @@ export function infoParts(id, help) {
 }
 
 // A list of settings, each row showing what it's set to; tapping one calls open(key) (see
-// settingRowsHtml in shell.js). rows: [{ key, label, value }].
-export function settingRows(rows, open) {
+// settingRowsHtml in shell.js).
+export interface SettingRow { key: string; label: string; value?: string }
+export function settingRows(rows: SettingRow[], open: (key: string) => void) {
   return html`<div class="set-list">${rows.map((r) => html`
     <button class="set-row" data-open=${r.key} @click=${() => open(r.key)}>
       <span class="set-label">${r.label}</span><span class="set-value">${r.value || ''}</span><span class="set-go" aria-hidden="true">›</span>

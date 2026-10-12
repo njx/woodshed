@@ -7,9 +7,10 @@ import { loadSeedCharts } from '../charts.js';
 import { mediaStats, fmtSize, strayClips, restoreStrayClips } from '../media.js';
 import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
-import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
+import { getUsage, summarize, resetUsage, fmtCost, type Usage } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
 import { ICON, render, toast, goTo, openChoice } from './shell.js';
+import { customElement, state } from 'lit/decorators.js';
 import { View, mount, html, nothing, live, raw, infoParts, settingRows } from './lit.js';
 
 const EX_FOCUS_HINTS = {
@@ -41,15 +42,11 @@ export function renderSettings(root) {
 }
 
 // The Settings screen.
-class SettingsView extends View {
-  static properties = { key: { state: true }, usage: { state: true }, stray: { state: true } };
-
-  constructor() {
-    super();
-    this.key = null; // the assistant's API key (null: still checking)
-    this.usage = null; // what the assistant has cost
-    this.stray = []; // recordings in no note
-  }
+@customElement('ws-settings')
+export class SettingsView extends View {
+  @state() key: string | null = null; // the assistant's API key (null: still checking)
+  @state() usage: Usage | null = null; // what the assistant has cost
+  @state() stray: string[] = []; // recordings in no note
   connectedCallback() {
     super.connectedCallback();
     this.load();
@@ -206,7 +203,6 @@ class SettingsView extends View {
     toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);
   }
 }
-customElements.define('ws-settings', SettingsView);
 
 async function resetAll() {
   if (!confirm('Erase all practice history and edits, and start over from the original list?')) return;

@@ -49,11 +49,13 @@ export function tokensOf(message) {
 }
 
 // Running totals, kept outside the practice state so Undo and restoring a backup don't touch them.
+export interface DayUsage { cost: number; requests: number; input: number; output: number }
+export interface Usage { days: Record<string, DayUsage>; since: string }
 const KEY = 'assistantUsage';
-const empty = () => ({ days: {}, since: dateStr() });
+const empty = (): Usage => ({ days: {}, since: dateStr() });
 
-export async function getUsage() {
-  return (await kvGet(KEY)) || empty();
+export async function getUsage(): Promise<Usage> {
+  return ((await kvGet(KEY)) as Usage | undefined) || empty();
 }
 
 export async function recordUsage(cost, tokens, date = dateStr()) {

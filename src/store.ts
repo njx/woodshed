@@ -6,6 +6,7 @@ import { uid } from './util.js';
 import { sanitizeState } from './validate.js';
 import { seedChart, loadSeedCharts } from './charts.js';
 import { kvGet, kvSet, kvFallback } from './db.js';
+import type { State, Exercise, Tune } from './types.js';
 
 // The whole app state lives in memory in store.state and is written to IndexedDB after changes.
 //
@@ -37,10 +38,15 @@ const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
 // rev counts saves: an undo only applies if nothing has changed since it was offered.
-export const store = { state: null, rev: 0 };
+// (state is null only while it loads, before anything reads it.)
+export const store: { state: State; rev: number } = { state: null as unknown as State, rev: 0 };
+
+// Saved or imported data, before migrate() and validate.ts have made it a State.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Raw = any;
 
 // Starter exercises; `since` limits them to ones added after a given data version.
-export function seedExercises(since = 0) {
+export function seedExercises(since = 0): Exercise[] {
   return SEED_EXERCISES.filter((x) => (x.since || 3) > since).map((x) => ({
     id: uid(),
     type: 'exercise',
@@ -57,12 +63,13 @@ export function seedExercises(since = 0) {
     notes: x.notes,
     priority: 3,
     level: 0,
+    focus: false,
     ivl: null,
     due: null,
-  }));
+  } as Exercise));
 }
 
-export function seedState() {
+export function seedState(): State {
   return normalize({
     version: SCHEMA_VERSION,
     items: [...SEED_TUNES.map((t) => ({
@@ -77,9 +84,10 @@ export function seedState() {
       notes: t.notes || '',
       mine: !!t.mine,
       chart: seedChart({ name: t.name }),
+      focus: false,
       ivl: null,
       due: null,
-    })), ...seedExercises()],
+    } as Tune)), ...seedExercises()],
     log: [],
     diary: [],
     plan: null,
@@ -88,10 +96,10 @@ export function seedState() {
 }
 
 // Bring any saved or imported state up to the current schema.
-export function migrate(s) {
+export function migrate(s: Raw): State {
   if (!s.version || s.version < 2) {
     // v1: tunes / tuneId → items / itemId, every item a tune.
-    s.items = (s.tunes || s.items || []).map((t) => ({ type: 'tune', seedName: t.name, ...t }));
+    s.items = (s.tunes || s.items || []).map((t: Raw) => ({ type: 'tune', seedName: t.name, ...t }));
     delete s.tunes;
     for (const e of s.log || []) {
       if (e.tuneId) { e.itemId = e.tuneId; delete e.tuneId; }
@@ -110,7 +118,7 @@ export function migrate(s) {
   }
   if (s.version < 4) {
     // v4: exercises that vary the scale or chord type; add the new starters.
-    const names = new Set((s.items || []).map((t) => t.name));
+    const names = new Set((s.items || []).map((t: Raw) => t.name));
     s.items = [...(s.items || []), ...seedExercises(3).filter((x) => !names.has(x.name))];
     s.version = 4;
   }
@@ -123,7 +131,7 @@ export function migrate(s) {
   }
   if (s.version < 6) {
     // v6: an exercise that arpeggiates a tune's progressions, for warm-ups.
-    const names = new Set((s.items || []).map((t) => t.name));
+    const names = new Set((s.items || []).map((t: Raw) => t.name));
     s.items = [...(s.items || []), ...seedExercises(5).filter((x) => !names.has(x.name))];
     s.version = 6;
   }
@@ -155,8 +163,8 @@ export function migrate(s) {
   if (s.version < 10) {
     // v10: warm-ups are added by hand (+ Warm-up on a tune), not before every tune: today's
     // set is made again without them (see ensurePlan), keeping any already played.
-    const played = new Set((s.log || []).map((e) => e.pid).filter(Boolean));
-    if (s.plan) s.plan.items = (s.plan.items || []).filter((it) => !it.warmup || played.has(it.pid));
+    const played = new Set((s.log || []).map((e: Raw) => e.pid).filter(Boolean));
+    if (s.plan) s.plan.items = (s.plan.items || []).filter((it: Raw) => !it.warmup || played.has(it.pid));
     s.version = 10;
   }
   if (s.version < 11) {
@@ -167,12 +175,12 @@ export function migrate(s) {
   return normalize(s);
 }
 
-export function normalize(s) {
+export function normalize(s: Raw): State {
   return sanitizeState(s);
 }
 
 export async function loadState() {
-  let s = await kvGet(STATE_KEY); // throws if storage can't be read: never seed over real data
+  let s: Raw = await kvGet(STATE_KEY); // throws if storage can't be read: never seed over real data
   // A save that failed in IndexedDB left a newer copy in localStorage.
   const spill = kvFallback(STATE_KEY);
   if (spill && spill !== s && (!s || (spill.savedAt || 0) > (s.savedAt || 0))) s = spill;
@@ -192,9 +200,9 @@ export async function loadState() {
   return store.state;
 }
 
-let saveTimer = null;
-let onSaveError = () => {};
-export function setSaveErrorHandler(fn) {
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let onSaveError: (e: unknown) => void = () => {};
+export function setSaveErrorHandler(fn: (e: unknown) => void) {
   onSaveError = fn;
 }
 
@@ -207,7 +215,7 @@ export function save() {
 
 export async function flush() {
   clearTimeout(saveTimer);
-  saveTimer = null;
+  saveTimer = undefined;
   if (!store.state) return; // still loading: nothing to save, and never write over saved data
   store.state.savedAt = Date.now();
   try {

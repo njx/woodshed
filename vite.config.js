@@ -46,9 +46,9 @@ function seedCharts() {
       if (resolved !== `\0${id}`) return null;
       if (!existsSync(file)) this.error(`Chord charts are missing (${file}). Run: git submodule update --init`);
       this.addWatchFile(file);
-      const { SEED_TUNES } = await import('./src/data/tunes.js');
-      const { indexStandards, findStandard } = await import('./src/standards.js');
-      const { chartFromStandard } = await import('./src/chords.js');
+      const { SEED_TUNES } = await import('./src/data/tunes.ts');
+      const { indexStandards, findStandard } = await import('./src/standards.ts');
+      const { chartFromStandard } = await import('./src/chords.ts');
       const index = indexStandards(JSON.parse(readFileSync(file, 'utf8')));
       const charts = {};
       for (const t of SEED_TUNES) {
