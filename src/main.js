@@ -80,17 +80,19 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   let hadController = !!navigator.serviceWorker.controller;
   let pendingReload = false;
   const idle = () => !document.querySelector('#sheet-root.open') && !metronome.state.running && !tuner.state.running;
+  // Whatever hasn't been written yet is saved first (a reload mid-save would lose it).
+  const reload = () => flush().finally(() => location.reload());
   navigator.serviceWorker.register('sw.js').then((reg) => {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
-      if (pendingReload && idle()) return location.reload();
+      if (pendingReload && idle()) return reload();
       reg.update().catch(() => {});
     });
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController) { hadController = true; return; } // the first install: nothing to replace
-    if (idle()) return location.reload();
+    if (idle()) return reload();
     pendingReload = true;
-    toast('A new version of Woodshed is ready', { label: 'Reload', fn: () => location.reload() });
+    toast('A new version of Woodshed is ready', { label: 'Reload', fn: reload });
   });
 }

@@ -1,4 +1,4 @@
-import { store, save } from '../store.js';
+import { store, save, flush } from '../store.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
@@ -354,7 +354,7 @@ export function openRecorder(opts = {}) {
       const entry = existing && entryById(existing.id);
       if (entry) (entry.media ||= []).push(clip);
       else addEntry({ text, itemId: tune?.id || null, flag: opts.flag || null, media: [clip], take: true });
-      save();
+      await flush(); // saved now, not in a moment: the note is what keeps the recording
       render();
       toast(entry ? 'Recording added' : 'Recording saved to your diary');
       URL.revokeObjectURL(t.url);

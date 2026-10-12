@@ -1,10 +1,10 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { store } from '../src/store.js';
 import { mediaPut, mediaKeys, _resetDb } from '../src/db.js';
-import { pickMime, constraints, orphanIds, cleanupMedia, mediaStats, fmtDuration, fmtSize } from '../src/media.js';
+import { pickMime, constraints, orphanIds, cleanupMedia, strayClips, mediaStats, fmtDuration, fmtSize } from '../src/media.js';
 import { addEntry, todoText } from '../src/diary.js';
-import { tune, setState } from './helpers.js';
+import { tune, setState, freezeToday } from './helpers.js';
 
 beforeEach(async () => {
   await _resetDb();
@@ -40,12 +40,21 @@ describe('clips in the diary', () => {
     expect(orphanIds(store.state, ['keep', 'gone'])).toEqual(['gone']);
   });
 
-  it('cleans orphaned clips out of storage', async () => {
+  it('cleans clips no note refers to out of storage — 30 days after they were first seen so', async () => {
     addEntry({ text: 'take 1', media: [clip('keep')] });
     await mediaPut('keep', 'audio-bytes');
     await mediaPut('gone', 'audio-bytes');
+    freezeToday('2026-10-06');
+    await cleanupMedia();
+    expect(await mediaKeys()).toEqual(['gone', 'keep']); // kept a while (it can be restored)
+    expect(await strayClips()).toEqual(['gone']);
+    freezeToday('2026-10-20');
+    await cleanupMedia();
+    expect(await mediaKeys()).toEqual(['gone', 'keep']);
+    freezeToday('2026-11-06');
     await cleanupMedia();
     expect(await mediaKeys()).toEqual(['keep']);
+    vi.useRealTimers();
   });
 
   it('totals recordings for settings', () => {

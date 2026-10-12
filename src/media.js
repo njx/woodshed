@@ -1,7 +1,8 @@
 import { holdAudio } from './audiosession.js';
 import { store } from './store.js';
 import { uid } from './util.js';
-import { mediaPut, mediaGet, mediaDelete, mediaKeys } from './db.js';
+import { mediaPut, mediaGet, mediaDelete, mediaKeys, kvGet, kvSet } from './db.js';
+import { dateStr, daysBetween } from './dates.js';
 
 // Recorded clips. The Blob lives in IndexedDB's media store; diary entries carry the metadata:
 //   entry.media = [{ id, kind: 'audio' | 'video', mime, ms, size }]
@@ -56,13 +57,53 @@ export function orphanIds(state, keys) {
   return keys.filter((k) => !used.has(k));
 }
 
+// Recordings no note refers to (a note deleted, or — rarely — a note that didn't get saved) are
+// kept for a while before they're deleted, and can be restored from Settings until then.
+const ORPHANS = 'orphans'; // { clip id: date first seen without a note }
+const KEEP_DAYS = 30;
 export async function cleanupMedia() {
   try {
     const orphans = orphanIds(store.state, await mediaKeys());
-    await Promise.all(orphans.map((id) => mediaDelete(id)));
+    const seen = (await kvGet(ORPHANS).catch(() => null)) || {};
+    const today = dateStr();
+    const next = {};
+    for (const id of orphans) {
+      const first = seen[id] || today;
+      if (daysBetween(first, today) >= KEEP_DAYS) await mediaDelete(id);
+      else next[id] = first;
+    }
+    await kvSet(ORPHANS, next);
   } catch {
     // No media store (e.g. IndexedDB unavailable): nothing to clean up.
   }
+}
+
+// Recordings not in any note, still kept: ids.
+export async function strayClips() {
+  try { return orphanIds(store.state, await mediaKeys()); } catch { return []; }
+}
+
+// Puts stray recordings back, each in a note of its own ("Recovered recording"). Returns how many.
+export async function restoreStrayClips(addEntry) {
+  let n = 0;
+  for (const id of await strayClips()) {
+    const blob = await mediaGet(id).catch(() => null);
+    if (!blob) continue;
+    const kind = (blob.type || '').startsWith('video') ? 'video' : 'audio';
+    const ms = await new Promise((resolve) => {
+      const el = document.createElement(kind);
+      const url = URL.createObjectURL(blob);
+      const done = (v) => { URL.revokeObjectURL(url); resolve(v); };
+      el.onloadedmetadata = () => done(Number.isFinite(el.duration) ? el.duration * 1000 : 0);
+      el.onerror = () => done(0);
+      setTimeout(() => done(0), 3000);
+      el.preload = 'metadata';
+      el.src = url;
+    });
+    addEntry({ text: 'Recovered recording', media: [{ id, kind, mime: blob.type || '', ms: Math.round(ms), size: blob.size }], take: true });
+    n++;
+  }
+  return n;
 }
 
 export function mediaStats(state) {

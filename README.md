@@ -366,7 +366,11 @@ of album track lists checked online.
   backup** now and then, and before switching phones.
 - Saved and imported data is checked on every load (`src/validate.js`): fields get the types the
   app expects, and unsafe ids or values are replaced. If saved data can't be read, the app says so
-  and offers to retry rather than starting over. If a save fails (e.g. storage full), a copy is kept
+  and offers to retry rather than starting over.
+- Recordings are files kept apart from the rest; a note points to each. One no note points to (its
+  note deleted, or a note that didn't get saved) is kept for 30 days before it's deleted, and
+  **Settings → Your data** offers to restore such recordings as notes. A recording is saved the
+  moment it's kept, and the app saves anything pending before it reloads for an update. If a save fails (e.g. storage full), a copy is kept
   in `localStorage` and picked up next time.
 - Restoring a backup keeps this phone's recordings: notes with recordings that aren't in the
   backup are kept alongside it.

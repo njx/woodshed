@@ -4,7 +4,8 @@ import { dateStr, niceDate } from '../dates.js';
 import { esc, clone } from '../util.js';
 import { buildPlan, refreshExercises, orderPlan } from '../plan.js';
 import { loadSeedCharts } from '../charts.js';
-import { mediaStats, fmtSize } from '../media.js';
+import { mediaStats, fmtSize, strayClips, restoreStrayClips } from '../media.js';
+import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
@@ -101,6 +102,7 @@ export function renderSettings(root) {
         const m = mediaStats(store.state);
         return m.count ? `<p class="fine">Recordings: ${m.count} (${fmtSize(m.bytes)}). They aren’t included in backups — save the ones you want to keep from their diary notes.</p>` : '';
       })()}
+      <div id="stray" hidden><p class="fine" id="stray-text"></p><button class="ghost-btn" id="stray-restore">Restore them as notes</button></div>
       <div class="btn-row">
         <button class="ghost-btn" id="export">Export backup</button>
         <label class="ghost-btn file-btn">Import backup<input type="file" id="import" accept="application/json,.json"></label>
@@ -176,6 +178,19 @@ export function renderSettings(root) {
       if (!confirm('Reset the assistant spending totals?')) return;
       await resetUsage();
       render();
+    };
+  });
+  // Recordings not in any note (kept 30 days before they're deleted): offered back.
+  strayClips().then((ids) => {
+    const box = $('#stray', root);
+    if (!box || !ids.length) return;
+    box.hidden = false;
+    $('#stray-text', root).textContent = `${ids.length} recording${ids.length > 1 ? 's aren’t' : ' isn’t'} in any note (from a deleted note, or one that didn’t get saved). ${ids.length > 1 ? 'They’re' : 'It’s'} kept for 30 days.`;
+    $('#stray-restore', root).onclick = async () => {
+      const n = await restoreStrayClips(addEntry);
+      await flush();
+      render();
+      toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);
     };
   });
   $('#export').onclick = exportData;

@@ -84,10 +84,15 @@ test('add a second clip to a note, remove one; files are cleaned up', async ({ p
   await expect(page.locator('.clips li')).toHaveCount(1);
   await ui.backdrop();
 
-  await page.reload(); // startup removes files no note refers to
-  await expect.poll(async () => (await ui.saved()).clipIds.length).toBe(1);
+  await page.reload(); // the removed one's file is kept a while (30 days), and can be restored
+  await expect.poll(async () => (await ui.saved()).clipIds.length).toBe(2);
   await ui.tab('settings');
   await expect(page.locator('p.fine', { hasText: 'Recordings:' })).toContainText('Recordings: 1');
+  await expect(page.locator('#stray-text')).toContainText('1 recording isn’t in any note');
+  await page.click('#stray-restore');
+  await expect(page.locator('#toast')).toContainText('Restored 1 recording');
+  await ui.tab('diary');
+  await expect(page.locator('.note', { hasText: 'Recovered recording' }).locator('.clip-pill')).toHaveCount(1);
 });
 
 test('record an exercise from its details: the take is kept with it, labelled with what was played @narrow', async ({ page, ui }) => {
