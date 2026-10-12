@@ -3,6 +3,14 @@ import { normTitle } from './util.js';
 // Matching tune titles to mikeoliphant/JazzStandards (iReal Pro's playlists), whose titles are
 // sometimes written differently ("Girl From Ipanema, The"). Used at build time to seed charts.
 
+// An entry in JazzStandards.json (the parts used; see chords.js chartFromStandard).
+export interface Standard {
+  Title: string;
+  Key?: string;
+  TimeSignature?: string;
+  Sections?: { Label?: string; Repeats?: number | null; MainSegment?: { Chords?: string }; Endings?: { Chords?: string }[] }[];
+}
+
 // Titles that differ between the tune list and JazzStandards.
 const ALIAS_TITLES = {
   'UMMG': 'Upper Manhattan Medical Group',
@@ -18,14 +26,14 @@ export const ALIASES = Object.fromEntries(Object.entries(ALIAS_TITLES).map(([a, 
 
 // A looser form of a title: no parentheses or apostrophes, "X, The" → "X", no leading
 // "the"/"a"/"on", no spaces.
-export function looseTitle(title) {
+export function looseTitle(title: string): string {
   return normTitle(String(title).replace(/\(.*?\)/g, ' ').replace(/[’']/g, '').replace(/,\s*(the|a)\s*$/i, '').trim()
     .replace(/^(the|a|on)\s+/i, ''));
 }
 
 // An index of JazzStandards entries by title, and a lookup into it.
-export function indexStandards(list) {
-  const index = new Map();
+export function indexStandards(list: Standard[]): Map<string, Standard> {
+  const index = new Map<string, Standard>();
   for (const x of list) {
     const exact = normTitle(x.Title);
     if (!index.has(exact)) index.set(exact, x);
@@ -34,7 +42,7 @@ export function indexStandards(list) {
   }
   return index;
 }
-export function findStandard(index, title) {
+export function findStandard(index: Map<string, Standard>, title: string): Standard | null {
   const n = normTitle(title);
   return index.get(n) || index.get(`~${looseTitle(title)}`) || (ALIASES[n] && index.get(normTitle(ALIASES[n]))) || null;
 }

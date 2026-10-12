@@ -93,7 +93,7 @@ export function practicedByDay(now = Date.now()) {
 }
 
 // "45 min", "1 h 5 min"; under a minute: "<1 min".
-export function fmtDuration(ms) {
+export function fmtDuration(ms: number): string {
   const min = Math.round(ms / 60000);
   if (min < 1) return '<1 min';
   if (min < 60) return `${min} min`;
@@ -101,7 +101,7 @@ export function fmtDuration(ms) {
 }
 
 // A running clock: "4:05", "1:02:09".
-export function fmtClock(ms) {
+export function fmtClock(ms: number): string {
   const sec = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);

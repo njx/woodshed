@@ -1,4 +1,17 @@
 import SAMPLE_NOTES from './data/sounds.json';
+import type { SoundId } from './types.js';
+
+declare global {
+  /** Older Safari: OfflineAudioContext by its prefixed name (undefined elsewhere). */
+  var webkitOfflineAudioContext: typeof OfflineAudioContext | undefined;
+}
+
+/** A sound that can have samples: a playback sound, or the walking bass's. */
+export type SampleSet = SoundId | 'bass';
+/** Decoded samples: { midi: AudioBuffer }. */
+export type Samples = Record<number, AudioBuffer>;
+// The sample notes (MIDI) recorded for each (none for the synth).
+const NOTES: Partial<Record<SampleSet, number[]>> = SAMPLE_NOTES;
 
 // Sounds for notation playback: recorded instruments (one sample every few semitones, shifted to
 // the notes in between; see scripts/make-samples.sh), or a synth that needs no download.
@@ -18,12 +31,12 @@ export const SWING = {
   swing: { label: 'Swing', ratio: 2 / 3 },
 };
 
-export const sampleNotes = (id) => SAMPLE_NOTES[id] || [];
+export const sampleNotes = (id: SampleSet): number[] => NOTES[id] || [];
 
 // The recorded note to play a pitch from: the nearest one (ties go to the one below, so samples
 // are mostly shifted up a little, which sounds more natural than down).
-export function nearestSample(id, pitch) {
-  let best = null;
+export function nearestSample(id: SampleSet, pitch: number): number | null {
+  let best: number | null = null;
   for (const m of sampleNotes(id)) {
     if (best == null || Math.abs(m - pitch) < Math.abs(best - pitch) || (Math.abs(m - pitch) === Math.abs(best - pitch) && m < best)) best = m;
   }
@@ -32,7 +45,7 @@ export function nearestSample(id, pitch) {
 
 // Swing: each beat's first half is stretched to `ratio` of the beat and the second half squeezed
 // into the rest, so off-beat eighths land late (2:1 is triplet swing). Times are in beats.
-export function swingTime(t, ratio = 0.5) {
+export function swingTime(t: number, ratio = 0.5): number {
   if (ratio === 0.5) return t;
   const beat = Math.floor(t);
   const f = t - beat;
@@ -43,23 +56,23 @@ export function swingTime(t, ratio = 0.5) {
 // service worker keeps the files for offline use. (Also the walking bass's: 'bass'.)
 // Decoded on a context of their own that's never closed (a player's is closed when it stops, and
 // a decode left on a closed one may never finish); the buffers play in any context.
-const loaded = new Map();
-let decoder = null;
-export function loadSamples(ctx, id) {
+const loaded = new Map<SampleSet, Promise<Samples>>();
+let decoder: BaseAudioContext | null = null;
+export function loadSamples(ctx: BaseAudioContext, id: SampleSet): Promise<Samples> {
   if (!loaded.has(id)) {
     const Offline = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
     decoder ||= Offline ? new Offline(1, 1, 44100) : ctx;
     const p = Promise.race([
-      Promise.all(sampleNotes(id).map(async (m) => {
+      Promise.all(sampleNotes(id).map(async (m): Promise<[number, AudioBuffer]> => {
         const res = await fetch(`samples/${id}/${m}.mp3`);
         if (!res.ok) throw new Error(`sample ${id}/${m}: ${res.status}`);
         const data = await res.arrayBuffer();
-        return [m, await new Promise((resolve, reject) => decoder.decodeAudioData(data, resolve, reject))];
+        return [m, await new Promise<AudioBuffer>((resolve, reject) => decoder!.decodeAudioData(data, resolve, reject))]; // (decoder: set above)
       })),
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`sounds ${id}: too slow`)), 20000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`sounds ${id}: too slow`)), 20000)),
     ]).then(Object.fromEntries);
     p.catch(() => loaded.delete(id)); // try again next time
     loaded.set(id, p);
   }
-  return loaded.get(id);
+  return loaded.get(id)!; // (set above)
 }

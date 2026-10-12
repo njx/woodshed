@@ -4,6 +4,12 @@ import { detectPitch, noteOf } from './pitch.js';
 import { holdAudio } from './audiosession.js';
 import { keepAwake } from './keepawake.js';
 
+export interface TunerState { running: boolean; error: boolean; mini: boolean }
+/** A reading: the nearest note (concert MIDI), how far off (cents), the frequency, and when (performance.now()). */
+export interface TunerReading { midi: number; cents: number; hz: number; at: number }
+/** A point of the trace: when, and the note and cents (both null: no note). */
+export interface TracePoint { t: number; cents: number | null; midi: number | null }
+
 // The tuner's listening, apart from how it's shown: the full tuner (ui/tuner.js) and the mini one
 // that stays on screen while you go through today's set both read from here. It listens until
 // stopped; the screen stays on meanwhile.
@@ -11,30 +17,30 @@ import { keepAwake } from './keepawake.js';
 export const TRACE_SECONDS = 10;
 const DETECT_MS = 30;
 
-const listeners = new Set();
-const st = { running: false, error: false, mini: false };
-let ctx = null;
-let stream = null;
-let analyser = null;
-let buf = null;
-let timer = null;
-let releaseAudio = null;
-let releaseAwake = null;
+const listeners = new Set<(s: TunerState) => void>();
+const st: TunerState = { running: false, error: false, mini: false };
+let ctx: AudioContext | null = null;
+let stream: MediaStream | null = null;
+let analyser: AnalyserNode | null = null;
+let buf: Float32Array<ArrayBuffer> | null = null;
+let timer: ReturnType<typeof setInterval> | null = null;
+let releaseAudio: (() => void) | null = null;
+let releaseAwake: (() => void) | null = null;
 let gen = 0; // each start; a mic request that answers after a stop (or a restart) is let go
-let last = null; // { midi, cents, hz, at } (at: performance.now())
-const trace = []; // { t, cents, midi } (cents null = no note)
+let last: TunerReading | null = null; // { midi, cents, hz, at } (at: performance.now())
+const trace: TracePoint[] = []; // { t, cents, midi } (cents null = no note)
 
 export const tuner = {
-  get state() { return { ...st }; },
+  get state(): TunerState { return { ...st }; },
   // The latest reading (or null), and the last few seconds of them.
-  get last() { return last; },
+  get last(): TunerReading | null { return last; },
   trace,
-  subscribe(fn) {
+  subscribe(fn: (s: TunerState) => void) {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
   // Call from a tap, so the phone lets the audio start.
-  async start() {
+  async start(): Promise<void> {
     if (st.running) return;
     st.running = true;
     st.error = false;
@@ -72,7 +78,7 @@ export const tuner = {
     emit();
   },
   // Shown small on every screen (true), or only in its sheet.
-  setMini(mini) {
+  setMini(mini: boolean) {
     if (st.mini === mini) return;
     st.mini = mini;
     emit();
@@ -97,7 +103,7 @@ function emit() {
 }
 
 function teardown() {
-  clearInterval(timer);
+  clearInterval(timer ?? undefined);
   timer = null;
   stream?.getTracks().forEach((tr) => tr.stop());
   stream = null;
@@ -115,8 +121,9 @@ function teardown() {
 function detect() {
   if (!analyser) return;
   const now = performance.now();
-  analyser.getFloatTimeDomainData(buf);
-  const p = detectPitch(buf, ctx.sampleRate);
+  // (buf and ctx are set whenever analyser is: made together in start, cleared together in teardown)
+  analyser.getFloatTimeDomainData(buf!);
+  const p = detectPitch(buf!, ctx!.sampleRate);
   if (p && p.clarity > 0.8) {
     const n = noteOf(p.hz, store.state.settings.a4 || 440);
     // Smooth out jitter: average with the previous reading of the same note.

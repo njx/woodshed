@@ -5,15 +5,21 @@
 //   - 'auto' otherwise.
 // Each user holds what it needs and releases it when done.
 
+// iOS Safari's navigator.audioSession, which TypeScript's DOM types don't have yet.
+type AudioSessionType = 'auto' | 'playback' | 'transient' | 'transient-solo' | 'ambient' | 'play-and-record';
+declare global {
+  interface Navigator { audioSession?: { type: AudioSessionType } }
+}
+
 const held = { playback: 0, record: 0 };
 
 function apply() {
-  const type = held.record ? 'play-and-record' : held.playback ? 'playback' : 'auto';
+  const type: AudioSessionType = held.record ? 'play-and-record' : held.playback ? 'playback' : 'auto';
   try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch { /* not supported */ }
 }
 
 // Returns a function that releases it (safe to call more than once).
-export function holdAudio(kind) {
+export function holdAudio(kind: keyof typeof held): () => void {
   held[kind]++;
   apply();
   let done = false;

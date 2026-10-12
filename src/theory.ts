@@ -2,9 +2,17 @@
 // minor…"), and notation generated for them. Everything is spelled as written in C; like any
 // exercise notation, it's then shifted into each key (see abc.js).
 
+import type { Progression, Shape, Vary } from './types.js';
+
 // Notes spelled in C: [letter, accidental] with accidental −2…2 (♭♭ … ♯♯).
 // A lowercase letter is an octave up (a 9th above the root).
-const n = (s) => s.split(' ').map((x) => [x.at(-1).toUpperCase(), { __: -2, _: -1, '': 0, '^': 1, '^^': 2 }[x.slice(0, -1)], x.at(-1) === x.at(-1).toLowerCase() ? 1 : 0]);
+export type SpelledNote = [letter: string, acc: number, up: 0 | 1];
+// A scale or chord type.
+export interface TypeInfo { label: string; short: string; chord?: string; notes: SpelledNote[] }
+// A note to write: letter, accidental, octave (4 = from middle C up), and a chord symbol over it.
+export interface AbcNote { letter: string; acc: number; octave: number; chord?: string }
+
+const n = (s: string): SpelledNote[] => s.split(' ').map((x) => [x.at(-1)!.toUpperCase(), ({ __: -2, _: -1, '': 0, '^': 1, '^^': 2 } as Record<string, number>)[x.slice(0, -1)], x.at(-1) === x.at(-1)!.toLowerCase() ? 1 : 0]);
 
 export const SCALES = {
   major: { label: 'Major', short: 'maj', chord: 'maj7', notes: n('C D E F G A B') },
@@ -68,11 +76,11 @@ export const PATTERN_PAD = {
   chord: [1, 3, 5, 7, 8, 10, 12, 14, 15],
 };
 
-export const typesOf = (kind) => VARY[kind]?.types || {};
-export const typeInfo = (kind, id) => typesOf(kind)[id] || null;
+export const typesOf = (kind: Vary['kind']): Record<string, TypeInfo> => VARY[kind]?.types || {};
+export const typeInfo = (kind: Vary['kind'], id: string): TypeInfo | null => typesOf(kind)[id] || null;
 
 // "C dorian", "Cm7": a root name plus a type's short label.
-export function variantName(rootName, kind, id) {
+export function variantName(rootName: string, kind: Vary['kind'], id: string): string {
   const t = typeInfo(kind, id);
   if (!t) return rootName;
   return kind === 'chord' ? `${rootName}${t.short}` : `${rootName} ${t.short}`;
@@ -80,11 +88,11 @@ export function variantName(rootName, kind, id) {
 
 // Note numbers (1-based) for a shape on a scale or chord with `len` notes. `ninth`: the chord's
 // last note is a 9th, so "up and down" tops out there rather than on the octave.
-export function shapeNumbers(shape, len, kind, custom = '', { ninth = false } = {}) {
+export function shapeNumbers(shape: Shape, len: number, kind: Vary['kind'], custom = '', { ninth = false } = {}): number[] {
   const oct = ninth ? len : len + 1; // the top of one octave's worth
-  const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-  const up = (top) => range(1, top);
-  const down = (top) => range(1, top - 1).reverse();
+  const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  const up = (top: number) => range(1, top);
+  const down = (top: number) => range(1, top - 1).reverse();
   switch (shape) {
     case 'updown2': return [...up(len + oct), ...down(len + oct)];
     case 'thirds': return [...range(1, len).flatMap((i) => [i, i + 2]), oct];
@@ -100,10 +108,10 @@ export function shapeNumbers(shape, len, kind, custom = '', { ninth = false } = 
 // A custom pattern: note numbers separated by spaces or dashes. For chords, numbers are chord
 // tones 1 3 5 7 (and 8 10 12 14 an octave up); for scales, they count the scale's notes (on a
 // 7-note scale 8 is the octave). Chord patterns come back as positions among the 4 chord tones.
-export function parsePattern(text, kind) {
+export function parsePattern(text: string, kind: Vary['kind']): { numbers: number[]; error?: string } {
   const parts = String(text || '').trim().split(/[\s,–-]+/).filter(Boolean);
   if (!parts.length) return { numbers: [], error: 'Type some note numbers, like 1 2 3 5.' };
-  const numbers = [];
+  const numbers: number[] = [];
   for (const p of parts) {
     const v = Number(p);
     if (!Number.isInteger(v) || v < 1 || v > 22) return { numbers: [], error: `“${p}” isn’t a note number.` };
@@ -120,7 +128,7 @@ export function parsePattern(text, kind) {
 
 // A pattern as note numbers to show and edit: your own as typed, or a preset as it comes out on a
 // 7-note scale or a 4-note chord (written as chord tones 1 3 5 7, 8 10 12 14…).
-export function patternText(kind, shape, pattern = '') {
+export function patternText(kind: Vary['kind'], shape: Shape, pattern = ''): string {
   if (shape === 'custom') return String(pattern || '').trim().split(/[\s,–-]+/).filter(Boolean).join(' ');
   const numbers = shapeNumbers(shape, kind === 'chord' ? 4 : 7, kind);
   if (kind !== 'chord') return numbers.join(' ');
@@ -130,21 +138,21 @@ export function patternText(kind, shape, pattern = '') {
 // Writes notes ({ letter, acc, octave }) as ABC eighth notes, the last one held to the end of
 // its bar (or for `lastUnits`). Accidentals are marked only where they change within a bar, and
 // eighths are beamed in groups: fours in 4/4 (two beats), pairs in 3/4, threes in 6/8.
-function writeAbc(notes, meter = '4/4') {
+function writeAbc(notes: AbcNote[], meter = '4/4'): string {
   const [num, den] = meter.split('/').map(Number);
   const perBar = Math.max(1, Math.round((num * 8) / den));
   const group = den === 8 ? 3 : num % 2 === 0 ? 4 : 2;
-  const ACC = { '-2': '__', '-1': '_', 0: '=', 1: '^', 2: '^^' };
-  const name = ({ letter, octave }) => {
+  const ACC: Record<number, string> = { '-2': '__', '-1': '_', 0: '=', 1: '^', 2: '^^' };
+  const name = ({ letter, octave }: AbcNote) => {
     let s = octave >= 5 ? letter.toLowerCase() : letter;
     if (octave > 5) s += "'".repeat(octave - 5);
     if (octave < 4) s += ','.repeat(4 - octave);
     return s;
   };
-  const bars = [];
+  const bars: string[] = [];
   let bar = '';
   let used = 0;
-  let accidentals = {}; // accidentals in force this bar, per written note
+  let accidentals: Record<string, number> = {}; // accidentals in force this bar, per written note
   notes.forEach((note, i) => {
     const last = i === notes.length - 1;
     const id = `${note.letter}${note.octave}`;
@@ -169,11 +177,11 @@ function writeAbc(notes, meter = '4/4') {
 }
 
 // ABC notation (in C, L:1/8, eighth notes) for a shape on a scale or chord type.
-export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = '4/4' } = {}) {
+export function generateAbc(kind: Vary['kind'], id: string, { shape = 'updown', pattern = '', meter = '4/4' }: { shape?: Shape; pattern?: string; meter?: string } = {}): string {
   const t = typeInfo(kind, id);
   if (!t) return '';
   const len = t.notes.length;
-  const ninth = t.notes.at(-1)[2] === 1;
+  const ninth = t.notes.at(-1)![2] === 1;
   const numbers = shapeNumbers(shape, len, kind, pattern, { ninth });
   if (!numbers.length) return '';
   return writeAbc(numbers.map((v, i) => {
@@ -187,9 +195,9 @@ export function generateAbc(kind, id, { shape = 'updown', pattern = '', meter = 
 
 // A chord symbol for notation (written in C, transposed with it): the root a degree above C, as
 // ABC wants it (B♭ is "Bb"), and the type's short name.
-export function chordSymbol(degree, family) {
+export function chordSymbol(degree: number, family: string): string {
   const [letter, acc] = DEGREE_ROOT[((degree % 12) + 12) % 12];
-  return `${letter}${acc < 0 ? 'b' : acc > 0 ? '#' : ''}${CHORDS[family]?.short ?? ''}`;
+  return `${letter}${acc < 0 ? 'b' : acc > 0 ? '#' : ''}${(CHORDS as Record<string, TypeInfo | undefined>)[family]?.short ?? ''}`;
 }
 
 // ---------- Progressions ----------
@@ -197,11 +205,11 @@ export function chordSymbol(degree, family) {
 const LETTERS = 'CDEFGAB';
 const NATURAL = [0, 2, 4, 5, 7, 9, 11];
 // How each degree of a key (semitones above its root) is spelled in C.
-const DEGREE_ROOT = [['C', 0], ['D', -1], ['D', 0], ['E', -1], ['E', 0], ['F', 0], ['F', 1], ['G', 0], ['A', -1], ['A', 0], ['B', -1], ['B', 0]];
+const DEGREE_ROOT: [string, number][] = [['C', 0], ['D', -1], ['D', 0], ['E', -1], ['E', 0], ['F', 0], ['F', 1], ['G', 0], ['A', -1], ['A', 0], ['B', -1], ['B', 0]];
 
 // A chord type's note (spelled on C) moved onto the root a degree above C, spelled by letter:
 // the 3rd of a chord on D is an F-something, whatever its accidental.
-export function spellOn([letter, acc, up], degree) {
+export function spellOn([letter, acc, up]: SpelledNote, degree: number): AbcNote {
   const [rootLetter] = DEGREE_ROOT[degree];
   const idx = LETTERS.indexOf(letter) + LETTERS.indexOf(rootLetter);
   const octaves = Math.floor(idx / 7) + up;
@@ -212,15 +220,15 @@ export function spellOn([letter, acc, up], degree) {
 // Notation (in C) for a progression into C: a bar per chord, arpeggiated up from its root and
 // back, then the I. chords: [{ d (semitones above the I), family (a chord type) }]. Roots from G
 // up start below middle C, so the line stays in one range.
-export function progressionAbc(chords, { meter = '4/4' } = {}) {
+export function progressionAbc(chords: Progression['chords'], { meter = '4/4' } = {}): string {
   const [num, den] = meter.split('/').map(Number);
   const perBar = Math.max(1, Math.round((num * 8) / den));
-  const notes = [];
+  const notes: AbcNote[] = [];
   for (const { d, family } of chords) {
-    const t = CHORDS[family];
+    const t = (CHORDS as Record<string, TypeInfo | undefined>)[family];
     if (!t) continue;
     const len = t.notes.length;
-    const top = t.notes.at(-1)[2] === 1 ? len : len + 1;
+    const top = t.notes.at(-1)![2] === 1 ? len : len + 1;
     const up = Array.from({ length: top }, (_, i) => i + 1);
     const seq = [...up, ...up.slice(1, -1).reverse()];
     const low = d >= 7 ? -1 : 0;
@@ -238,17 +246,17 @@ export function progressionAbc(chords, { meter = '4/4' } = {}) {
 // Which types to practice this session, one per key: the ones played least on this exercise
 // come up most, and (with `overall`, counts across all exercises) the ones played least anywhere;
 // no repeats within a session until every enabled type has had a turn.
-export function chooseTypes(vary, count, history = [], random = Math.random, overall = null) {
+export function chooseTypes(vary: Vary, count: number, history: string[] = [], random = Math.random, overall: Record<string, number> | null = null): string[] {
   const enabled = (vary?.types || []).filter((id) => typeInfo(vary.kind, id));
   if (!enabled.length || !count) return [];
-  const played = {};
+  const played: Record<string, number> = {};
   for (const id of history) played[id] = (played[id] || 0) + 1;
   // Overall: relative to the average across the enabled types (a type played half as much as
   // average comes up about twice as often, other things equal).
   const avg = overall ? enabled.reduce((a, id) => a + (overall[id] || 0), 0) / enabled.length : 0;
-  const weight = (id) => 1 / Math.pow(1 + (played[id] || 0), 1.5) / (overall && avg ? 0.5 + (overall[id] || 0) / avg : 1);
-  const out = [];
-  let pool = [];
+  const weight = (id: string) => 1 / Math.pow(1 + (played[id] || 0), 1.5) / (overall && avg ? 0.5 + (overall[id] || 0) / avg : 1);
+  const out: string[] = [];
+  let pool: string[] = [];
   for (let i = 0; i < count; i++) {
     if (!pool.length) pool = [...enabled];
     const ws = pool.map((id) => weight(id));

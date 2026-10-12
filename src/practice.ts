@@ -3,13 +3,17 @@ import { BASE_INTERVAL, MAX_INTERVAL, LEVELS, SOLID_TO_LEVEL_UP, ROUGH_TO_LEVEL_
 import { dateStr, daysBetween, addDays } from './dates.js';
 import { uid } from './util.js';
 import { entryKeys } from './keystats.js';
+import type { Id, Item, ItemStats, Level, LogEntry, PlanItem, Rating } from './types.js';
 
-export const itemById = (id) => store.state.items.find((t) => t.id === id);
+// A plan item, or as much of one as identifies its log entry.
+type PlanRef = Pick<PlanItem, 'itemId'> & { pid?: Id };
+
+export const itemById = (id: Id): Item | undefined => store.state.items.find((t) => t.id === id);
 
 // Per-item totals from the practice log:
 //   { count, last, keys: [keys played, oldest first], keyLast: { root: last date in that key } }
-export function itemStats() {
-  const stats = new Map();
+export function itemStats(): Map<Id, ItemStats> {
+  const stats = new Map<Id, ItemStats>();
   const log = [...store.state.log].sort((a, b) => a.date.localeCompare(b.date) || (a.at || 0) - (b.at || 0));
   for (const e of log) {
     let s = stats.get(e.itemId);
@@ -28,7 +32,7 @@ export function itemStats() {
 // ---------- Spaced repetition ----------
 
 // How overdue an item is: 1 = due today, 2 = twice its interval since last played.
-export function overdue(t, stats) {
+export function overdue(t: Item, stats: Map<Id, ItemStats>): number {
   const last = stats.get(t.id)?.last;
   if (!last) return 2;
   const since = daysBetween(last, dateStr());
@@ -36,12 +40,12 @@ export function overdue(t, stats) {
   return since / (t.ivl || BASE_INTERVAL[t.level]);
 }
 
-export function isDue(t, stats) {
+export function isDue(t: Item, stats: Map<Id, ItemStats>): boolean {
   return t.level >= 1 && (!t.due || t.due <= dateStr()) && stats.get(t.id)?.last !== dateStr();
 }
 
 // Set the next review from a rating, starting from the interval before today's session.
-export function schedule(t, rating, prev) {
+export function schedule(t: Item, rating: Rating | null, prev: LogEntry['prev']): void {
   const base = BASE_INTERVAL[t.level];
   const p = prev.ivl || base;
   let ivl;
@@ -56,35 +60,35 @@ export function schedule(t, rating, prev) {
 
 // ---------- Logging ----------
 
-export function todaysEntry(itemId) {
+export function todaysEntry(itemId: Id): LogEntry | undefined {
   const today = dateStr();
   return store.state.log.find((e) => e.itemId === itemId && e.date === today);
 }
-export function isPlayedToday(itemId) {
+export function isPlayedToday(itemId: Id): boolean {
   return !!todaysEntry(itemId);
 }
 
 // An exercise can be in today's set more than once (a warm-up before two tunes), so each plan
 // item has an id (pid) and its log entry records it. A plan item's entry: the one logged from it,
 // else one logged for the same item outside the set (from its details, or before pids).
-export function planEntry(it) {
+export function planEntry(it: PlanRef): LogEntry | null {
   const today = dateStr();
   const mine = store.state.log.filter((e) => e.itemId === it.itemId && e.date === today);
-  const inPlan = (pid) => store.state.plan?.items.some((i) => i.pid === pid);
+  const inPlan = (pid: Id) => store.state.plan?.items.some((i) => i.pid === pid);
   return mine.find((e) => it.pid && e.pid === it.pid) || mine.find((e) => !e.pid || !inPlan(e.pid)) || null;
 }
-const entryFor = (itemId, planItem) => (planItem?.pid ? planEntry({ ...planItem, itemId }) : todaysEntry(itemId));
-export const isPlanItemPlayed = (it) => !!planEntry(it);
+const entryFor = (itemId: Id, planItem: Partial<PlanItem> | null | undefined) => (planItem?.pid ? planEntry({ ...planItem, itemId }) : todaysEntry(itemId));
+export const isPlanItemPlayed = (it: PlanRef): boolean => !!planEntry(it);
 
 // Where a played item's tempo comes from: a warm-up is played at its tune's tempo.
-export const tempoSource = (t, planItem) => (planItem?.warmup && itemById(planItem.warmup)) || t;
+export const tempoSource = (t: Item, planItem?: Partial<PlanItem> | null): Item => (planItem?.warmup && itemById(planItem.warmup)) || t;
 
-export function markPlayed(itemId, planItem) {
+export function markPlayed(itemId: Id, planItem?: Partial<PlanItem> | null): void {
   if (entryFor(itemId, planItem)) return;
-  const t = itemById(itemId);
+  const t = itemById(itemId)!; // TODO(ts): not checked; callers pass an item that exists
   // Played again today (before another tune): scheduled from where it was this morning.
   const earlier = todaysEntry(itemId);
-  const entry = {
+  const entry: LogEntry = {
     id: uid(), date: dateStr(), itemId, at: Date.now(),
     ...(planItem?.pid ? { pid: planItem.pid } : {}),
     key: planItem?.key ?? null, alt: !!planItem?.alt, shift: planItem?.shift ?? null,
@@ -98,7 +102,7 @@ export function markPlayed(itemId, planItem) {
   store.state.log.push(entry);
   schedule(t, entry.rating, entry.prev);
 }
-export function rate(itemId, rating, planItem = null) {
+export function rate(itemId: Id, rating: Rating, planItem: Partial<PlanItem> | null = null): void {
   const e = entryFor(itemId, planItem);
   const t = itemById(itemId);
   if (!e || !t) return;
@@ -107,7 +111,7 @@ export function rate(itemId, rating, planItem = null) {
 }
 // Deletes a tune or exercise with its practice history and takes it out of today's set.
 // Diary notes about it are kept, no longer linked to it. Returns how many sessions went.
-export function deleteItem(id) {
+export function deleteItem(id: Id): { sessions: number } {
   const s = store.state;
   const sessions = s.log.filter((e) => e.itemId === id).length;
   s.items = s.items.filter((x) => x.id !== id);
@@ -124,7 +128,7 @@ export function deleteItem(id) {
   return { sessions };
 }
 
-export function unmarkPlayed(itemId, planItem = null) {
+export function unmarkPlayed(itemId: Id, planItem: Partial<PlanItem> | null = null): void {
   const e = entryFor(itemId, planItem);
   if (!e) return;
   store.state.log = store.state.log.filter((x) => x !== e);
@@ -140,7 +144,7 @@ export function unmarkPlayed(itemId, planItem = null) {
 
 // Ratings logged before a level change no longer count toward level suggestions, and an
 // item played today is rescheduled for its new level.
-export function setLevel(t, level) {
+export function setLevel(t: Item, level: Level): void {
   if (t.level === level) return;
   t.level = level;
   t.levelSetAt = Date.now();
@@ -150,17 +154,17 @@ export function setLevel(t, level) {
 
 // Newest-first entries, one per day (the latest): an exercise played as warm-ups before several
 // tunes is still one day's session for suggestions.
-export function latestPerDay(entries) {
-  const seen = new Set();
+export function latestPerDay(entries: LogEntry[]): LogEntry[] {
+  const seen = new Set<string>();
   return entries.filter((e) => !seen.has(e.date) && seen.add(e.date));
 }
 
 // Suggest moving up after a run of solid sessions, or down after a run of rough ones.
-export function levelSuggestion(t) {
+export function levelSuggestion(t: Item) {
   const recent = latestPerDay(store.state.log
     .filter((e) => e.itemId === t.id && (e.at || 0) > (t.levelSetAt || 0))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0)));
-  const streak = (rating, n) => recent.length >= n && recent.slice(0, n).every((e) => e.rating === rating);
+  const streak = (rating: Rating, n: number) => recent.length >= n && recent.slice(0, n).every((e) => e.rating === rating);
   if (t.level !== 3 && streak('solid', SOLID_TO_LEVEL_UP)) {
     const to = (t.level ?? 0) + 1;
     return { to, up: true, text: `${SOLID_TO_LEVEL_UP} solid sessions in a row — ready for ${LEVELS[to].label}?` };

@@ -1,3 +1,5 @@
+import type { DateStr } from './types.js';
+
 // Dates are local calendar days, stored as 'YYYY-MM-DD' strings.
 
 // A practice day runs until 4am, so a late session that crosses midnight still counts as one day:
@@ -5,31 +7,31 @@
 export const DAY_START_HOUR = 4;
 
 // Today's practice date.
-export function today(now = new Date()) {
+export function today(now = new Date()): DateStr {
   return dateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() - DAY_START_HOUR, now.getMinutes()));
 }
 
 // The calendar date of d. With no argument, today's practice date.
-export function dateStr(d) {
+export function dateStr(d?: Date): DateStr {
   if (!d) return today();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-export function parseDate(s) {
+export function parseDate(s: DateStr): Date {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
-export function daysBetween(a, b) {
-  return Math.round((parseDate(b) - parseDate(a)) / 86400000);
+export function daysBetween(a: DateStr, b: DateStr): number {
+  return Math.round((parseDate(b).getTime() - parseDate(a).getTime()) / 86400000);
 }
-export function addDays(s, n) {
+export function addDays(s: DateStr, n: number): DateStr {
   const d = parseDate(s);
   d.setDate(d.getDate() + n);
   return dateStr(d);
 }
-export function ago(last) {
+export function ago(last: DateStr | null | undefined): string {
   if (!last) return 'never played';
   const d = daysBetween(last, dateStr());
   if (d <= 0) return 'today';
@@ -38,6 +40,6 @@ export function ago(last) {
   if (d < 60) return `${Math.round(d / 7)} weeks ago`;
   return `${Math.round(d / 30)} months ago`;
 }
-export function niceDate(s, opts = { weekday: 'long', month: 'short', day: 'numeric' }) {
+export function niceDate(s: DateStr, opts: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: 'numeric' }) {
   return parseDate(s).toLocaleDateString(undefined, opts);
 }

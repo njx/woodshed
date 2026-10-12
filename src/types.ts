@@ -148,6 +148,8 @@ export interface Plan {
   dayKeys?: Key[];
   skipped: Id[];
   focusSkipped: Id[];
+  /** Made since sets had exercises (see plan.ts ensurePlan). */
+  withExercises?: boolean;
 }
 
 // ---------- History ----------
@@ -173,6 +175,17 @@ export interface LogEntry {
   warmup?: Id;
   /** Where its review stood before this (for undoing a rating). */
   prev: { ivl: number | null; due: DateStr | null };
+}
+
+/** An item's totals from the practice log (see practice.ts itemStats). */
+export interface ItemStats {
+  count: number;
+  last: DateStr | null;
+  /** Keys played, oldest first. */
+  keys: Key[];
+  /** Root (0–11) → the last day played in that key. */
+  keyLast: Record<number, DateStr>;
+  types: string[];
 }
 
 /** A recorded clip; the recording itself is in IndexedDB's media store (see media.ts). */
@@ -235,4 +248,11 @@ export interface State {
   hintsSeen: string[];
   assistantWishes: { date: DateStr; request: string }[];
   savedAt?: number;
+}
+
+// ---------- Browser APIs TypeScript's DOM types lack ----------
+
+declare global {
+  /** Safari before 14.1: AudioContext by its prefixed name (undefined elsewhere). */
+  var webkitAudioContext: typeof AudioContext | undefined;
 }
