@@ -151,6 +151,25 @@ test('record while the metronome plays (Safari only allows the mic in a play-and
   await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
 });
 
+test('a take plays back on the loudspeaker: the mic’s session ends when the take stops', async ({ page, ui }) => {
+  await page.addInitScript(() => {
+    const session = { type: 'auto', log: [] };
+    Object.defineProperty(navigator, 'audioSession', { value: new Proxy(session, { set: (o, k, v) => { o[k] = v; if (k === 'type') o.log.push(v); return true; } }) });
+  });
+  await ui.start();
+  await page.click('#today-rec');
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('play-and-record');
+  await record(page, 800);
+  await expect(page.locator('.rec-stage.review audio')).toHaveCount(1);
+  // Reviewing the take: not play-and-record (which on an iPhone plays through the earpiece).
+  expect(await page.evaluate(() => navigator.audioSession.type)).toBe('auto');
+  await page.locator('.rec-stage.review audio').evaluate((a) => a.play());
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('playback');
+  // Record again: the mic's session is back.
+  await page.click('#rec-again');
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('play-and-record');
+});
+
 test('a recording can be deleted from the list it’s in, with undo', async ({ page, ui }) => {
   await ui.start();
   await page.click('#today-rec');

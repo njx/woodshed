@@ -1,3 +1,4 @@
+import { holdAudio } from './audiosession.js';
 import { store } from './store.js';
 import { uid } from './util.js';
 import { mediaPut, mediaGet, mediaDelete, mediaKeys } from './db.js';
@@ -77,4 +78,17 @@ export function fmtDuration(ms) {
 export function fmtSize(bytes) {
   if (bytes < 1e6) return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
   return `${(bytes / 1e6).toFixed(bytes < 1e7 ? 1 : 0)} MB`;
+}
+
+// While a recording plays (an <audio> or <video> element), the audio session is for playback, so
+// the iPhone uses the loudspeaker rather than the earpiece. (The mic in use — tuner or recorder —
+// still wins.) Returns the element.
+export function playOnSpeaker(el) {
+  let release = null;
+  const done = () => { release?.(); release = null; };
+  el.addEventListener('play', () => { if (!release) release = holdAudio('playback'); });
+  el.addEventListener('pause', done);
+  el.addEventListener('ended', done);
+  el.addEventListener('emptied', done);
+  return el;
 }

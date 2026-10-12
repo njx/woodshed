@@ -2,7 +2,7 @@ import { store, save } from '../store.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
-import { canRecord, pickMime, constraints, saveClip, fmtDuration } from '../media.js';
+import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker } from '../media.js';
 import { $, $$, ICON, render, toast, openSheet, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
 import { keepAwake } from '../keepawake.js';
@@ -33,9 +33,16 @@ export function openRecorder(opts = {}) {
   let raf = null;
   const levels = [];
 
-  // The mic needs a session that allows it alongside playback (the metronome in your earbuds).
-  // Held until the recorder closes, so the metronome isn't interrupted between takes.
-  const releaseAudio = holdAudio('record');
+  // The mic needs a session that allows it alongside playback (the metronome in your earbuds),
+  // held while the mic is on. Not while a take is played back: in that session the iPhone plays
+  // through the earpiece, not the loudspeaker, so a take would be barely audible.
+  let releaseRecord = null;
+  const micSession = (on) => {
+    if (on && !releaseRecord) releaseRecord = holdAudio('record');
+    if (!on && releaseRecord) { releaseRecord(); releaseRecord = null; }
+  };
+  const releaseAudio = () => micSession(false);
+  micSession(true);
   // The screen stays on while the recorder is open: a phone that locks mid-take ends the take.
   const releaseAwake = keepAwake();
   // Created during the tap that opened the recorder, so iOS lets it run (for the level meter).
@@ -70,6 +77,8 @@ export function openRecorder(opts = {}) {
 
   function view() {
     if (closed) return;
+    // A take being played back stops (and gives up the speaker) before it's replaced.
+    box.querySelectorAll('.rec-stage.review audio, .rec-stage.review video').forEach((el) => el.pause());
     const tuneName = existing?.itemId ? itemById(existing.itemId)?.name : opts.itemId ? itemById(opts.itemId)?.name : '';
     const header = `
       <div class="rec-head">
@@ -124,6 +133,8 @@ export function openRecorder(opts = {}) {
       const preview = $('#rec-preview', box);
       if (preview && stream) preview.srcObject = stream;
     }
+    const player = $('.rec-stage.review audio, .rec-stage.review video', box);
+    if (player) playOnSpeaker(player);
     bind();
   }
 
@@ -173,6 +184,7 @@ export function openRecorder(opts = {}) {
   let streamGen = 0;
   async function startStream() {
     stopStream();
+    micSession(true);
     const gen = ++streamGen;
     state = 'starting';
     view();
@@ -270,6 +282,7 @@ export function openRecorder(opts = {}) {
       const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || `${kind}/webm` });
       take = { blob, url: URL.createObjectURL(blob), ms: Date.now() - startedAt };
       stopStream();
+      micSession(false); // (so the take plays on the loudspeaker)
       if (closed) return keep().then(() => afterStop?.());
       state = 'review';
       view();
@@ -393,6 +406,7 @@ export function openRecorder(opts = {}) {
   }
 
   function teardown() {
+    box.querySelectorAll('audio, video').forEach((el) => el.pause());
     clearInterval(tick);
     stopStream();
     audioCtx?.close?.().catch(() => {});

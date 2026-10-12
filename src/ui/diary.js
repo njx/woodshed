@@ -3,7 +3,7 @@ import { dateStr, niceDate } from '../dates.js';
 import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { FLAGS, addEntry, entryById, deleteEntry, openTodos, diaryDays, todoText, findItemByName, linkableItems } from '../diary.js';
-import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize } from '../media.js';
+import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize, playOnSpeaker } from '../media.js';
 import { openRecorder } from './recorder.js';
 import { $, $$, ICON, ui, render, goTo, toast, withUndo, openSheet, closeSheet } from './shell.js';
 
@@ -61,7 +61,7 @@ async function toggleListPlay(btn) {
   const clip = entryById(entryId)?.media?.find((c) => c.id === clipId);
   const url = clip && (await clipUrl(clip));
   if (!url) return toast('This recording isn’t on this device');
-  const audio = new Audio(url);
+  const audio = playOnSpeaker(new Audio(url));
   listPlayer = { audio, url, btn };
   btn.classList.add('playing');
   audio.onended = () => { btn.classList.remove('playing'); URL.revokeObjectURL(url); listPlayer = null; };
@@ -249,6 +249,7 @@ export function openNote(id, opts = {}) {
     if (!url) { slot.innerHTML = '<span class="fine">Not on this device (recordings aren’t included in backups).</span>'; return; }
     urls.push(url);
     slot.innerHTML = c.kind === 'video' ? `<video src="${url}" controls playsinline preload="metadata"></video>` : `<audio src="${url}" controls preload="metadata"></audio>`;
+    playOnSpeaker(slot.querySelector('audio, video'));
   });
   $$('[data-clip-share]', sheet).forEach((b) => (b.onclick = async () => {
     const c = e.media[Number(b.dataset.clipShare)];
