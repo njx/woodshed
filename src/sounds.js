@@ -38,3 +38,20 @@ export function swingTime(t, ratio = 0.5) {
   const f = t - beat;
   return beat + (f < 0.5 ? (f / 0.5) * ratio : ratio + ((f - 0.5) / 0.5) * (1 - ratio));
 }
+
+// Decoded samples, per sound: { midi: AudioBuffer }. Loaded the first time a sound is used; the
+// service worker keeps the files for offline use. (Also the walking bass's: 'bass'.)
+const loaded = new Map();
+export function loadSamples(ctx, id) {
+  if (!loaded.has(id)) {
+    const p = Promise.all(sampleNotes(id).map(async (m) => {
+      const res = await fetch(`samples/${id}/${m}.mp3`);
+      if (!res.ok) throw new Error(`sample ${id}/${m}: ${res.status}`);
+      const data = await res.arrayBuffer();
+      return [m, await new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject))];
+    })).then(Object.fromEntries);
+    p.catch(() => loaded.delete(id)); // try again next time
+    loaded.set(id, p);
+  }
+  return loaded.get(id);
+}

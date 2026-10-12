@@ -125,7 +125,8 @@ A2…), or tap a bar and then another to loop just those bars (the ii–V you ke
 bridge's turnaround); the rest of the chart dims. While it plays the click is on 2 and 4, every beat, or off
 (remembered), and it keeps going on other screens, with the metronome's pill. Starting the
 metronome for something else stops it, and like the metronome it stops when the app goes into the
-background. (It's a synth: on a phone speaker it's thin; earbuds help.)
+background. It's a recorded electric bass (from tonejs-instruments, about 180 KB, downloaded the first time and
+then kept for offline use; a synth until then if it can't be fetched).
 
 ### Notation
 

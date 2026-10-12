@@ -1,5 +1,5 @@
 import { buildAbc, barPerLine } from '../abc.js';
-import { SOUNDS, SWING, sampleNotes, nearestSample, swingTime } from '../sounds.js';
+import { SOUNDS, SWING, nearestSample, swingTime, loadSamples } from '../sounds.js';
 import { store, save } from '../store.js';
 import { esc } from '../util.js';
 import { holdAudio } from '../audiosession.js';
@@ -82,22 +82,6 @@ export function stopPlayback() {
   current = null;
 }
 
-// Decoded samples, per sound: { midi: AudioBuffer }. Loaded the first time a sound is used; the
-// service worker keeps the files for offline use.
-const loaded = new Map();
-function loadSamples(ctx, id) {
-  if (!loaded.has(id)) {
-    const p = Promise.all(sampleNotes(id).map(async (m) => {
-      const res = await fetch(`samples/${id}/${m}.mp3`);
-      if (!res.ok) throw new Error(`sample ${id}/${m}: ${res.status}`);
-      const data = await res.arrayBuffer();
-      return [m, await new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject))];
-    })).then(Object.fromEntries);
-    p.catch(() => loaded.delete(id)); // try again next time
-    loaded.set(id, p);
-  }
-  return loaded.get(id);
-}
 
 // Plays a rendered tune `transpose` semitones from what's written (abcjs doesn't apply the
 // visual shift to the sound), with a recorded instrument or the synth, straight or swung.

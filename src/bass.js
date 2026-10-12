@@ -1,4 +1,5 @@
 import { chartFor } from './charts.js';
+import { nearestSample } from './sounds.js';
 import { chordTimeline, chordFamily, chartShift } from './chords.js';
 
 // A simple walking bass for a chord progression, to play against and loop over. It's a mode of
@@ -78,7 +79,26 @@ export function chartChords(t, key = null, { from = null, to = null } = {}) {
   return { chords: out, beats };
 }
 
-// A plucked bass note: a sawtooth (whose overtones carry the pitch on a phone's small speaker,
+// A recorded bass note (electric bass, see scripts/make-samples.sh): the nearest sample, shifted
+// to the pitch, held most of the beat and then damped. samples: { midi: AudioBuffer }.
+export function pluckSample(ctx, samples, midi, time, beat) {
+  const m = nearestSample('bass', midi);
+  const buf = samples?.[m];
+  if (!buf) return pluck(ctx, midi, time, beat);
+  const len = beat * 0.92;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = 2 ** ((midi - m) / 12);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.9, time);
+  gain.gain.setValueAtTime(0.9, time + len - 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.0008, time + len);
+  src.connect(gain).connect(ctx.destination);
+  src.start(time);
+  src.stop(time + len + 0.02);
+}
+
+// The synth, until the samples are loaded (or offline before they ever were). A plucked bass note: a sawtooth (whose overtones carry the pitch on a phone's small speaker,
 // which can't play the low notes themselves) with a sine for the low end, through a low-pass
 // that closes after the attack. Held most of the beat, a little detached.
 export function pluck(ctx, midi, time, beat) {

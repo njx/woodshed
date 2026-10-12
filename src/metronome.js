@@ -1,7 +1,8 @@
 import { clampBpm } from './tempo.js';
 import { holdAudio } from './audiosession.js';
 import { keepAwake } from './keepawake.js';
-import { walkingLine, pluck } from './bass.js';
+import { walkingLine, pluckSample } from './bass.js';
+import { loadSamples } from './sounds.js';
 
 // A metronome on the Web Audio clock. A timer wakes every 25 ms and schedules any clicks due in
 // the next 120 ms at exact audio times, so the beat stays steady even if the page is busy.
@@ -14,6 +15,7 @@ const listeners = new Set();
 const state = { running: false, bpm: 100, beats: 4, beat: 0, itemId: null, bass: null, click: 'twofour' };
 let line = [];
 let lineAt = 0;
+let bassSamples = null; // the recorded bass, once loaded (the synth until then)
 let ctx = null;
 let timer = null;
 let nextTime = 0;
@@ -37,7 +39,11 @@ export const metronome = {
     state.bass = bass;
     line = bass ? walkingLine(bass.chords) : [];
     lineAt = 0;
-    if (state.running) { nextBeat = 0; return emit(); } // (from the top of the bar, and the line)
+    if (state.running) { // (from the top of the bar, and the line)
+      nextBeat = 0;
+      loadBass();
+      return emit();
+    }
     const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
     ctx = new Ctx();
     ctx.resume?.();
@@ -51,10 +57,17 @@ export const metronome = {
     releaseAudio = holdAudio('playback');
     state.running = true;
     nextBeat = 0;
-    nextTime = ctx.currentTime + 0.06;
     queue = [];
-    timer = setInterval(schedule, LOOKAHEAD_MS);
-    schedule();
+    // The first time with the bass, wait a moment for its samples (the synth if they're slow).
+    const go = () => {
+      if (ctx !== mine || !state.running) return;
+      nextTime = ctx.currentTime + 0.06;
+      timer = setInterval(schedule, LOOKAHEAD_MS);
+      schedule();
+    };
+    const waiting = loadBass();
+    if (waiting) Promise.race([waiting, new Promise((r) => setTimeout(r, 2500))]).then(go);
+    else go();
     releaseAwake = keepAwake();
     emit();
   },
@@ -107,6 +120,12 @@ export const metronome = {
   },
 };
 
+// Loads the recorded bass, when there's a bass line and it isn't loaded yet: the promise, or null.
+function loadBass() {
+  if (!state.bass || bassSamples || !ctx) return null;
+  return loadSamples(ctx, 'bass').then((s) => { bassSamples = s; }).catch(() => { /* the synth, then */ });
+}
+
 function emit() {
   for (const fn of listeners) fn(metronome.state);
 }
@@ -121,7 +140,7 @@ function schedule() {
     let at = null;
     if (line.length) {
       at = lineAt;
-      pluck(ctx, line[at].midi, nextTime, 60 / state.bpm);
+      pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm);
       lineAt = (lineAt + 1) % line.length;
       if (state.click === 'all') click(nextTime, accent);
       else if (state.click === 'twofour' && nextBeat % 2 === 1) click(nextTime, false);
