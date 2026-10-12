@@ -2,22 +2,27 @@ import { uid } from './util.js';
 import { VARY, SHAPES, CHORDS } from './theory.js';
 import { SOUNDS, SWING } from './sounds.js';
 import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
+import type { Chart, ChordType, DateStr, DiaryEntry, Id, Item, Key, LogEntry, Plan, PracticeSession, Progression, Settings, Shape, State, Vary } from './types.js';
 
 // Makes saved or imported state safe to use: every field the app reads gets the type it expects.
 // Ids and enum values end up in HTML attributes and class names, so anything unexpected is
 // replaced (or the record dropped) rather than trusted. Runs on every load and import.
 
+// Saved or imported data, before it's checked here: anything at all.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Raw = any;
+
 const ID = /^[\w-]{1,64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const isId = (x) => typeof x === 'string' && ID.test(x);
-const isDate = (x) => typeof x === 'string' && DATE.test(x);
-const str = (x, max = 20000) => (typeof x === 'string' ? x.slice(0, max) : x == null ? '' : String(x).slice(0, max));
-const num = (x, min, max) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : null);
-const int = (x, min, max) => (Number.isInteger(x) && x >= min && x <= max ? x : null);
-const oneOf = (x, allowed, fallback) => (allowed.includes(x) ? x : fallback);
-const keyList = (a, max) => (Array.isArray(a) ? a.filter((k) => int(k, 0, max) != null) : []);
+const isId = (x: unknown): x is Id => typeof x === 'string' && ID.test(x);
+const isDate = (x: unknown): x is DateStr => typeof x === 'string' && DATE.test(x);
+const str = (x: unknown, max = 20000): string => (typeof x === 'string' ? x.slice(0, max) : x == null ? '' : String(x).slice(0, max));
+const num = (x: unknown, min: number, max: number): number | null => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : null);
+const int = (x: Raw, min: number, max: number): number | null => (Number.isInteger(x) && x >= min && x <= max ? x : null);
+const oneOf = <T, F>(x: Raw, allowed: readonly T[], fallback: F): T | F => (allowed.includes(x) ? x : fallback);
+const keyList = (a: unknown, max: number): Key[] => (Array.isArray(a) ? a.filter((k) => int(k, 0, max) != null) : []);
 
-function item(t, ids) {
+function item(t: Raw, ids: Set<Id>): Item | null {
   if (!t || typeof t !== 'object') return null;
   if (!isId(t.id) || ids.has(t.id)) t.id = uid();
   ids.add(t.id);
@@ -60,24 +65,24 @@ function item(t, ids) {
 }
 
 // A progression for a warm-up: { name, chords: [{ d, family }] }.
-function prog(p) {
+function prog(p: Raw): Progression | null {
   const chords = (Array.isArray(p?.chords) ? p.chords : []).slice(0, 16)
-    .filter((c) => int(c?.d, 0, 11) != null && CHORDS[c.family]).map((c) => ({ d: c.d, family: c.family }));
+    .filter((c: Raw) => int(c?.d, 0, 11) != null && CHORDS[c.family as ChordType]).map((c: Raw) => ({ d: c.d, family: c.family }));
   return chords.length ? { name: str(p.name, 60), chords } : null;
 }
 
 // A tune's own chord chart (see chords.js), or null.
 const Q = /^[\w#()+/]{0,20}$/;
-function chart(c) {
+function chart(c: Raw): Chart | null {
   if (!c || typeof c !== 'object' || !Array.isArray(c.sections) || !c.sections.length) return null;
-  const chord = (x) => (x && int(x.root, 0, 11) != null && typeof x.q === 'string' && Q.test(x.q)
+  const chord = (x: Raw) => (x && int(x.root, 0, 11) != null && typeof x.q === 'string' && Q.test(x.q)
     ? { root: x.root, q: x.q, ...(int(x.bass, 0, 11) != null ? { bass: x.bass } : {}) } : null);
-  const bar = (b) => ({ chords: (Array.isArray(b?.chords) ? b.chords : []).map(chord).filter(Boolean), alts: (Array.isArray(b?.alts) ? b.alts : []).map(chord).filter(Boolean) });
-  const bars = (a) => (Array.isArray(a) ? a.slice(0, 200).map(bar) : []);
+  const bar = (b: Raw) => ({ chords: (Array.isArray(b?.chords) ? b.chords : []).map(chord).filter(Boolean), alts: (Array.isArray(b?.alts) ? b.alts : []).map(chord).filter(Boolean) });
+  const bars = (a: unknown) => (Array.isArray(a) ? a.slice(0, 200).map(bar) : []);
   return {
     key: int(c.key, 0, 23),
     meter: /^\d{1,2}\/\d{1,2}$/.test(c.meter) ? c.meter : '4/4',
-    sections: c.sections.slice(0, 40).map((s) => ({
+    sections: c.sections.slice(0, 40).map((s: Raw) => ({
       label: str(s?.label, 20), repeats: int(s?.repeats, 0, 9) ?? 0, bars: bars(s?.bars),
       endings: (Array.isArray(s?.endings) ? s.endings.slice(0, 4) : []).map(bars),
     })),
@@ -85,16 +90,17 @@ function chart(c) {
 }
 
 // An exercise's scale or chord variation, or null.
-function vary(v) {
-  if (!v || typeof v !== 'object' || !VARY[v.kind]) return null;
-  const known = VARY[v.kind].types;
-  const types = (Array.isArray(v.types) ? v.types : []).filter((id, i, a) => known[id] && a.indexOf(id) === i);
-  const shape = SHAPES[v.shape]?.kinds.includes(v.kind) ? v.shape : 'updown';
-  return { kind: v.kind, types: types.length ? types : [...VARY[v.kind].defaults], shape, pattern: str(v.pattern, 200) };
+// (Table lookups by keys from the data: an unknown key finds nothing.)
+function vary(v: Raw): Vary | null {
+  if (!v || typeof v !== 'object' || !VARY[v.kind as Vary['kind']]) return null;
+  const known: Record<string, object> = VARY[v.kind as Vary['kind']].types;
+  const types = (Array.isArray(v.types) ? v.types : []).filter((id: Raw, i: number, a: Raw[]) => known[id] && a.indexOf(id) === i);
+  const shape = SHAPES[v.shape as Shape]?.kinds.includes(v.kind) ? v.shape : 'updown';
+  return { kind: v.kind, types: types.length ? types : [...VARY[v.kind as Vary['kind']].defaults], shape, pattern: str(v.pattern, 200) };
 }
-const typeList = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && ID.test(x)) : []);
+const typeList = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && ID.test(x)) : []);
 
-function logEntry(e, ids) {
+function logEntry(e: Raw, ids: Set<Id>): LogEntry | null {
   if (!e || typeof e !== 'object' || !isDate(e.date) || !ids.has(e.itemId)) return null;
   if (!isId(e.id)) e.id = uid();
   e.at = num(e.at, 0, 8.64e15) ?? 0;
@@ -113,7 +119,7 @@ function logEntry(e, ids) {
   return e;
 }
 
-function diaryEntry(e, ids) {
+function diaryEntry(e: Raw, ids: Set<Id>): DiaryEntry | null {
   if (!e || typeof e !== 'object' || !isDate(e.date)) return null;
   if (!isId(e.id)) e.id = uid();
   e.at = num(e.at, 0, 8.64e15) ?? 0;
@@ -123,25 +129,25 @@ function diaryEntry(e, ids) {
   if (e.take) e.take = true; else delete e.take;
   e.itemId = ids.has(e.itemId) ? e.itemId : null;
   e.media = (Array.isArray(e.media) ? e.media : [])
-    .filter((c) => c && isId(c.id))
-    .map((c) => ({ id: c.id, kind: oneOf(c.kind, ['audio', 'video'], 'audio'), mime: str(c.mime, 100), ms: num(c.ms, 0, 1e9) ?? 0, size: num(c.size, 0, 1e12) ?? 0 }));
+    .filter((c: Raw) => c && isId(c.id))
+    .map((c: Raw) => ({ id: c.id, kind: oneOf(c.kind, ['audio', 'video'], 'audio'), mime: str(c.mime, 100), ms: num(c.ms, 0, 1e9) ?? 0, size: num(c.size, 0, 1e12) ?? 0 }));
   return e;
 }
 
 // A stretch of practice time (see practicetime.js).
-function session(x) {
+function session(x: Raw): PracticeSession | null {
   if (!x || typeof x !== 'object' || !isDate(x.date)) return null;
   const start = num(x.start, 0, 8.64e15);
   if (start == null) return null;
-  const out = { id: isId(x.id) ? x.id : uid(), date: x.date, start, end: num(x.end, start, start + 86400000) ?? start };
+  const out: PracticeSession = { id: isId(x.id) ? x.id : uid(), date: x.date, start, end: num(x.end, start, start + 86400000) ?? start };
   if (x.away) out.away = true;
   return out;
 }
 
-function plan(p, ids) {
+function plan(p: Raw, ids: Set<Id>): Plan | null {
   if (!p || typeof p !== 'object' || !isDate(p.date) || !Array.isArray(p.items)) return null;
-  const pids = new Set();
-  p.items = p.items.filter((it) => it && ids.has(it.itemId)).map(({ warmup, ...it }) => ({
+  const pids = new Set<Id>();
+  p.items = p.items.filter((it: Raw) => it && ids.has(it.itemId)).map(({ warmup, ...it }: Raw) => ({
     ...(ids.has(warmup) ? { warmup } : {}), // a warm-up for this tune
     ...it,
     pid: isId(it.pid) && !pids.has(it.pid) ? (pids.add(it.pid), it.pid) : (() => { const x = uid(); pids.add(x); return x; })(),
@@ -156,7 +162,7 @@ function plan(p, ids) {
     ...(typeof it.over === 'string' ? { over: str(it.over, 60) } : {}),
     ...(int(it.overKey, 0, 23) != null ? { overKey: it.overKey } : {}),
     ...(it.form ? { form: true } : {}), // an exercise through a tune's form (see warmups.js)
-    ...(Array.isArray(it.parts) ? { parts: it.parts.slice(0, 12).map((n) => int(n, 1, 16)) } : {}),
+    ...(Array.isArray(it.parts) ? { parts: it.parts.slice(0, 12).map((n: Raw) => int(n, 1, 16)) } : {}),
     ...(['setup', 'changes'].includes(it.slot) ? { slot: it.slot } : {}),
   }));
   p.skipped = (Array.isArray(p.skipped) ? p.skipped : []).filter(isId);
@@ -168,10 +174,10 @@ function plan(p, ids) {
   return p;
 }
 
-function settings(s) {
+function settings(s: Raw): Settings {
   s = { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
-  for (const k of ['exercises', 'hone', 'learn', 'fresh', 'focusTunes', 'focusExercises']) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
-  s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x) => x in TRANSPOSITIONS);
+  for (const k of ['exercises', 'hone', 'learn', 'fresh', 'focusTunes', 'focusExercises'] as const) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
+  s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x: Raw) => x in TRANSPOSITIONS);
   if (!s.instruments.length) s.instruments = ['c'];
   if (!s.instruments.includes(s.view)) s.view = s.instruments[0];
   s.listen = oneOf(s.listen, Object.keys(LISTEN_SERVICES), DEFAULT_SETTINGS.listen);
@@ -191,20 +197,20 @@ function settings(s) {
   return s;
 }
 
-export function sanitizeState(s) {
-  const ids = new Set();
-  s.items = (Array.isArray(s.items) ? s.items : []).map((t) => item(t, ids)).filter(Boolean);
-  s.log = (Array.isArray(s.log) ? s.log : []).map((e) => logEntry(e, ids)).filter(Boolean);
-  s.diary = (Array.isArray(s.diary) ? s.diary : []).map((e) => diaryEntry(e, ids)).filter(Boolean);
+export function sanitizeState(s: Raw): State {
+  const ids = new Set<Id>();
+  s.items = (Array.isArray(s.items) ? s.items : []).map((t: Raw) => item(t, ids)).filter(Boolean);
+  s.log = (Array.isArray(s.log) ? s.log : []).map((e: Raw) => logEntry(e, ids)).filter(Boolean);
+  s.diary = (Array.isArray(s.diary) ? s.diary : []).map((e: Raw) => diaryEntry(e, ids)).filter(Boolean);
   s.plan = plan(s.plan, ids);
   s.settings = settings(s.settings);
   s.sessions = (Array.isArray(s.sessions) ? s.sessions : []).map(session).filter(Boolean);
   s.greetedOn = isDate(s.greetedOn) ? s.greetedOn : null;
   // Hints dismissed (or done): shown no more (see ui/shell.js hintHtml).
-  s.hintsSeen = (Array.isArray(s.hintsSeen) ? s.hintsSeen : []).filter((h) => typeof h === 'string' && /^[a-z-]{1,30}$/.test(h));
-  s.timing = s.sessions.some((x) => x.id === s.timing) ? s.timing : null;
+  s.hintsSeen = (Array.isArray(s.hintsSeen) ? s.hintsSeen : []).filter((h: unknown) => typeof h === 'string' && /^[a-z-]{1,30}$/.test(h));
+  s.timing = s.sessions.some((x: PracticeSession) => x.id === s.timing) ? s.timing : null;
   s.assistantWishes = (Array.isArray(s.assistantWishes) ? s.assistantWishes : [])
-    .filter((w) => w && typeof w === 'object')
-    .map((w) => ({ date: isDate(w.date) ? w.date : '', request: str(w.request, 1000) }));
+    .filter((w: Raw) => w && typeof w === 'object')
+    .map((w: Raw) => ({ date: isDate(w.date) ? w.date : '', request: str(w.request, 1000) }));
   return s;
 }

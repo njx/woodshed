@@ -179,7 +179,7 @@ export function setTodayKey(it: PlanItem, key: Key | null): void {
 export function swapWarmup(i: number, plan: Plan = store.state.plan!): boolean {
   const it = plan.items[i];
   const t = it?.warmup && itemById(it.warmup);
-  if (!t) return false;
+  if (!t || t.type !== 'tune') return false; // (a warm-up is always for a tune)
   const tuneItem = plan.items.find((x) => x.itemId === it.warmup && !x.warmup);
   const have = plan.items.filter((x) => x !== it && x.warmup === it.warmup);
   const alt = altWarmup(t, it, { key: tuneItem?.key ?? null, have });

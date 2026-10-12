@@ -70,10 +70,14 @@ export interface Tune extends ItemBase {
   keys: Key[];
   /** Added by you (not from the starting list). */
   mine: boolean;
-  recordings?: unknown[];
+  /** Recordings you've added to listen to (see listen.ts). */
+  recordings?: Recording[];
   chart?: Chart | null;
   chartEdited?: boolean;
 }
+
+/** A recording to listen to (search links, see listen.ts): your own or from data/recordings.ts. */
+export interface Recording { artist: string; album?: string | null; year?: number | null }
 
 /** An exercise's scale or chord type for each key (see theory.ts). */
 export interface Vary {

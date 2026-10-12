@@ -121,7 +121,7 @@ function teardown() {
 function detect() {
   if (!analyser) return;
   const now = performance.now();
-  // (buf and ctx are set whenever analyser is: made together in start, cleared together in teardown)
+  // (buf!, ctx!: start sets them before analyser, and teardown clears analyser with ctx)
   analyser.getFloatTimeDomainData(buf!);
   const p = detectPitch(buf!, ctx!.sampleRate);
   if (p && p.clarity > 0.8) {

@@ -1,5 +1,6 @@
 import { MAJOR } from './keys.js';
 import { TRANSPOSITIONS } from './constants.js';
+import type { Transposition } from './types.js';
 
 // Pitch detection for the tuner: the YIN algorithm (de Cheveigné & Kawahara, 2002) on a block of
 // mic samples. Works well for single-line instruments like sax, including notes with strong
@@ -9,7 +10,7 @@ export const MIN_HZ = 50; // below a tenor's low B♭ (concert A♭2, 104 Hz) an
 export const MAX_HZ = 2000;
 
 // Returns { hz, clarity 0–1 } or null when there's no clear note (silence, noise, chords).
-export function detectPitch(buf, sampleRate, { minHz = MIN_HZ, maxHz = MAX_HZ, threshold = 0.15, minRms = 0.01 } = {}) {
+export function detectPitch(buf: Float32Array, sampleRate: number, { minHz = MIN_HZ, maxHz = MAX_HZ, threshold = 0.15, minRms = 0.01 } = {}): { hz: number; clarity: number } | null {
   const n = buf.length;
   let sum = 0;
   for (let i = 0; i < n; i++) sum += buf[i] * buf[i];
@@ -57,19 +58,19 @@ export function detectPitch(buf, sampleRate, { minHz = MIN_HZ, maxHz = MAX_HZ, t
 
 // The nearest note to a frequency, and how far off it is.
 // midi: concert MIDI note number; cents: −50…+50 from it.
-export function noteOf(hz, a4 = 440) {
+export function noteOf(hz: number, a4 = 440): { midi: number; cents: number } {
   const exact = 69 + 12 * Math.log2(hz / a4);
   const midi = Math.round(exact);
   return { midi, cents: (exact - midi) * 100 };
 }
 
 // "B♭3": concert name with octave (scientific pitch: middle C = C4).
-export function concertName(midi) {
+export function concertName(midi: number): string {
   return `${MAJOR[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
 }
 
 // The note name as written for a transposing instrument (no octave: a B♭ part could be for
 // soprano or tenor, which are an octave apart).
-export function writtenName(midi, view = 'c') {
+export function writtenName(midi: number, view: Transposition = 'c'): string {
   return MAJOR[(((midi + TRANSPOSITIONS[view].offset) % 12) + 12) % 12];
 }

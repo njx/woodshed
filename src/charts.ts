@@ -4,21 +4,23 @@
 // added charts, a reset or an old backup), so they're a separate download: loadSeedCharts().
 // After that a tune's chart is its own: it can be edited, or added for tunes that have none.
 
-let SEED = null;
-export async function loadSeedCharts() {
+import type { Chart, Item, Tune } from './types.js';
+
+let SEED: Record<string, Chart> | null = null;
+export async function loadSeedCharts(): Promise<Record<string, Chart>> {
   SEED ||= (await import('virtual:seed-charts')).default;
   return SEED;
 }
 
 // The chart a tune started with (once loadSeedCharts() has run), if JazzStandards has it.
-export function seedChart(t) {
+export function seedChart(t: Pick<Tune, 'name' | 'seedName'>): Chart | null {
   const c = SEED?.[t?.seedName || t?.name];
   return c ? structuredClone(c) : null;
 }
 
-export function chartFor(t) {
+export function chartFor(t: Item | null | undefined): Chart | null {
   return t?.type === 'tune' && t.chart?.sections?.length ? t.chart : null;
 }
 
 // 'mine' (typed or edited in the app), 'standards' (as it came), or null.
-export const chartSource = (t) => (!chartFor(t) ? null : t.chartEdited ? 'mine' : 'standards');
+export const chartSource = (t: Tune): 'mine' | 'standards' | null => (!chartFor(t) ? null : t.chartEdited ? 'mine' : 'standards');

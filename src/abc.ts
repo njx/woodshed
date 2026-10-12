@@ -1,5 +1,6 @@
 import { TRANSPOSITIONS } from './constants.js';
-import { parseChord, chordFamily } from './chords.js';
+import { parseChord, chordFamily, type FamilyChord } from './chords.js';
+import type { Exercise, Key, Transposition } from './types.js';
 
 // Notation for exercises is ABC (abcnotation.com) with an eighth note as the unit (L:1/8),
 // written as if in C. To show it in another key it's shifted up 0–11 semitones, so a pattern
@@ -12,9 +13,10 @@ export const DURATIONS = {
   eighth: { label: 'Eighth', units: 1 },
   sixteenth: { label: 'Sixteenth', units: 0.5 },
 };
+export type Duration = keyof typeof DURATIONS;
 
 // Length suffix for a number of eighth-note units: 1 → '', 2 → '2', 0.5 → '/', 1.5 → '3/2'.
-export function lengthSuffix(units) {
+export function lengthSuffix(units: number): string {
   if (units === 1) return '';
   if (Number.isInteger(units)) return String(units);
   if (units === 0.5) return '/';
@@ -25,29 +27,30 @@ export function lengthSuffix(units) {
   return '';
 }
 
-export function unitsFor(duration, dotted = false) {
+export function unitsFor(duration: Duration, dotted = false): number {
   return DURATIONS[duration].units * (dotted ? 1.5 : 1);
 }
 
 // One note: letter A–G, accidental '' | '^' (sharp) | '_' (flat) | '=' (natural),
 // octave 4 = the octave from middle C up.
-export function noteToken({ letter, accidental = '', octave = 4, duration = 'eighth', dotted = false }) {
+export function noteToken({ letter, accidental = '', octave = 4, duration = 'eighth', dotted = false }:
+  { letter: string; accidental?: string; octave?: number; duration?: Duration; dotted?: boolean }): string {
   return `${accidental}${noteName(letter, octave)}${lengthSuffix(unitsFor(duration, dotted))}`;
 }
 
 // ---------- Notes near the one before ----------
 const LETTERS = 'CDEFGAB';
-const noteName = (letter, octave) => {
+const noteName = (letter: string, octave: number) => {
   let name = octave >= 5 ? letter.toLowerCase() : letter.toUpperCase();
   if (octave > 5) name += "'".repeat(octave - 5);
   if (octave < 4) name += ','.repeat(4 - octave);
   return name;
 };
-const octaveOf = (letter, marks) => (letter === letter.toLowerCase() ? 5 + (marks.match(/'/g) || []).length : 4 - (marks.match(/,/g) || []).length);
+const octaveOf = (letter: string, marks: string) => (letter === letter.toLowerCase() ? 5 + (marks.match(/'/g) || []).length : 4 - (marks.match(/,/g) || []).length);
 
 // The last note in `text` (e.g. the notation before the cursor), skipping chord symbols and
 // decorations: { index, length (of the letter and octave marks), letter, octave }, or null.
-export function lastNote(text) {
+export function lastNote(text: string): { index: number; length: number; letter: string; octave: number } | null {
   const plain = String(text).replace(/"[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\]/g, (m) => ' '.repeat(m.length));
   let found = null;
   for (const m of plain.matchAll(/([A-Ga-g])([,']*)/g)) found = m;
@@ -57,7 +60,7 @@ export function lastNote(text) {
 
 // The octave for `letter` that puts it nearest the note before (`prev`, from lastNote): C after B
 // goes up, B after C goes down. Without one, octave 4.
-export function nearestOctave(letter, prev) {
+export function nearestOctave(letter: string, prev: { letter: string; octave: number } | null): number {
   if (!prev) return 4;
   const from = prev.octave * 7 + LETTERS.indexOf(prev.letter);
   let best = 4;
@@ -67,7 +70,7 @@ export function nearestOctave(letter, prev) {
 
 // `text` with its last note moved an octave up (d = 1) or down (-1), if there's room; and how
 // many characters longer it got. (For moving the note before the cursor.)
-export function moveLastNote(text, d) {
+export function moveLastNote(text: string, d: number): { text: string; delta: number; octave: number } | null {
   const n = lastNote(text);
   if (!n) return null;
   const octave = Math.max(2, Math.min(6, n.octave + d));
@@ -76,7 +79,7 @@ export function moveLastNote(text, d) {
   return { text: text.slice(0, n.index) + name + text.slice(n.index + n.length), delta: name.length - n.length, octave };
 }
 
-export function restToken(duration = 'eighth', dotted = false) {
+export function restToken(duration: Duration = 'eighth', dotted = false): string {
   return `z${lengthSuffix(unitsFor(duration, dotted))}`;
 }
 
@@ -85,21 +88,21 @@ export function restToken(duration = 'eighth', dotted = false) {
 // and a line holds at most 4 bars. Existing line breaks are kept. Repeat signs stay together: "|:" starts a bar;
 // ":|", "||" and "|]" end one.
 const BAR_END = /(\|\]|\|\||:\||\|)(?![:\]|])/g;
-const notesIn = (bar) => (bar.replace(/"[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\]/g, '').match(/[A-Ga-g]/g) || []).length;
+const notesIn = (bar: string) => (bar.replace(/"[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\]/g, '').match(/[A-Ga-g]/g) || []).length;
 
 // perLine: how many bars with several notes go on a line (1 on a phone held upright; more when
 // there's room, as in full screen).
-export function barPerLine(body, perLine = 1) {
+export function barPerLine(body: string, perLine = 1): string {
   return body.split('\n').map((line) => {
-    const bars = [];
+    const bars: string[] = [];
     let last = 0;
     for (const m of line.matchAll(BAR_END)) {
       bars.push(line.slice(last, m.index + m[0].length).trim());
       last = m.index + m[0].length;
     }
     if (line.slice(last).trim()) bars.push(line.slice(last).trim());
-    const lines = [];
-    let cur = null; // { bars, full }
+    const lines: { bars: string[]; full: number }[] = [];
+    let cur: { bars: string[]; full: number } | null = null;
     for (const bar of bars) {
       const full = notesIn(bar) > 2;
       if (!cur || (full && cur.full >= perLine) || cur.bars.length >= 4 * perLine) lines.push((cur = { bars: [], full: 0 }));
@@ -111,7 +114,7 @@ export function barPerLine(body, perLine = 1) {
 }
 
 // key: the key it's written in (0–11 major, 12–23 minor), for the key signature.
-export function buildAbc(body, { meter = '4/4', tempo = 100, key = 0 } = {}) {
+export function buildAbc(body: string, { meter = '4/4', tempo = 100, key = 0 } = {}): string {
   return ['X:1', `M:${meter}`, 'L:1/8', `Q:1/4=${tempo}`, `K:${abcKey(key)}`, body.trim() || 'z8|'].join('\n');
 }
 
@@ -119,38 +122,38 @@ export function buildAbc(body, { meter = '4/4', tempo = 100, key = 0 } = {}) {
 // A written exercise (a lick, a riff) is written in a key of your choosing (`home`: 0–11 major,
 // 12–23 minor; C if not set), as you read it on your instrument; it's transposed from there.
 // (Generated notation — scales, arpeggios, progressions — is always in C.)
-export const homeKey = (t) => (t?.vary || t?.fromTune ? 0 : t?.home ?? 0);
+export const homeKey = (t: Exercise | null | undefined): Key => (t?.vary || t?.fromTune ? 0 : t?.home ?? 0);
 const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
-export const abcKey = (k) => (k >= 12 ? `${MINOR[k % 12]}m` : MAJOR[k % 12]);
+export const abcKey = (k: Key): string => (k >= 12 ? `${MINOR[k % 12]}m` : MAJOR[k % 12]);
 // For showing: B♭, F♯m.
-export const homeName = (k) => abcKey(k).replace('b', '♭').replace('#', '♯');
+export const homeName = (k: Key): string => abcKey(k).replace('b', '♭').replace('#', '♯');
 // Semitones to shift an exercise written in `home` so it shows in concert key `root`.
-export const homeShift = (root, home, view = 'c') => (((writtenShift(root, view) - (home % 12)) % 12) + 12) % 12;
+export const homeShift = (root: number, home: Key, view: Transposition = 'c'): number => (((writtenShift(root, view) - (home % 12)) % 12) + 12) % 12;
 
 // Sharps (+) or flats (−) in a key's signature, and what it does to each letter.
 const SIG_COUNT = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5]; // major keys C…B
-function signature(k) {
+function signature(k: Key): Record<string, number> {
   const n = SIG_COUNT[(k >= 12 ? k + 3 : k) % 12]; // a minor key: its relative major's
-  const out = { C: 0, D: 0, E: 0, F: 0, G: 0, A: 0, B: 0 };
+  const out: Record<string, number> = { C: 0, D: 0, E: 0, F: 0, G: 0, A: 0, B: 0 };
   for (const l of [...(n > 0 ? 'FCGDAEB' : 'BEADGCF')].slice(0, Math.abs(n))) out[l] = Math.sign(n);
   return out;
 }
-const ACC = { '^^': 2, '^': 1, '=': 0, _: -1, __: -2 };
-const accText = (a) => ({ 2: '^^', 1: '^', 0: '=', '-1': '_', '-2': '__' })[a];
+const ACC: Record<string, number> = { '^^': 2, '^': 1, '=': 0, _: -1, __: -2 };
+const accText = (a: number) => ({ 2: '^^', 1: '^', 0: '=', '-1': '_', '-2': '__' } as Record<number, string>)[a];
 
 // The same notes under another key signature: accidentals added or dropped so every note keeps
 // its pitch (an accidental lasts to the end of its bar, as in ABC). Chord symbols are untouched.
-export function rekey(body, from, to) {
+export function rekey(body: string, from: Key, to: Key): string {
   const [a, b] = [signature(from), signature(to)];
   if (Object.keys(a).every((l) => a[l] === b[l])) return body;
-  let oldBar = {}, newBar = {};
-  return String(body).replace(/"[^"]*"|![^!]*!|\||(\^\^|\^|__|_|=)?([A-Ga-g])([,']*)/g, (m, acc, letter, oct) => {
+  let oldBar: Record<string, number> = {}, newBar: Record<string, number> = {};
+  return String(body).replace(/"[^"]*"|![^!]*!|\||(\^\^|\^|__|_|=)?([A-Ga-g])([,']*)/g, (m: string, acc: string | undefined, letter: string | undefined, oct: string) => {
     if (m === '|') { oldBar = {}; newBar = {}; return m; }
     if (!letter) return m;
     const id = letter + oct;
     const L = letter.toUpperCase();
-    let pitch;
+    let pitch: number;
     if (acc) { pitch = ACC[acc]; oldBar[id] = pitch; } else pitch = oldBar[id] ?? a[L];
     if (pitch === (newBar[id] ?? b[L])) return letter + oct;
     newBar[id] = pitch;
@@ -160,13 +163,13 @@ export function rekey(body, from, to) {
 
 // Semitones to shift notation written in C so it shows in concert key `root`, written for an
 // instrument (e.g. concert E♭ on a B♭ instrument is written in F: shift up 5).
-export function writtenShift(root, view = 'c') {
+export function writtenShift(root: number, view: Transposition = 'c'): number {
   return (root + TRANSPOSITIONS[view].offset) % 12;
 }
 
 // What the shifted notation actually sounds like on that instrument, relative to the written
 // notes: B♭ instruments sound a step lower, E♭ ones a sixth lower, F ones a fifth lower.
-export function soundingShift(view = 'c') {
+export function soundingShift(view: Transposition = 'c'): number {
   return -TRANSPOSITIONS[view].offset;
 }
 
@@ -174,10 +177,10 @@ export function soundingShift(view = 'c') {
 // The chord symbols in notation (L:1/8) with their length in beats (quarter notes, or the
 // meter's beat), from the notes and rests under each up to the next symbol: [{ root, q, family,
 // beats }], a chord repeated in a row counted once. Notes before the first symbol go to it.
-export function chordTimes(body, meter = '4/4') {
+export function chordTimes(body: string, meter = '4/4'): (FamilyChord & { beats: number })[] {
   const [, den] = String(meter).split('/').map(Number);
   const perBeat = den === 8 ? 1 : 2; // eighths a beat
-  const out = [];
+  const out: (FamilyChord & { beats: number })[] = [];
   let pending = 0; // eighths before the first chord symbol
   let triplet = 0;
   // (Inline fields like [K:Bb] are skipped; notes sounded together, [DFA]2, count once.)
@@ -197,7 +200,7 @@ export function chordTimes(body, meter = '4/4') {
     let len = m[3] ? Number(m[3]) : 1;
     if (m[4]) len /= m[5] ? Number(m[5]) : 2 ** m[4].length;
     if (triplet > 0) { len *= 2 / 3; triplet--; }
-    if (out.length) out.at(-1).beats += len / perBeat;
+    if (out.length) out.at(-1)!.beats += len / perBeat;
     else pending += len / perBeat;
   }
   if (out.length) out[0].beats += pending;
