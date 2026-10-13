@@ -3,7 +3,7 @@ import { autoStart } from '../practicetime.js';
 import { LEVELS, PRIORITIES, RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
-import { esc, uid } from '../util.js';
+import { uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
 import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
@@ -13,12 +13,13 @@ import { pickTune } from './pickers.js';
 import { harmonyOf } from '../warmups.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
-import { DURATIONS, noteToken, restToken, soundingShift, homeKey, homeShift, homeName, rekey, lastNote, nearestOctave, moveLastNote, chordTimes } from '../abc.js';
-import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords, parseChord } from '../chords.js';
+import { soundingShift, homeKey, homeShift, homeName, chordTimes } from '../abc.js';
+import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords } from '../chords.js';
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
-import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, playbackOptions, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
+import { renderNotation, playNotation, playbackOptions, playbackFor, openFullNotation } from './notation.js';
 import { noteRows, openNote } from './diary.js';
+import { openNotationEditor } from './notation-editor.js';
 import { openRecorder } from './recorder.js';
 import { tempoRow, tempoSuggestionPart, openMetronome } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
@@ -30,10 +31,9 @@ import {
   type TemplateResult,
 } from './lit.js';
 import type { TuneObject } from 'abcjs';
-import type { Duration } from '../abc.js';
 import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, PlanItem, Priority, Progression, Shape, Tune, Vary } from '../types.js';
 import {
-  $, $$, ICON, render, toast, withUndo, haptic, openSheet, closeSheet, kn, priBadge, openMenu, hintHtml,
+  ICON, render, toast, withUndo, haptic, closeSheet, kn, priBadge, openMenu, hintHtml,
 } from './shell.js';
 
 const view = () => store.state.settings.view;
@@ -663,270 +663,6 @@ export class ExerciseSheet extends View {
       } },
     ]);
   }
-}
-
-// ---------- Notation editor ----------
-
-const METERS = ['4/4', '3/4', '5/4', '6/8', '2/4'];
-
-// Small note icons for the length buttons.
-function noteIcon(d: string) {
-  const head = d === 'whole' || d === 'half'
-    ? '<ellipse cx="9" cy="19" rx="4.6" ry="3.3" transform="rotate(-20 9 19)" fill="none" stroke="currentColor" stroke-width="1.8"/>'
-    : '<ellipse cx="9" cy="19" rx="4.6" ry="3.3" transform="rotate(-20 9 19)" fill="currentColor"/>';
-  const stem = d === 'whole' ? '' : '<path d="M13.2 18V3.5" stroke="currentColor" stroke-width="1.8"/>';
-  const flags = ({ eighth: 1, sixteenth: 2 } as Record<string, number>)[d] || 0;
-  const flag = Array.from({ length: flags }, (_, i) => `<path d="M13.2 ${3.5 + i * 4.5}c0 3 5 4 4.5 8" fill="none" stroke="currentColor" stroke-width="1.8"/>`).join('');
-  return `<svg viewBox="0 0 22 24" aria-hidden="true">${head}${stem}${flag}</svg>`;
-}
-
-// Edit an exercise's notation (written in its own key: Written in) with a tap keypad or by typing ABC.
-// Chord types to tap in the editor: [as written in the notation, label].
-const CHORD_QUALITIES = [['maj7', 'Δ7'], ['6', '6'], ['m7', 'm7'], ['m6', 'm6'], ['7', '7'], ['7b9', '7♭9'],
-  ['7#9', '7♯9'], ['7alt', '7alt'], ['7sus', '7sus'], ['m7b5', 'ø7'], ['dim7', '°7'], ['m(maj7)', 'mΔ7']];
-
-export function openNotationEditor(t: Exercise, back?: () => void): void {
-  let body = t.abc || '';
-  let meter = t.meter || '4/4';
-  let duration: Duration = 'eighth';
-  let dotted = false;
-  let accidental = '';
-  let typing = false;
-  let stopFn: (() => void) | null = null;
-  let chord = { open: false, root: '', acc: '' }; // a chord symbol being picked
-  const original = { abc: t.abc || '', meter: t.meter || '4/4', home: t.home };
-  let tune: TuneObject | null = null;
-
-  const sheet = openSheet(`
-    <p class="eyebrow">Notation · ${esc(t.name)}</p>
-    <label class="ne-home">Written in <select id="ne-home" aria-label="Key it's written in">${[...Array(24).keys()].map((k) => `<option value="${k}" ${k === (t.home ?? 0) ? 'selected' : ''}>${esc(homeName(k))}</option>`).join('')}</select></label>
-    <div class="notation editor-preview" id="ne-preview"></div>
-    <div class="ne-text">
-      <textarea id="ne-abc" rows="3" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Notation (ABC)">${esc(body)}</textarea>
-      <button class="icon-btn small" id="ne-type" aria-label="Type with the keyboard" title="Type with the keyboard">⌨</button>
-    </div>
-    <div class="keypad" id="ne-pad">
-      <div class="kp-row durations">${Object.entries(DURATIONS).map(([k, d]) => `<button data-dur="${k}" class="${k === duration ? 'on' : ''}" aria-label="${d.label}">${noteIcon(k)}</button>`).join('')}
-        <button data-dot aria-label="Dotted">•</button>
-        <button data-trip aria-label="Triplet">3</button>
-      </div>
-      <div class="kp-row mods">
-        <button data-acc="^" aria-label="Sharp">♯</button>
-        <button data-acc="_" aria-label="Flat">♭</button>
-        <button data-acc="=" aria-label="Natural">♮</button>
-        <button data-oct="-1" aria-label="Last note down an octave">↓8</button>
-        <span class="oct" id="ne-oct"></span>
-        <button data-oct="1" aria-label="Last note up an octave">↑8</button>
-        <button data-chord aria-label="Chord symbol">Chord</button>
-      </div>
-      <div class="kp-row notes">${['C', 'D', 'E', 'F', 'G', 'A', 'B'].map((n) => `<button data-note="${n}">${n}</button>`).join('')}</div>
-      <div class="kp-row tools">
-        <button data-rest aria-label="Rest">Rest</button>
-        <button data-tie aria-label="Tie">Tie</button>
-        <button data-ins=" " aria-label="Space (breaks beaming)">␣</button>
-        <button data-ins=" | " aria-label="Bar line">|</button>
-        <button data-move="-1" aria-label="Previous note">◀</button>
-        <button data-move="1" aria-label="Next note">▶</button>
-        <button data-back aria-label="Delete">⌫</button>
-      </div>
-      <div class="kp-chord" id="ne-chord" hidden>
-        <div class="kp-row notes">${['C', 'D', 'E', 'F', 'G', 'A', 'B'].map((n) => `<button data-croot="${n}">${n}</button>`).join('')}</div>
-        <div class="kp-row chord-mods">
-          <button data-cacc="b" aria-label="Flat root">♭</button><button data-cacc="#" aria-label="Sharp root">♯</button>
-          <span class="oct" id="ne-chord-root">Root?</span>
-          <button data-cother>Type…</button><button data-cclose aria-label="Close chords">✕</button>
-        </div>
-        <div class="kp-row qualities">${CHORD_QUALITIES.map(([q, label]) => `<button data-cq="${q}">${label}</button>`).join('')}</div>
-      </div>
-    </div>
-    <div class="ne-opts">
-      <label>Time <select id="ne-meter">${METERS.map((m) => `<option ${m === meter ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
-      <button class="pill-btn" id="ne-play">${ICON.play}<span>Play</span></button>
-      ${playbackOptionsHtml()}
-    </div>
-    <details class="ne-help"><summary>How to write it</summary>
-      <p class="fine">Write it in any key (<b>Written in</b>, above), as you read it on your instrument — it’s transposed from there into each key you practice. Lengths are in eighth notes: <code>C</code> eighth, <code>C2</code> quarter, <code>C/</code> sixteenth, <code>C3</code> dotted quarter. <code>^</code> sharp, <code>_</code> flat, each note goes in the octave nearest the one before it; <b>↑8</b> <b>↓8</b> move the note before the cursor (lowercase = octave up, <code>'</code> and <code>,</code> another octave). <b>Chord</b> adds a chord symbol over the next note: tap its root, then its type (<code>"Dm7"</code>; ø7 is <code>m7b5</code>).</p>
-    </details>
-    <button class="primary-btn" id="ne-save">Done</button>
-    <button class="link-btn ne-revert" id="ne-revert" hidden>Undo changes</button>
-  `, () => {
-    stopFn?.();
-    stopPlayback();
-    back?.();
-  });
-
-  const area = $<HTMLTextAreaElement>('#ne-abc', sheet);
-  const preview = $('#ne-preview', sheet);
-  let drawTimer: ReturnType<typeof setTimeout> | undefined;
-  // Every change is saved as it's made (Undo changes puts back what it was when opened).
-  const keep = () => {
-    t.abc = body.trim();
-    t.meter = meter;
-    save();
-    $('#ne-revert', sheet).hidden = t.abc === original.abc.trim() && t.meter === original.meter && t.home === original.home;
-  };
-  const draw = () => {
-    keep();
-    clearTimeout(drawTimer);
-    drawTimer = setTimeout(async () => {
-      tune = await renderNotation(preview, body, { meter, tempo: t.tempo || 100, key: t.home ?? 0 }).catch(() => null);
-    }, 120);
-  };
-  const showMods = () => {
-    $$('[data-dur]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.dur === duration));
-    $('[data-dot]', sheet).classList.toggle('on', dotted);
-    $$('[data-acc]', sheet).forEach((b) => b.classList.toggle('on', b.dataset.acc === accidental));
-    $('#ne-chord', sheet).hidden = !chord.open;
-    $('#ne-pad', sheet).classList.toggle('chording', chord.open); // (in place of the note keys)
-    $('[data-chord]', sheet).classList.toggle('on', chord.open);
-    $$('[data-croot]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.croot === chord.root));
-    $$('[data-cacc]', sheet).forEach((x) => x.classList.toggle('on', x.dataset.cacc === chord.acc));
-    $('#ne-chord-root', sheet).textContent = chord.root ? `${chord.root}${chord.acc.replace('b', '♭').replace('#', '♯')}…` : 'Root?';
-    // The note before the cursor (the next one goes nearest it; ↑8 ↓8 move it).
-    const n = lastNote(body.slice(0, area.selectionStart ?? body.length));
-    $('#ne-oct', sheet).textContent = n ? `${n.letter}${n.octave}` : '';
-  };
-
-  // Insert at the cursor, or at the end.
-  const insert = (text: string) => {
-    const start = area.selectionStart ?? body.length;
-    const end = area.selectionEnd ?? body.length;
-    body = body.slice(0, start) + text + body.slice(end);
-    area.value = body;
-    const pos = start + text.length;
-    area.setSelectionRange(pos, pos);
-    draw();
-  };
-  // Move the note before the cursor up or down an octave.
-  const moveLast = (d: number) => {
-    const pos = area.selectionStart ?? body.length;
-    const r = moveLastNote(body.slice(0, pos), d);
-    if (!r) return;
-    body = r.text + body.slice(pos);
-    area.value = body;
-    area.setSelectionRange(pos + r.delta, pos + r.delta);
-    draw();
-  };
-  // Remove the token before the cursor (a note with its accidental and length, a bar, a space…).
-  const backspace = () => {
-    const pos = area.selectionStart ?? body.length;
-    const before = body.slice(0, pos);
-    const m = /("[^"]*"|\(3|[_^=]*[A-Ga-gz][,']*\d*\/?\d*-?|\s*\|\s*|\s+|.)$/.exec(before);
-    if (!m) return;
-    body = before.slice(0, before.length - m[0].length) + body.slice(pos);
-    area.value = body;
-    const p = before.length - m[0].length;
-    area.setSelectionRange(p, p);
-    draw();
-  };
-
-  // Move the cursor a note (or bar line, or triplet mark) at a time, skipping spaces.
-  const TOKEN = /\(3|(?:"[^"]*"\s*)?[_^=]*[A-Ga-gz][,']*\d*\/?\d*-?|\|/g; // a chord symbol goes with its note
-  const step = (dir: number) => {
-    const pos = area.selectionStart ?? body.length;
-    const stops = [0];
-    for (const m of body.matchAll(TOKEN)) stops.push(m.index + m[0].length);
-    stops.push(body.length);
-    const to = dir > 0 ? stops.find((p) => p > pos) ?? body.length : [...stops].reverse().find((p) => p < pos) ?? 0;
-    area.focus();
-    area.setSelectionRange(to, to);
-  };
-
-  // The key it's written in: the key signature changes, the notes keep their pitches.
-  $('#ne-home', sheet).onchange = (e) => {
-    const k = Number((e.target as HTMLSelectElement).value);
-    body = rekey(body, t.home ?? 0, k);
-    area.value = body;
-    if (k) t.home = k;
-    else delete t.home;
-    draw();
-  };
-  $('#ne-pad', sheet).onclick = (e) => {
-    const b = (e.target as HTMLElement).closest('button');
-    if (!b) return;
-    e.preventDefault();
-    if (b.dataset.dur) { duration = b.dataset.dur as Duration; dotted = false; }
-    else if (b.hasAttribute('data-dot')) dotted = !dotted;
-    else if (b.hasAttribute('data-trip')) insert('(3');
-    else if (b.dataset.acc != null) accidental = accidental === b.dataset.acc ? '' : b.dataset.acc;
-    else if (b.dataset.oct) moveLast(Number(b.dataset.oct));
-    else if (b.dataset.note) {
-      // In the octave nearest the note before it (move it after with ↑8 ↓8).
-      const octave = nearestOctave(b.dataset.note, lastNote(body.slice(0, area.selectionStart ?? body.length)));
-      insert(noteToken({ letter: b.dataset.note, accidental, octave, duration, dotted }));
-      accidental = ''; // accidentals apply to one note
-      haptic();
-    } else if (b.hasAttribute('data-rest')) insert(restToken(duration, dotted));
-    else if (b.hasAttribute('data-tie')) insert('-');
-    else if (b.dataset.ins) insert(b.dataset.ins);
-    else if (b.hasAttribute('data-back')) backspace();
-    else if (b.dataset.move) step(Number(b.dataset.move));
-    // Chord symbols (over the next note; as written, like the notes, and transposed with them):
-    // tap a root (♭ ♯), then its type — or type one.
-    else if (b.hasAttribute('data-chord') || b.hasAttribute('data-cclose')) {
-      chord = { open: b.hasAttribute('data-chord') && !chord.open, root: '', acc: '' };
-    } else if (b.dataset.croot) chord.root = b.dataset.croot;
-    else if (b.dataset.cacc) chord.acc = chord.acc === b.dataset.cacc ? '' : b.dataset.cacc;
-    else if (b.dataset.cq != null) {
-      if (!chord.root) return toast('Tap the chord’s root first');
-      insert(`"${chord.root}${chord.acc}${b.dataset.cq}"`);
-      chord = { open: false, root: '', acc: '' };
-    } else if (b.hasAttribute('data-cother')) {
-      const sym = (prompt('Chord symbol, as written (like Dm7, G7, Bø7, Cmaj7):') || '').replace(/["\s]/g, '');
-      if (sym && !parseChord(sym)) return toast(`“${sym}” isn’t a chord symbol I can read`);
-      if (sym) insert(`"${sym}"`);
-      chord = { open: false, root: '', acc: '' };
-    }
-    showMods();
-  };
-  // Keep the keypad from stealing the cursor position.
-  $('#ne-pad', sheet).onpointerdown = (e) => e.preventDefault();
-
-  area.oninput = () => { body = area.value; draw(); showMods(); };
-  area.onclick = showMods; // (the note before the cursor)
-  $('#ne-type', sheet).onclick = () => {
-    typing = !typing;
-    area.setAttribute('inputmode', typing ? 'text' : 'none');
-    $('#ne-type', sheet).classList.toggle('on', typing);
-    area.blur();
-    area.focus();
-  };
-  $('#ne-meter', sheet).onchange = (e) => { meter = (e.target as HTMLSelectElement).value; draw(); };
-  bindPlaybackOptions(sheet, () => { if (stopFn) { stopFn(); stopFn = null; $('span', $('#ne-play', sheet)).textContent = 'Play'; } });
-  const play = $('#ne-play', sheet);
-  play.onclick = async () => {
-    if (stopFn) { stopFn(); stopFn = null; $('span', play).textContent = 'Play'; return; }
-    if (!tune) return;
-    $('span', play).textContent = '…';
-    try {
-      stopFn = await playNotation(tune, {
-        transpose: soundingShift(view()),
-        ...playbackFor(meter),
-        onEnded: () => { stopFn = null; $('span', play).textContent = 'Play'; },
-        onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
-      });
-      if (stopFn !== null) $('span', play).textContent = 'Stop'; // (always: playNotation returns its stop)
-    } catch {
-      stopFn = null;
-      $('span', play).textContent = 'Play';
-      toast('Couldn’t play audio on this device');
-    }
-  };
-  $('#ne-save', sheet).onclick = () => closeSheet();
-  $('#ne-revert', sheet).onclick = () => {
-    body = original.abc;
-    meter = original.meter;
-    if (original.home) t.home = original.home;
-    else delete t.home;
-    area.value = body;
-    $<HTMLSelectElement>('#ne-meter', sheet).value = meter;
-    $<HTMLSelectElement>('#ne-home', sheet).value = String(t.home ?? 0);
-    draw();
-    toast('Back to how it was');
-  };
-
-  showMods();
-  draw();
 }
 
 // ---------- Library list ----------
