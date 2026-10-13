@@ -83,8 +83,9 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   let hadController = !!navigator.serviceWorker.controller;
   let pendingReload = false;
   const idle = () => !document.querySelector('#sheet-root.open') && !metronome.state.running && !tuner.state.running && !savingMedia();
-  // Whatever hasn't been written yet is saved first (a reload mid-save would lose it).
-  const reload = () => flush().finally(() => location.reload());
+  // Whatever hasn't been written yet is saved first (a reload mid-save would lose it); if it
+  // can't be, no reload (it would lose what's only in memory).
+  const reload = () => flush().then((saved) => { if (saved) location.reload(); });
   navigator.serviceWorker.register('sw.js').then((reg) => {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;

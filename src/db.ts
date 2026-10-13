@@ -14,7 +14,7 @@ type Raw = any;
 
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  const mine: Promise<IDBDatabase> = new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new Error('no IndexedDB'));
     const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
@@ -22,18 +22,35 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(KV)) db.createObjectStore(KV);
       if (!db.objectStoreNames.contains(MEDIA)) db.createObjectStore(MEDIA);
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const db = req.result;
+      // iOS can drop the connection (e.g. in the background), and another copy of the app opening
+      // a newer version asks for it: open again next time rather than failing from then on.
+      db.onclose = () => { if (dbPromise === mine) dbPromise = null; };
+      db.onversionchange = () => { db.close(); if (dbPromise === mine) dbPromise = null; };
+      resolve(db);
+    };
+    req.onerror = () => { if (dbPromise === mine) dbPromise = null; reject(req.error); };
   });
-  return dbPromise;
+  return (dbPromise = mine);
 }
 
 // T: what the request's result holds (IndexedDB doesn't check what was stored).
-function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<T> {
+function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest, retry = true): Promise<T> {
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
-        const t = db.transaction(store, mode);
+        let t: IDBTransaction;
+        try {
+          t = db.transaction(store, mode);
+        } catch (err) {
+          // The connection was closed under us: open it again, once.
+          if (retry && (err as DOMException)?.name === 'InvalidStateError') {
+            if (dbPromise) dbPromise = null;
+            return resolve(tx<T>(store, mode, fn, false));
+          }
+          return reject(err);
+        }
         const req = fn(t.objectStore(store));
         t.oncomplete = () => resolve(req?.result);
         t.onerror = () => reject(t.error);

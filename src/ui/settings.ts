@@ -1,4 +1,4 @@
-import { store, save, flush, seedState, migrate } from '../store.js';
+import { store, save, flush, seedState, migrate, SCHEMA_VERSION } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import { clone } from '../util.js';
@@ -271,6 +271,7 @@ async function importData(e: Event) {
     const data = JSON.parse(await f.text()); // (any: checked below, and by migrate)
     const items = data.items || data.tunes; // backups from the first version have "tunes"
     if (!Array.isArray(items) || !Array.isArray(data.log)) throw new Error('not a backup');
+    if ((data.version || 1) > SCHEMA_VERSION) return toast('That backup is from a newer Woodshed: close and reopen the app to update it, then restore');
     if (!confirm(`Replace current data with this backup (${items.length} tunes, ${data.log.length} log entries)?`)) return;
     delete data.app;
     delete data.exported;

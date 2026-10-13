@@ -16,7 +16,8 @@ const ID = /^[\w-]{1,64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isId = (x: unknown): x is Id => typeof x === 'string' && ID.test(x);
 const isDate = (x: unknown): x is DateStr => typeof x === 'string' && DATE.test(x);
-const str = (x: unknown, max = 20000): string => (typeof x === 'string' ? x.slice(0, max) : x == null ? '' : String(x).slice(0, max));
+// (Limits only guard against junk: well beyond anything typed — a long diary entry, a solo in ABC.)
+const str = (x: unknown, max = 500000): string => (typeof x === 'string' ? x.slice(0, max) : x == null ? '' : String(x).slice(0, max));
 const num = (x: unknown, min: number, max: number): number | null => (typeof x === 'number' && Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : null);
 const int = (x: Raw, min: number, max: number): number | null => (Number.isInteger(x) && x >= min && x <= max ? x : null);
 // A table's own key (not one every object has, like 'constructor').
@@ -62,6 +63,11 @@ function item(t: Raw, ids: Set<Id>): Item | null {
     t.chart = chart(t.chart);
     t.chartEdited = !!t.chartEdited && !!t.chart;
     t.mine = !!t.mine;
+    if (typeof t.seedName !== 'string') delete t.seedName;
+    if (Array.isArray(t.recordings)) {
+      t.recordings = t.recordings.filter((r: Raw) => r && typeof r === 'object' && typeof r.artist === 'string' && r.artist.trim())
+        .map((r: Raw) => ({ artist: str(r.artist, 200), album: typeof r.album === 'string' ? str(r.album, 200) : null, year: int(r.year, 1000, 3000) }));
+    } else delete t.recordings;
   }
   return t;
 }
@@ -74,7 +80,7 @@ function prog(p: Raw): Progression | null {
 }
 
 // A tune's own chord chart (see chords.js), or null.
-const Q = /^[\w#()+/]{0,20}$/;
+const Q = /^[\w#()+/]{0,40}$/;
 function chart(c: Raw): Chart | null {
   if (!c || typeof c !== 'object' || !Array.isArray(c.sections) || !c.sections.length) return null;
   const chord = (x: Raw) => (x && int(x.root, 0, 11) != null && typeof x.q === 'string' && Q.test(x.q)

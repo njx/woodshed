@@ -10,7 +10,8 @@ import type { Key, Settings, SoundId, SwingId } from '../types.js';
 
 // abcjs is large, so it's only loaded when notation is first shown.
 let abcjsPromise: Promise<typeof import('abcjs')> | null = null;
-const loadAbcjs = () => (abcjsPromise ||= import('abcjs').then((m) => m.default || m));
+// (If it can't be loaded, e.g. offline, the next time tries again.)
+const loadAbcjs = () => (abcjsPromise ||= import('abcjs').then((m) => m.default || m).catch((err) => { abcjsPromise = null; throw err; }));
 
 // Draws notation (written in C) shifted up `shift` semitones, one bar per line. Returns the abcjs
 // tune object. The narrow staff width makes notes bigger once scaled to the screen.
