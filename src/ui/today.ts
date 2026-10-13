@@ -18,7 +18,7 @@ import { pickWarmup } from './pickers.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText, exerciseRow, rootName, takeLabel } from './exercise.js';
 import { entriesFor } from '../diary.js';
-import { openMetronome, tempoSuggestionHtml, bindTempo } from './metronome.js';
+import { openMetronome, tempoSuggestionPart } from './metronome.js';
 import { openTuner } from './tuner.js';
 import { metronome } from '../metronome.js';
 import { tuner } from '../tuning.js';
@@ -242,7 +242,7 @@ export class Card extends View {
         </div>
         ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? html`<button class="link-btn add-warm" data-add-warm @click=${(e: Event) => { e.stopPropagation(); pickWarmup(t); }}>${raw(ICON.plus)}Warm-up</button>` : nothing}
         ${played ? levelSuggestionPart(levelSuggestion(t), (l) => this.levelUp(t, l)) : nothing}
-        ${played && !it.warmup ? raw(tempoSuggestionHtml(tempoSuggestion(t))) : nothing}
+        ${played && !it.warmup ? tempoSuggestionPart(t, tempoSuggestion(t), render) : nothing}
       </article>
     </li>`;
   }
@@ -259,8 +259,6 @@ export class Card extends View {
         actions: isPlanItemPlayed(this.item) ? [] : this.actions().map(([, fn]) => swiped(fn)),
       }));
     }
-    // (The tempo suggestion is still HTML, shared with the details sheets.)
-    bindTempo(card, { onChange: render });
   }
   levelUp(t: Item, l: Level) {
     setLevel(t, l);

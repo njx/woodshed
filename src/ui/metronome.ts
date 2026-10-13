@@ -1,164 +1,156 @@
 import { store, save } from '../store.js';
-import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { todayItem } from '../plan.js';
 import { chartChords } from '../bass.js';
 import { metronome, takeAwayStop } from '../metronome.js';
 import { setTempo, clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
-import { $, $$, ICON, render, toast, openSheet, hintHtml } from './shell.js';
-import type { Click, MetronomeState } from '../metronome.js';
+import { ICON, render, toast, hintHtml } from './shell.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { View, html, nothing, live, raw, openSheetView, segButtons } from './lit.js';
+import type { Click } from '../metronome.js';
 import type { Id, Item } from '../types.js';
 import type { tempoSuggestion } from '../tempo.js';
 
 // Metronome sheet. Opened for a tune or exercise (opts.itemId), its tempo is that item's working
 // tempo: changing it here changes the item's.
 export function openMetronome(opts: { itemId?: Id | null; back?: () => void } = {}) {
-  const settings = store.state.settings;
   const ms = metronome.state;
   // Opened without an item (the Today circle) while it's running for one: that's the metronome
   // that's on, so it opens as that item's (and can be stopped).
   const itemId = opts.itemId ?? (ms.running ? ms.itemId : null);
-  const item = itemId ? itemById(itemId) : null;
-  const sameItem = ms.running && ms.itemId === (item?.id ?? null);
-  let bpm = sameItem ? ms.bpm : item?.tempo || (ms.running ? ms.bpm : settings.metroBpm || 100);
-  let beats = settings.metroBeats || 4;
-  let taps: number[] = [];
-  let raf: number | null = null;
+  const el = document.createElement('ws-metronome') as MetronomeSheet;
+  el.item = itemId ? itemById(itemId) ?? null : null;
+  openSheetView(el, () => { render(); opts.back?.(); });
+}
 
-  const beatDots = () => Array.from({ length: beats }, (_, i) => `<i class="${i === 0 && beats > 1 ? 'accent' : ''}"></i>`).join('');
-  const sheet = openSheet(`
-    <p class="eyebrow">Metronome${item ? ` · ${esc(item.name)}` : ''}</p>
-    <div class="metro-dots" id="m-dots">${beatDots()}</div>
-    <div class="metro-bpm">
-      <button data-step="-5" aria-label="5 slower">−5</button>
-      <button data-step="-1" aria-label="1 slower">−1</button>
-      <div class="bpm-readout"><output id="m-bpm">${bpm}</output><small>BPM</small></div>
-      <button data-step="1" aria-label="1 faster">+1</button>
-      <button data-step="5" aria-label="5 faster">+5</button>
-    </div>
-    <input type="range" id="m-slider" min="${MIN_BPM}" max="${MAX_BPM}" value="${bpm}" aria-label="Tempo">
-    <div id="m-bass"></div>
-    <div class="metro-beats" id="m-beats">
-      <span class="field-label">Beats per bar</span>
-      <div class="chips wrap">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<button class="chip ${n === beats ? 'on' : ''}" data-beats="${n}" ${n === 1 ? 'aria-label="1, no accent"' : ''}>${n}</button>`).join('')}</div>
-    </div>
-    <div class="metro-actions">
-      <button class="ghost-btn" id="m-tap">Tap tempo</button>
-      <button class="primary-btn metro-go" id="m-go">${ICON.play}<span>Start</span></button>
-    </div>
-    ${item ? `
-      <div class="setting">
-        <div><b>Goal tempo</b><span>Optional. Suggestions to speed up stop here.</span></div>
-        <input class="goal-input" id="m-goal" type="number" inputmode="numeric" min="${MIN_BPM}" max="${MAX_BPM}" placeholder="—" value="${item.goalTempo || ''}">
-      </div>
-      <p class="fine">${esc(item.name)}’s working tempo, saved with the session when you log it.</p>`
-      : hintHtml('metro-tip', 'Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice.', 'fine')}
-  `, () => {
-    cancelAnimationFrame(raf ?? 0);
-    unsubscribe();
-    render();
-    opts.back?.();
-  });
+@customElement('ws-metronome')
+export class MetronomeSheet extends View {
+  @property({ attribute: false }) item: Item | null = null;
+  @state() bpm = 100;
+  @state() beats = 4;
+  private taps: number[] = [];
+  private raf: number | null = null;
+  private unsubscribe: (() => void) | null = null;
 
-  const out = $('#m-bpm', sheet);
-  const slider = $<HTMLInputElement>('#m-slider', sheet);
-  const go = $('#m-go', sheet);
-
-  function setBpm(b: number, { fromSlider = false } = {}) {
-    bpm = clampBpm(b);
-    out.textContent = String(bpm);
-    if (!fromSlider) slider.value = String(bpm);
-    settings.metroBpm = bpm;
-    if (metronome.state.running) metronome.setBpm(bpm);
-    if (item) setTempo(item, bpm);
-    save();
+  connectedCallback() {
+    super.connectedCallback();
+    const s = store.state.settings, ms = metronome.state;
+    const sameItem = ms.running && ms.itemId === (this.item?.id ?? null);
+    this.bpm = sameItem ? ms.bpm : this.item?.tempo || (ms.running ? ms.bpm : s.metroBpm || 100);
+    this.beats = s.metroBeats || 4;
+    this.unsubscribe = metronome.subscribe(() => this.requestUpdate());
+    // Light up the beat that's sounding.
+    const pulse = () => {
+      const c = this.mine() ? metronome.lastClick() : null;
+      this.querySelectorAll('#m-dots i').forEach((d, i) => d.classList.toggle('on', !!c && i === c.beat && c.since < 0.15));
+      this.raf = requestAnimationFrame(pulse);
+    };
+    this.raf = requestAnimationFrame(pulse);
   }
-  function showRunning(s: MetronomeState) {
-    const running = s.running && s.itemId === (item?.id ?? null);
-    go.classList.toggle('on', running);
-    go.innerHTML = running ? `${ICON.skip}<span>Stop</span>` : `${ICON.play}<span>Start</span>`;
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    cancelAnimationFrame(this.raf ?? 0);
+    this.unsubscribe?.();
   }
+  // Running for this (its item, or none).
+  mine() { return metronome.state.running && metronome.state.itemId === (this.item?.id ?? null); }
+  bassOn() { return this.mine() && !!metronome.state.bass; }
   // A walking bass with the click (bass.js), for a tune with a chart: through its chart in the key
-  // it's played in today. While it plays, the click can be on every beat, on 2 and 4, or off.
-  const chartBass = item?.type === 'tune' ? chartChords(item, todayItem(item)?.key ?? item.keys?.[0] ?? null) : null;
-  const mine = () => metronome.state.running && metronome.state.itemId === (item?.id ?? null);
-  const bassOn = () => mine() && !!metronome.state.bass;
-  const startWith = (bass: boolean) => {
-    if (item && !item.tempo) setTempo(item, bpm);
-    save();
-    const b = bass && chartBass;
-    metronome.start({
-      bpm, itemId: item?.id ?? null, click: settings.bassClick,
-      beats: b ? chartBass.beats : beats,
-      bass: b ? { chords: chartBass.chords, owner: `chart:${item!.id}`, label: item!.name } : null, // (a chart's bass: item is a tune)
-    });
-  };
-  function showBass() {
-    const box = $('#m-bass', sheet);
-    const on = bassOn();
-    $('#m-beats', sheet).hidden = on;
-    if (!chartBass && !on) { box.innerHTML = ''; return; }
-    const click = metronome.state.bass ? metronome.state.click : settings.bassClick || 'twofour';
-    box.innerHTML = `
-      <div class="setting"><div><b>Walking bass</b><span>${on ? `Through ${esc(metronome.state.bass!.label)}, round and round` : 'Through its chart, with the click'}</span></div>
-        <div class="seg" id="m-bass-seg">${[['off', 'Off'], ['on', 'On']].map(([v, l]) => `<button class="${(on ? 'on' : 'off') === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>
-      ${on ? `<div class="setting"><div><b>Click</b><span>With the bass</span></div>
-        <div class="seg" id="m-click">${[['all', 'Every beat'], ['twofour', '2 & 4'], ['off', 'Off']].map(([v, l]) => `<button class="${click === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div></div>` : ''}`;
-    $$('#m-bass-seg button', box).forEach((b) => (b.onclick = () => {
-      if ((b.dataset.v === 'on') === bassOn()) return;
-      if (b.dataset.v === 'on') startWith(true);
-      else if (mine()) startWith(false); // the click carries on
-      showBass();
-    }));
-    $$('#m-click button', box).forEach((b) => (b.onclick = () => {
-      settings.bassClick = b.dataset.v as Click;
-      save();
-      metronome.setClick(b.dataset.v as Click);
-      showBass();
-    }));
+  // it's played in today.
+  chartBass() {
+    const item = this.item;
+    return item?.type === 'tune' ? chartChords(item, todayItem(item)?.key ?? item.keys?.[0] ?? null) : null;
   }
-  const unsubscribe = metronome.subscribe((s) => { showRunning(s); showBass(); });
-  showRunning(metronome.state);
-  showBass();
 
-  $$('[data-step]', sheet).forEach((b) => (b.onclick = () => setBpm(bpm + Number(b.dataset.step))));
-  slider.oninput = () => setBpm(Number(slider.value), { fromSlider: true });
-  $$('[data-beats]', sheet).forEach((b) => (b.onclick = () => {
-    beats = Number(b.dataset.beats);
-    settings.metroBeats = beats;
+  setBpm(b: number) {
+    this.bpm = clampBpm(b);
+    store.state.settings.metroBpm = this.bpm;
+    if (metronome.state.running) metronome.setBpm(this.bpm);
+    if (this.item) setTempo(this.item, this.bpm);
     save();
-    metronome.setBeats(beats);
-    $$('[data-beats]', sheet).forEach((x) => x.classList.toggle('on', x === b));
-    $('#m-dots', sheet).innerHTML = beatDots();
-  }));
-  $('#m-tap', sheet).onclick = () => {
+  }
+  setBeats(n: number) {
+    this.beats = n;
+    store.state.settings.metroBeats = n;
+    save();
+    metronome.setBeats(n);
+  }
+  tap() {
     const now = performance.now();
-    taps = [...taps.filter((t) => now - t < 8000), now].slice(-6);
-    const b = tapBpm(taps);
-    if (b) setBpm(b);
-  };
-  go.onclick = () => {
-    const s = metronome.state;
-    if (s.running && s.itemId === (item?.id ?? null)) return metronome.stop();
-    metronome.stop();
-    startWith(false);
-  };
-  const goal = $<HTMLInputElement>('#m-goal', sheet);
-  if (goal) goal.onchange = () => {
-    const g = Number(goal.value);
-    item!.goalTempo = g ? clampBpm(g) : null; // (there's a goal field only with an item)
-    goal.value = String(item!.goalTempo || '');
+    this.taps = [...this.taps.filter((t) => now - t < 8000), now].slice(-6);
+    const b = tapBpm(this.taps);
+    if (b) this.setBpm(b);
+  }
+  startWith(bass: boolean) {
+    const item = this.item, settings = store.state.settings;
+    if (item && !item.tempo) setTempo(item, this.bpm);
     save();
-  };
+    const cb = bass ? this.chartBass() : null;
+    metronome.start({
+      bpm: this.bpm, itemId: item?.id ?? null, click: settings.bassClick,
+      beats: cb ? cb.beats : this.beats,
+      bass: cb ? { chords: cb.chords, owner: `chart:${item!.id}`, label: item!.name } : null, // (a chart's bass: item is a tune)
+    });
+  }
+  go() {
+    if (this.mine()) return metronome.stop();
+    metronome.stop();
+    this.startWith(false);
+  }
 
-  // Light up the beat that's sounding.
-  const dots = () => $$('#m-dots i', sheet);
-  const pulse = () => {
-    const c = metronome.state.running && metronome.state.itemId === (item?.id ?? null) ? metronome.lastClick() : null;
-    dots().forEach((d, i) => d.classList.toggle('on', !!c && i === c.beat && c.since < 0.15));
-    raf = requestAnimationFrame(pulse);
-  };
-  raf = requestAnimationFrame(pulse);
+  render() {
+    const item = this.item;
+    const running = this.mine();
+    return html`
+      <p class="eyebrow">Metronome${item ? ` · ${item.name}` : ''}</p>
+      <div class="metro-dots" id="m-dots">${Array.from({ length: this.beats }, (_, i) => html`<i class=${i === 0 && this.beats > 1 ? 'accent' : ''}></i>`)}</div>
+      <div class="metro-bpm">
+        ${[-5, -1].map((d) => html`<button data-step=${d} aria-label="${-d} slower" @click=${() => this.setBpm(this.bpm + d)}>−${-d}</button>`)}
+        <div class="bpm-readout"><output id="m-bpm">${this.bpm}</output><small>BPM</small></div>
+        ${[1, 5].map((d) => html`<button data-step=${d} aria-label="${d} faster" @click=${() => this.setBpm(this.bpm + d)}>+${d}</button>`)}
+      </div>
+      <input type="range" id="m-slider" min=${MIN_BPM} max=${MAX_BPM} .value=${live(String(this.bpm))} aria-label="Tempo" @input=${(e: Event) => this.setBpm(Number((e.target as HTMLInputElement).value))}>
+      <div id="m-bass">${this.bass()}</div>
+      <div class="metro-beats" id="m-beats" ?hidden=${this.bassOn()}>
+        <span class="field-label">Beats per bar</span>
+        <div class="chips wrap">${[1, 2, 3, 4, 5, 6, 7].map((n) => html`<button class="chip ${n === this.beats ? 'on' : ''}" data-beats=${n} aria-label=${n === 1 ? '1, no accent' : nothing} @click=${() => this.setBeats(n)}>${n}</button>`)}</div>
+      </div>
+      <div class="metro-actions">
+        <button class="ghost-btn" id="m-tap" @click=${() => this.tap()}>Tap tempo</button>
+        <button class="primary-btn metro-go ${running ? 'on' : ''}" id="m-go" @click=${() => this.go()}>${raw(running ? ICON.skip : ICON.play)}<span>${running ? 'Stop' : 'Start'}</span></button>
+      </div>
+      ${item ? html`
+        <div class="setting">
+          <div><b>Goal tempo</b><span>Optional. Suggestions to speed up stop here.</span></div>
+          <input class="goal-input" id="m-goal" type="number" inputmode="numeric" min=${MIN_BPM} max=${MAX_BPM} placeholder="—" .value=${live(String(item.goalTempo || ''))}
+            @change=${(e: Event) => { const g = Number((e.target as HTMLInputElement).value); item.goalTempo = g ? clampBpm(g) : null; save(); this.requestUpdate(); }}>
+        </div>
+        <p class="fine">${item.name}’s working tempo, saved with the session when you log it.</p>`
+        : raw(hintHtml('metro-tip', 'Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice.', 'fine'))}
+    `;
+  }
+  // The walking bass, for a tune with a chart (or while it's playing): on or off, and while it
+  // plays, the click on every beat, on 2 and 4, or off.
+  bass() {
+    const on = this.bassOn();
+    if (!this.chartBass() && !on) return nothing;
+    const settings = store.state.settings;
+    const click = metronome.state.bass ? metronome.state.click : settings.bassClick || 'twofour';
+    return html`
+      <div class="setting"><div><b>Walking bass</b><span>${on ? `Through ${metronome.state.bass!.label}, round and round` : 'Through its chart, with the click'}</span></div>
+        <div class="seg" id="m-bass-seg">${segButtons([['off', 'Off'], ['on', 'On']] as const, on ? 'on' : 'off', (v) => {
+          if ((v === 'on') === this.bassOn()) return;
+          if (v === 'on') this.startWith(true);
+          else if (this.mine()) this.startWith(false); // the click carries on
+        })}</div></div>
+      ${on ? html`<div class="setting"><div><b>Click</b><span>With the bass</span></div>
+        <div class="seg" id="m-click">${segButtons([['all', 'Every beat'], ['twofour', '2 & 4'], ['off', 'Off']] as const, click, (v: Click) => {
+          settings.bassClick = v;
+          save();
+          metronome.setClick(v);
+          this.requestUpdate();
+        })}</div></div>` : nothing}`;
+  }
 }
 
 // While the metronome runs, a small pill shows on every screen: tap to open, ■ to stop.
@@ -169,63 +161,61 @@ export function mountMetronomePill() {
     const was = takeAwayStop();
     if (was) toast(`${was.bass ? 'Bass' : 'Metronome'} stopped while the app was in the background`, { label: 'Start again', fn: () => metronome.start(was) });
   });
-  const pill = document.createElement('div');
-  pill.className = 'metro-pill';
-  pill.hidden = true;
-  document.body.appendChild(pill);
-  let raf: number | null = null;
-  metronome.subscribe((s) => {
-    pill.hidden = !s.running;
-    cancelAnimationFrame(raf ?? 0);
-    if (!s.running) return;
+  document.body.appendChild(document.createElement('ws-metro-pill'));
+}
+
+@customElement('ws-metro-pill')
+export class MetroPill extends View {
+  private raf: number | null = null;
+  private unsubscribe: (() => void) | null = null;
+  connectedCallback() {
+    super.connectedCallback();
+    this.unsubscribe = metronome.subscribe(() => this.requestUpdate());
+    // The dot flashes on the beat.
+    const tick = () => {
+      const s = metronome.state, c = s.running ? metronome.lastClick() : null;
+      const dot = this.querySelector('.mp-dot');
+      dot?.classList.toggle('on', !!c && c.since < 0.1);
+      dot?.classList.toggle('accent', !!c && c.beat === 0 && s.beats > 1);
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    cancelAnimationFrame(this.raf ?? 0);
+    this.unsubscribe?.();
+  }
+  render() {
+    const s = metronome.state;
     const item = s.itemId ? itemById(s.itemId) : null;
     const what = s.bass ? `Bass · ${s.bass.label}` : item ? item.name : 'bpm';
-    pill.innerHTML = `
-      <button class="mp-open" aria-label="Open metronome"><i class="mp-dot"></i><b>${s.bpm}</b><span>${esc(what)}</span></button>
-      <button class="mp-stop" aria-label="Stop metronome">${ICON.skip}</button>`;
-    $('.mp-open', pill).onclick = () => openMetronome({ itemId: s.itemId });
-    $('.mp-stop', pill).onclick = () => metronome.stop();
-    const dot = $('.mp-dot', pill);
-    const tick = () => {
-      const c = metronome.lastClick();
-      dot.classList.toggle('on', !!c && c.since < 0.1);
-      dot.classList.toggle('accent', !!c && c.beat === 0 && s.beats > 1);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-  });
+    return html`<div class="metro-pill" ?hidden=${!s.running}>${s.running ? html`
+      <button class="mp-open" aria-label="Open metronome" @click=${() => openMetronome({ itemId: s.itemId })}><i class="mp-dot"></i><b>${s.bpm}</b><span>${what}</span></button>
+      <button class="mp-stop" aria-label="Stop metronome" @click=${() => metronome.stop()}>${raw(ICON.skip)}</button>` : nothing}</div>`;
+  }
 }
 
 // ---------- Shared pieces for cards and detail sheets ----------
 
-export function tempoSuggestionHtml(sug: ReturnType<typeof tempoSuggestion>): string {
-  if (!sug) return '';
-  return `<div class="suggest tempo ${sug.up ? 'up' : 'down'}"><span>${esc(sug.text)}</span>
-    ${sug.to ? `<button class="pill-btn" data-tempo-to="${sug.to}">${ICON.quarter}${sug.to}</button>` : ''}</div>`;
+// A tempo suggestion (after it's been played at a tempo a few times), to take up next time.
+export function tempoSuggestionPart(t: Item, sug: ReturnType<typeof tempoSuggestion>, onChange?: () => void) {
+  if (!sug) return nothing;
+  return html`<div class="suggest tempo ${sug.up ? 'up' : 'down'}"><span>${sug.text}</span>
+    ${sug.to ? html`<button class="pill-btn" data-tempo-to=${sug.to} @click=${(e: Event) => {
+      e.stopPropagation();
+      setTempo(t, sug.to!, { nextTime: true });
+      save();
+      onChange?.();
+    }}>${raw(ICON.quarter)}${sug.to}</button>` : nothing}</div>`;
 }
 
-export function tempoRowHtml(t: Item): string {
-  return `
+// Its working tempo (and goal), opening the metronome.
+export function tempoRow(t: Item, open: () => void) {
+  return html`
     <div class="field-label row-label"><span>Tempo</span></div>
-    <button class="tempo-row" data-metro="${t.id}">
-      <span class="tr-main">${t.tempo ? `<b>${t.tempo} bpm</b> working tempo` : 'No tempo yet'}${t.goalTempo ? ` · goal ${t.goalTempo}` : ''}</span>
-      <span class="tr-open">${ICON.metro}Metronome</span>
+    <button class="tempo-row" data-metro=${t.id} @click=${(e: Event) => { e.stopPropagation(); open(); }}>
+      <span class="tr-main">${t.tempo ? html`<b>${t.tempo} bpm</b> working tempo` : 'No tempo yet'}${t.goalTempo ? ` · goal ${t.goalTempo}` : ''}</span>
+      <span class="tr-open">${raw(ICON.metro)}Metronome</span>
     </button>`;
-}
-
-// Wires up tempo chips/rows ([data-metro]) and tempo suggestions ([data-tempo-to]) in root.
-export function bindTempo(root: HTMLElement, { back, onChange }: { back?: () => void; onChange?: () => void } = {}) {
-  $$('[data-metro]', root).forEach((b) => (b.onclick = (e) => {
-    e.stopPropagation();
-    openMetronome({ itemId: b.dataset.metro, back });
-  }));
-  $$('[data-tempo-to]', root).forEach((b) => (b.onclick = (e) => {
-    e.stopPropagation();
-    const id = b.closest<HTMLElement>('[data-item-id]')?.dataset.itemId;
-    const t = id && itemById(id);
-    if (!t) return;
-    setTempo(t, Number(b.dataset.tempoTo), { nextTime: true });
-    save();
-    onChange?.();
-  }));
 }

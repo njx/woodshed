@@ -12,7 +12,7 @@ import { entriesFor } from '../diary.js';
 import { noteRows, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { openExercise } from './exercise.js';
-import { tempoRowHtml, tempoSuggestionHtml, bindTempo } from './metronome.js';
+import { openMetronome, tempoRow, tempoSuggestionPart } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
 import { mountChart } from './chart.js';
 import { swapInToday, removeFromToday } from './today.js';
@@ -79,7 +79,7 @@ export class TuneSheet extends View {
       ${!isNew && inToday(t) ? html`<p class="in-today">${raw(ICON.check)}In today’s set</p>` : nothing}
       ${isNew ? nothing : this.todayKey()}
       ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => { setLevel(t, l); this.commit(); })}
-      ${isNew ? nothing : html`<div data-item-id=${t.id}>${raw(tempoRowHtml(t))}${raw(tempoSuggestionHtml(tempoSuggestion(t)))}</div>`}
+      ${isNew ? nothing : html`<div data-item-id=${t.id}>${tempoRow(t, () => openMetronome({ itemId: t.id, back: this.back }))}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
       ${isNew ? nothing : html`<div id="chart-box" class="chart-box"></div>`}
       <label class="field">
         <span class="field-label">Notes</span>
@@ -99,13 +99,12 @@ export class TuneSheet extends View {
     name.style.height = 'auto';
     name.style.height = `${name.scrollHeight}px`;
     if (this.isNew) return;
-    // The chart (drawn by chart.ts), in today's key; the tempo row is still HTML.
+    // The chart (drawn by chart.ts), in today's key.
     const key = todayItem(this.tune)?.key ?? null;
     if (this.chartKey !== key) {
       this.chartKey = key;
       mountChart(this.querySelector<HTMLElement>('#chart-box')!, this.tune, { back: this.back });
     }
-    bindTempo(this, { back: this.back, onChange: () => this.requestUpdate() });
   }
 
   rename(el: HTMLTextAreaElement) {

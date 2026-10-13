@@ -20,7 +20,7 @@ import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, playbackOptions, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
 import { noteRows, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
-import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
+import { tempoRow, tempoSuggestionPart, openMetronome } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
 import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
@@ -314,8 +314,8 @@ export class ExerciseSheet extends View {
       ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => { setLevel(t, l); this.commit(); })}
 
       ${isNew ? nothing : this.tempoFrom !== t
-        ? html`<div data-item-id=${this.tempoFrom.id}>${raw(tempoRowHtml(this.tempoFrom))}<p class="fine">As a warm-up it’s played at ${this.tempoFrom.name}’s tempo.</p></div>`
-        : html`<div data-item-id=${t.id}>${raw(tempoRowHtml(t))}${raw(tempoSuggestionHtml(tempoSuggestion(t)))}</div>`}
+        ? html`<div data-item-id=${this.tempoFrom.id}>${tempoRow(this.tempoFrom, () => this.openMetronome())}<p class="fine">As a warm-up it’s played at ${this.tempoFrom.name}’s tempo.</p></div>`
+        : html`<div data-item-id=${t.id}>${tempoRow(t, () => this.openMetronome())}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
       ${isNew || !canRecord() ? nothing : this.takes()}
       ${this.settings()}
       ${isNew ? html`<button class="primary-btn" id="x-save" @click=${() => this.add()}>Add exercise</button>` : this.history()}
@@ -334,12 +334,10 @@ export class ExerciseSheet extends View {
       this.chartMounted = true;
       mountChart(chart, this.tempoFrom as Tune, { key: todayItem(this.tempoFrom)?.key ?? (this.planItem!.form ? this.planItem!.overKey : null), compact: true });
     }
-    if (this.isNew) return;
-    // (The tempo row is still HTML.) Opening the metronome leaves this sheet; it comes back
-    // afterwards.
-    const tempo = this.querySelector<HTMLElement>('[data-item-id]')!;
-    bindTempo(tempo, { onChange: () => this.requestUpdate() });
-    tempo.querySelectorAll<HTMLElement>('[data-metro]').forEach((b) => (b.onclick = () => this.goTo(() => openMetronome({ itemId: this.t.id, back: this.back }))));
+  }
+  // Opening the metronome leaves this sheet; it comes back afterwards.
+  openMetronome() {
+    this.goTo(() => openMetronome({ itemId: this.t.id, back: this.back }));
   }
   // The notation in the key and type shown, drawn again when that changes.
   async drawNotation() {
