@@ -35,7 +35,10 @@ For each exercise you choose:
 - **Keys per session**: how many keys to play it in each time (1–12).
 - **How keys are chosen**: *weak keys* (the default: keys you've practiced least overall, and
   ones this exercise hasn't been played in lately), *cycle of 4ths* or *chromatic* (picking up
-  where you left off), *random*, *chosen keys* only, or *no key* (long tones, the chromatic scale).
+  where you left off), *random*, or *chosen keys* only.
+- **No key** (in *Each session*, next to *Key only* and the scale and chord types): for long
+  tones, the chromatic scale and the like — played as written, with no key picked. Changing how an
+  exercise picks its keys picks today's keys again (unless it's been played today).
 
 - **Vary the scale or chord type** (optional): each session, every key comes with one of the
   scale types (major, dorian, aeolian, harmonic minor, melodic minor, diminished H/W, and more) or
