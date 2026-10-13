@@ -35,6 +35,8 @@ import type { State, Exercise, Tune } from './types.js';
 //   settings: see DEFAULT_SETTINGS
 export const SCHEMA_VERSION = 12;
 const STATE_KEY = 'state';
+const COPIES_KEY = 'copies';
+const MAX_COPIES = 3;
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
 // rev counts saves: an undo only applies if nothing has changed since it was offered.
@@ -203,9 +205,41 @@ export async function loadState() {
   }
   // Starting charts are only loaded when tunes need them (first run, or data from before charts).
   if (!s || (s.version || 1) < SCHEMA_VERSION) await loadSeedCharts();
+  // An upgrade rewrites the data: a copy as it was first (see keepCopy).
+  if (s && (s.version || 1) < SCHEMA_VERSION) await keepCopy('Before an update', s).catch(() => {});
   store.state = s ? migrate(s) : seedState();
   await flush();
   return store.state;
+}
+
+// ---------- Earlier copies ----------
+// Before something rewrites or replaces the data wholesale (an update that upgrades it, restoring a
+// backup, a reset, putting back an earlier copy), a copy of it as it was: the last few, newest
+// first, which Settings can put back. (Kept on this device, next to the data.)
+
+export interface Copy { at: number; reason: string; state: Raw }
+export interface CopyInfo { at: number; reason: string; items: number; log: number }
+
+export async function keepCopy(reason: string, state: Raw = store.state): Promise<void> {
+  if (!state) return;
+  const copies: Copy[] = (await kvGet(COPIES_KEY).catch(() => null)) || [];
+  copies.unshift({ at: Date.now(), reason, state: JSON.parse(JSON.stringify(state)) });
+  await kvSet(COPIES_KEY, copies.slice(0, MAX_COPIES));
+}
+export async function listCopies(): Promise<CopyInfo[]> {
+  const copies: Copy[] = (await kvGet(COPIES_KEY).catch(() => null)) || [];
+  return copies.map((c) => ({ at: c.at, reason: c.reason, items: (c.state?.items || c.state?.tunes || []).length, log: (c.state?.log || []).length }));
+}
+// Puts back the copy kept at `at` (keeping one of the data as it is now first). Needs the
+// starting charts loaded, for an old copy (see migrate). False if there's no such copy.
+export async function restoreCopy(at: number): Promise<boolean> {
+  const copies: Copy[] = (await kvGet(COPIES_KEY).catch(() => null)) || [];
+  const c = copies.find((x) => x.at === at);
+  if (!c) return false;
+  await keepCopy('Before putting back an earlier copy');
+  store.state = migrate(structuredClone(c.state));
+  save();
+  return true;
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;

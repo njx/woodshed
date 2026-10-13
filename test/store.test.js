@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { store, loadState, migrate, seedState, flush, SCHEMA_VERSION } from '../src/store.js';
+import { store, loadState, migrate, seedState, flush, SCHEMA_VERSION, keepCopy, listCopies, restoreCopy } from '../src/store.js';
 import { kvGet, _resetDb } from '../src/db.js';
 
 const v1 = () => ({
@@ -83,6 +83,28 @@ describe('loading and saving', () => {
     store.state = null;
     await loadState();
     expect(store.state.items[0].notes).toBe('check the bridge');
+  });
+});
+
+describe('earlier copies', () => {
+  it('keeps one before an update upgrades the data, and puts it back on request (keeping what was there)', async () => {
+    localStorage.setItem('woodshed.v1', JSON.stringify(v1()));
+    await loadState();
+    let copies = await listCopies();
+    expect(copies).toHaveLength(1);
+    expect(copies[0]).toMatchObject({ reason: 'Before an update', items: 1, log: 1 });
+    store.state.items = store.state.items.filter((t) => t.name !== 'Solar'); // (something goes wrong)
+    await flush();
+    expect(await restoreCopy(copies[0].at)).toBe(true);
+    expect(store.state.items.some((t) => t.name === 'Solar')).toBe(true);
+    copies = await listCopies();
+    expect(copies.map((c) => c.reason)).toEqual(['Before putting back an earlier copy', 'Before an update']);
+  });
+  it('keeps the last three, newest first; none for data that’s already current', async () => {
+    await loadState(); // (first run: nothing to keep)
+    expect(await listCopies()).toEqual([]);
+    for (const r of ['a', 'b', 'c', 'd']) await keepCopy(r);
+    expect((await listCopies()).map((c) => c.reason)).toEqual(['d', 'c', 'b']);
   });
 });
 

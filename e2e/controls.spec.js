@@ -70,6 +70,12 @@ test('a backup: export, change something, import it back; reset everything', asy
   await page.click('#reset');
   await expect(page.locator('#toast')).toContainText('Reset to the original list');
   await expect.poll(async () => (await ui.saved()).state.log.length).toBe(0);
+  // What was there before is kept, and can be put back.
+  await expect(page.locator('#copies li').first()).toContainText('Before reset');
+  await expect(page.locator('#copies li')).toContainText(['Before reset', 'Before restoring a backup']);
+  await page.locator('#copies li', { hasText: 'Before reset' }).locator('[data-copy]').click();
+  await expect(page.locator('#toast')).toContainText('Earlier copy put back');
+  await expect.poll(async () => (await ui.saved()).state.log.length).toBe(1);
 });
 
 test('a tune’s settings: usual keys, level, priority; today’s key; log it; delete it @narrow', async ({ page, ui }) => {

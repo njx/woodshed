@@ -1,4 +1,4 @@
-import { store, save, flush, seedState, migrate, SCHEMA_VERSION } from '../store.js';
+import { store, save, flush, seedState, migrate, SCHEMA_VERSION, keepCopy, listCopies, restoreCopy, type CopyInfo } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import { clone } from '../util.js';
@@ -86,6 +86,7 @@ export class SettingsView extends View {
   @state() key: string | null = null; // the assistant's API key (null: still checking)
   @state() usage: Usage | null = null; // what the assistant has cost
   @state() stray: string[] = []; // recordings in no note
+  @state() copies: CopyInfo[] = []; // earlier copies of the data (see keepCopy)
   connectedCallback() {
     super.connectedCallback();
     this.load();
@@ -99,6 +100,7 @@ export class SettingsView extends View {
     getApiKey().then((k) => (this.key = k || ''));
     getUsage().then((u) => (this.usage = u));
     strayClips().then((ids) => (this.stray = ids));
+    listCopies().then((c) => (this.copies = c)).catch(() => {});
   }
 
   render() {
@@ -184,6 +186,12 @@ export class SettingsView extends View {
           <button class="ghost-btn" id="export" @click=${exportData}>Export backup</button>
           <label class="ghost-btn file-btn">Import backup<input type="file" id="import" accept="application/json,.json" @change=${importData}></label>
         </div>
+        ${this.copies.length ? html`
+          <div class="field-label">Earlier copies</div>
+          <p class="fine">Kept on this device before the data was replaced or upgraded, in case something went wrong.</p>
+          <ul class="copies" id="copies">${this.copies.map((c) => html`
+            <li><span><b>${c.reason}</b><small>${new Date(c.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${c.items} tunes and exercises, ${c.log} sessions</small></span>
+              <button class="link-btn" data-copy=${c.at} @click=${() => this.putBack(c)}>Put back</button></li>`)}</ul>` : nothing}
         <button class="danger-btn" id="reset" @click=${resetAll}>Reset everything</button>
       </section>
     `;
@@ -226,6 +234,15 @@ export class SettingsView extends View {
     await resetUsage();
     this.load();
   }
+  async putBack(c: CopyInfo) {
+    if (!confirm(`Put back this copy (${c.reason.toLowerCase()})? What’s here now is kept as a copy too.`)) return;
+    await loadSeedCharts(); // (an old copy's tunes may need their charts)
+    if (!(await restoreCopy(c.at))) return toast('That copy isn’t there any more');
+    await flush();
+    render();
+    this.load();
+    toast('Earlier copy put back');
+  }
   // Recordings not in any note (kept 30 days before they're deleted): offered back.
   async restoreStray(btn: HTMLButtonElement) {
     btn.disabled = true; // (once)
@@ -238,8 +255,9 @@ export class SettingsView extends View {
 
 async function resetAll() {
   if (!confirm('Erase all practice history and edits, and start over from the original list?')) return;
-  if (!confirm('Really? This can’t be undone (unless you have a backup).')) return;
+  if (!confirm('Really? (A copy of what’s here now is kept, under Earlier copies.)')) return;
   await loadSeedCharts();
+  await keepCopy('Before reset').catch(() => {});
   store.state = seedState();
   save();
   render();
@@ -281,6 +299,7 @@ async function importData(e: Event) {
     const keep = store.state.diary.filter((e) => e.media?.length && !backupIds.has(e.id));
     data.diary = [...(data.diary || []), ...clone(keep)];
     await loadSeedCharts(); // older backups' tunes get charts
+    await keepCopy('Before restoring a backup').catch(() => {});
     store.state = migrate(data);
     save();
     render();
