@@ -78,7 +78,8 @@ Settings → *Exercises on a day*:
 
 Warm-ups are added by hand, so the set stays short: **+ Warm-up** on a tune's card (or **Add a
 warm-up** under its chart) lists what could go before it, in the key you're playing it in today,
-best first in each group — pick one:
+best first in each group — pick one, or **Pick for me** at the top for the next one (taking
+turns between something over its changes and something on its chords):
 
 - **Over its changes**: a written lick or pattern that fits part of one of the tune's progressions
   (least recently played first), or **Through the changes** — the progression (say iii–VI7–ii–V7–I

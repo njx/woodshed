@@ -271,3 +271,23 @@ test('an exercise in today’s set changed to No key: its card and notation lose
   await expect(again.locator('.keychip')).toHaveCount(1);
   await expect.poll(async () => (await planKeys()).keys.length).toBeGreaterThan(0);
 });
+
+test('a warm-up for a tune: Pick for me adds the next one @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.fill('#q', 'Autumn Leaves');
+  await page.locator('.row', { hasText: 'Autumn Leaves' }).first().click();
+  await ui.menu('Add to today’s set');
+  await ui.backdrop();
+  await ui.tab('today');
+  const tune = page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) });
+  await tune.locator('[data-add-warm]').click();
+  await page.click('#pick-for-me');
+  await expect(page.locator('#toast')).toContainText(/Added .+ before Autumn Leaves/);
+  await expect(page.locator('.card', { hasText: 'for Autumn Leaves' })).toHaveCount(1);
+  await expect.poll(async () => {
+    const { state } = await ui.saved();
+    const t = state.items.find((x) => x.name === 'Autumn Leaves');
+    return state.plan.items.filter((i) => i.warmup === t.id).length;
+  }).toBe(1);
+});

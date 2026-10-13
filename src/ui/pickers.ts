@@ -1,11 +1,11 @@
 import { store } from '../store.js';
 import { itemById } from '../practice.js';
 import { warmupChoices } from '../warmups.js';
-import { todayItem, addWarmup, tryWithTune, tunesToTry } from '../plan.js';
-import { render, toast, closeSheet, kn } from './shell.js';
+import { todayItem, addWarmup, addWarmups, tryWithTune, tunesToTry } from '../plan.js';
+import { ICON, render, toast, closeSheet, kn } from './shell.js';
 import { exerciseKeysText, rootName } from './exercise.js';
 import { customElement, property, state } from 'lit/decorators.js';
-import { View, html, nothing, openSheetView, type TemplateResult } from './lit.js';
+import { View, html, nothing, raw, openSheetView, type TemplateResult } from './lit.js';
 import type { Exercise, PlanItem, Tune } from '../types.js';
 
 // Picking what goes with what: a warm-up for a tune, or a tune to take an exercise through.
@@ -60,11 +60,24 @@ export class PickWarmup extends View {
     return html`
       <p class="eyebrow">Warm up for ${t.name}</p>
       <h2 class="sheet-title">Pick a warm-up</h2>
+      <button class="ghost-btn" id="pick-for-me" @click=${() => this.pickForMe()}>${raw(ICON.shuffle)}<span>Pick for me</span></button>
       ${groups([
         { label: 'Over its changes', rows: rows(this.choices.changes) },
         { label: 'On its chords', rows: rows(this.choices.chords) },
         { label: 'Through the form — bend it to the changes', rows: rows(this.choices.form) },
       ])}`;
+  }
+  // The next one, as + Warm-up used to add straight away: taking turns between something over
+  // its changes and something on its chords.
+  pickForMe() {
+    const t = this.tune;
+    const before = new Set(store.state.plan?.items.map((i) => i.pid));
+    const n = addWarmups(t);
+    closeSheet();
+    render();
+    const added = store.state.plan!.items.find((i) => !before.has(i.pid) && i.warmup === t.id);
+    if (!n || !added) return toast(`No more warm-ups for ${t.name}`);
+    toast(`Added ${itemById(added.itemId)?.name} before ${t.name}`);
   }
 }
 
