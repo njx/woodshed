@@ -1,9 +1,10 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { DURATIONS, noteToken, restToken, soundingShift, homeName, rekey, lastNote, nearestOctave, moveLastNote } from '../abc.js';
 import { parseChord } from '../chords.js';
 import { SOUNDS } from '../sounds.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptions, playbackFor } from './notation.js';
 import { ICON, toast, haptic, closeSheet } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, state } from 'lit/decorators.js';
 import { View, html, raw, openSheetView } from './lit.js';
 import type { TuneObject } from 'abcjs';
@@ -76,9 +77,7 @@ export class NotationEditor extends View {
   // preview follows a moment later.
   draw() {
     const t = this.t;
-    t.abc = this.body.trim();
-    t.meter = this.meter;
-    save();
+    cmd.exec(cmd.updateItem, { item: t.id, abc: this.body, meter: this.meter as cmd.ItemFields['meter'] });
     this.changed = !(t.abc === this.original.abc.trim() && t.meter === this.original.meter && t.home === this.original.home);
     clearTimeout(this.drawTimer);
     this.drawTimer = setTimeout(async () => {
@@ -156,15 +155,13 @@ export class NotationEditor extends View {
   setHome(k: number) {
     const t = this.t;
     const body = rekey(this.body, t.home ?? 0, k);
-    if (k) t.home = k;
-    else delete t.home;
+    cmd.exec(cmd.updateItem, { item: t.id, home: k });
     this.setBody(body);
   }
   revert() {
     const t = this.t, o = this.original;
     this.meter = o.meter;
-    if (o.home) t.home = o.home;
-    else delete t.home;
+    cmd.exec(cmd.updateItem, { item: t.id, home: o.home ?? 0 });
     this.setBody(o.abc);
     this.requestUpdate();
     toast('Back to how it was');

@@ -1,8 +1,9 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { TRANSPOSITIONS } from '../constants.js';
 import { concertName, writtenName } from '../pitch.js';
 import { tuner, TRACE_SECONDS } from '../tuning.js';
-import { ICON, closeSheet } from './shell.js';
+import { ICON, closeSheet, perform } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, state } from 'lit/decorators.js';
 import { View, html, svg, raw, openSheetView, type TemplateResult } from './lit.js';
 import type { TracePoint } from '../tuning.js';
@@ -60,8 +61,7 @@ export class TunerSheet extends View {
   }
   setA4(d: number) {
     this.a4 = Math.max(430, Math.min(450, this.a4 + d));
-    store.state.settings.a4 = this.a4;
-    save();
+    perform(cmd.changeSettings, { a4: this.a4 });
   }
   // Keep listening in a small tuner on top of everything, and go back to the set.
   toMini() {

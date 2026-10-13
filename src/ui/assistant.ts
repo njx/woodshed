@@ -1,13 +1,13 @@
-import { store, save } from '../store.js';
-import { esc, clone } from '../util.js';
+import { esc } from '../util.js';
 import { itemById } from '../practice.js';
 import { send, newConversation, getApiKey, setApiKey, describeError } from '../assistant/agent.js';
 import { fmtCost } from '../assistant/cost.js';
-import { ICON, render, toast } from './shell.js';
+import { canUndo, undo as undoChanges, CommandError, type UndoEntry } from '../commands/index.js';
+import { ICON, render, toast, offerUndo } from './shell.js';
 import { customElement, state } from 'lit/decorators.js';
 import { View, html, nothing, raw, openSheetView } from './lit.js';
 import type { AssistantError, Stop, TurnChanges } from '../assistant/agent.js';
-import type { State } from '../types.js';
+import type { Confirm } from '../assistant/tools.js';
 
 // Chat with the practice assistant. The conversation lasts while the app is open.
 let conv = newConversation();
@@ -19,9 +19,9 @@ interface Entry {
   pending?: boolean;
   changes?: string[];
   cost?: number;
-  undo?: State; // the state before its changes
+  undo?: UndoEntry | null; // its changes, as one undo (see commands/core.ts)
   undone?: boolean;
-  rev?: number; // store.rev once it was done
+  confirms?: (Confirm & { done?: boolean })[]; // changes waiting for a tap (deleting something with history)
   stop?: Stop;
   error?: string;
 }
@@ -40,7 +40,7 @@ const SUGGESTIONS = [
 const TOOL_LABELS: Record<string, (input: any) => string> = {
   get_today: () => 'Checked today’s set',
   search_library: () => 'Searched your library',
-  get_item: (i) => `Looked at ${itemById(i.item_id)?.name || 'an item'}`,
+  get_item: (i) => `Looked at ${itemById(i.item)?.name || 'an item'}`,
   get_practice_stats: () => 'Checked your practice stats',
   get_diary: () => 'Read your diary',
   report_unsupported: () => 'Noted a request for later',
@@ -117,7 +117,7 @@ export class AssistantSheet extends View {
   entry(e: Entry, i: number) {
     if (e.role === 'user') return html`<div class="msg user"><p>${e.text}</p></div>`;
     // Undo is offered for the latest changes only, and only while nothing else has changed since.
-    const latestUndoable = transcript.findLastIndex((x) => x.changes?.length && !x.undone) === i && e.rev === store.rev;
+    const undoable = !e.undone && canUndo(e.undo);
     return html`
       <div class="msg bot">
         ${e.tools?.length ? html`<div class="tool-lines">${e.tools.map((t) => html`<span>${t}</span>`)}</div>` : nothing}
@@ -125,8 +125,11 @@ export class AssistantSheet extends View {
         ${e.changes?.length ? html`
           <div class="changes ${e.undone ? 'undone' : ''}">
             <ul>${e.changes.map((c) => html`<li>${c}</li>`)}</ul>
-            ${e.undone ? html`<span class="fine">Undone</span>` : latestUndoable ? html`<button class="pill-btn" data-undo=${i} @click=${() => this.undo(i)}>Undo</button>` : nothing}
+            ${e.undone ? html`<span class="fine">Undone</span>` : undoable ? html`<button class="pill-btn" data-undo=${i} @click=${() => this.undo(i)}>Undo</button>` : nothing}
           </div>` : nothing}
+        ${e.confirms?.length ? html`<div class="confirms">${e.confirms.map((c, j) => html`
+          <div class="confirm"><span>${c.question}</span>${c.done ? html`<span class="fine">Done</span>`
+            : html`<button class="pill-btn danger" data-confirm=${`${i}:${j}`} @click=${() => this.confirm(e, j)}>Yes</button>`}</div>`)}</div>` : nothing}
         ${e.error ? html`<p class="chat-error">${e.error}</p>` : nothing}
         ${e.stop === 'refusal' ? html`<p class="chat-error">The assistant couldn’t help with that one.</p>` : nothing}
         ${e.stop === 'too_many_steps' ? html`<p class="fine">That took a lot of steps, so I stopped. Ask me to carry on if needed.</p>` : nothing}
@@ -149,14 +152,27 @@ export class AssistantSheet extends View {
   undo(i: number) {
     const e = transcript[i];
     if (!e?.undo) return;
-    if (e.rev !== store.rev) { this.requestUpdate(); return toast('Can’t undo — other things have changed since'); }
-    store.state = e.undo;
-    save();
+    if (!undoChanges(e.undo)) { this.requestUpdate(); return toast('Can’t undo — other things have changed since'); }
     e.undone = true;
     pendingNote = 'I undid the changes you just made.';
     render();
     this.requestUpdate();
     toast('Changes undone');
+  }
+
+  // A change the assistant asked for, confirmed: done (with its own undo, in the toast).
+  confirm(e: Entry, j: number) {
+    const c = e.confirms![j];
+    try {
+      const done = c.run();
+      c.done = true;
+      pendingNote = `I confirmed: ${c.question}`;
+      render();
+      offerUndo(done);
+    } catch (err) {
+      toast(err instanceof CommandError ? err.message : 'Couldn’t do that');
+    }
+    this.requestUpdate();
   }
 
   async submit(text: string) {
@@ -165,7 +181,6 @@ export class AssistantSheet extends View {
     this.stopListening();
     this.input.value = '';
     this.fit();
-    const snapshot = clone(store.state);
     transcript.push({ role: 'user', text });
     const reply: Entry & { tools: string[] } = { role: 'bot', text: '', tools: [], pending: true };
     transcript.push(reply);
@@ -174,11 +189,9 @@ export class AssistantSheet extends View {
     const finishTurn = (r: TurnChanges | undefined) => {
       reply.changes = r?.changes || [];
       reply.cost = r?.cost || 0;
-      if (reply.changes.length) {
-        reply.undo = snapshot;
-        render(); // refresh the screen behind the chat
-      }
-      reply.rev = store.rev;
+      reply.undo = r?.undo;
+      reply.confirms = r?.confirms;
+      if (r?.undo) render(); // refresh the screen behind the chat
     };
     const message = pendingNote ? `(${pendingNote})\n\n${text}` : text;
     pendingNote = null;

@@ -3,7 +3,8 @@ import { View, html, nothing } from './lit.js';
 import { buildAbc, barPerLine } from '../abc.js';
 import { SOUNDS, SWING, nearestSample, swingTime, loadSamples } from '../sounds.js';
 import type { Samples } from '../sounds.js';
-import { store, save } from '../store.js';
+import { store } from '../store.js';
+import { exec, changeSettings } from '../commands/index.js';
 import { holdAudio } from '../audiosession.js';
 import type { AudioTracks, TuneObject } from 'abcjs';
 import type { Key, Settings, SoundId, SwingId } from '../types.js';
@@ -224,8 +225,7 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
 export function playbackOptions(onChange?: () => void) {
   const s = store.state.settings;
   const pick = (k: 'sound' | 'swing') => (e: Event) => {
-    (s as Record<'sound' | 'swing', string>)[k] = (e.target as HTMLSelectElement).value; // (one of its options)
-    save();
+    exec(changeSettings, { [k]: (e.target as HTMLSelectElement).value }); // (one of its options)
     onChange?.();
   };
   const opt = (map: Record<string, { label: string }>, cur: string) => Object.entries(map).map(([id, x]) => html`<option value=${id} ?selected=${id === cur}>${x.label}</option>`);

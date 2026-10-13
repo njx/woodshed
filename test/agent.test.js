@@ -37,7 +37,7 @@ const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
 const usage = { input_tokens: 1000, output_tokens: 100 };
 const reply = (content, stop_reason) => ({ model: 'claude-opus-5-5', content, stop_reason, usage });
-const note = (id, text) => reply([{ type: 'tool_use', id, name: 'add_diary_note', input: { text, flag: null, item_id: null } }], 'tool_use');
+const note = (id, text) => reply([{ type: 'tool_use', id, name: 'add_diary_note', input: { text, flag: null, item: null } }], 'tool_use');
 
 beforeEach(async () => {
   await _resetDb();
@@ -59,6 +59,20 @@ describe('assistant conversation loop', () => {
     // The tool result goes back in the same conversation, which only ever grows.
     expect(requests[1].messages).toHaveLength(3);
     expect(requests[1].messages[2].content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 't1' });
+  });
+
+  it('makes the turn’s changes one undo, offered only while nothing else has changed', async () => {
+    const { undo, canUndo } = await import('../src/commands/core.js');
+    script.push(note('t1', 'One'), note('t2', 'Two'), reply([{ type: 'text', text: 'Noted.' }], 'end_turn'));
+    const r = await send(newConversation(), 'two notes');
+    expect(r.changes).toHaveLength(2);
+    expect(store.state.diary).toHaveLength(2);
+    store.state.hintsSeen.push('swipe'); // (not a change to the data: Undo stays on offer)
+    expect(canUndo(r.undo)).toBe(true);
+    expect(undo(r.undo)).toBe(true);
+    expect(store.state.diary).toHaveLength(0);
+    expect(store.state.hintsSeen).toContain('swipe');
+    expect(canUndo(r.undo)).toBe(false);
   });
 
   it('keeps the changes made before an error, so they can be undone', async () => {

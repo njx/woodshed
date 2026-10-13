@@ -282,10 +282,14 @@ make changes for you, for example:
 - "Note for my teacher: ask about altissimo", "Mark Solar proficient and set it to 140"
 - general music questions
 
-It works through a set of tools over the app's data (`src/assistant/tools.ts`): search the library,
-read today's set, an item's history, practice stats and the diary; add to or remove from today;
-update, create or delete tunes and exercises; add diary notes. Every change it makes is listed under its
-reply with an **Undo** button. When you ask for something the tools can't do, it says so and
+It looks things up with a few tools of its own (search the library, read today's set, an item's
+history, practice stats and the diary), and changes things with the app's own commands — the same
+ones its buttons run (`src/commands/`), so it does exactly what a tap would: add to, take out of or
+swap in today's set, change today's keys, log something played and how it went, change, create or
+delete tunes and exercises, add warm-ups, write and tick off diary notes, change settings, start or
+stop the practice timer. Every change it makes is listed under its reply with an **Undo** button
+(for all of them at once), offered until something else changes. Deleting something with practice
+history (or a note with recordings) waits for you to confirm it with a button under the reply. When you ask for something the tools can't do, it says so and
 records the request; those show under Settings → Assistant, as a list of what to add next.
 
 **Setup:** it uses your own Anthropic API key (Settings → Assistant, or the prompt the first time
@@ -410,10 +414,18 @@ deploy), with Vitest for unit tests and Playwright for end-to-end tests. `src/ty
 app's data model (what `store.state` holds).
 The screens, sheets and tools are [Lit](https://lit.dev) components (`<ws-today>`, `<ws-card>`,
 `<ws-exercise-sheet>`, `<ws-recorder>`…), written with Lit's decorators and rendered into the
-light DOM so `styles.css` applies. They read what they show from `store.state` (changed in place,
-then `render()`), and Lit updates only what changed. `src/ui/lit.ts` has the shared pieces (the
+light DOM so `styles.css` applies. They read what they show from `store.state`, and Lit updates
+only what changed.
+
+Every change to the data is a **command** (`src/commands/`): a name, fields, and a function that
+makes the change and everything that follows from it. A button runs one with `perform()` (in
+`shell.ts`); the assistant gets a tool for every command with a description, its input schema
+made from the command's fields (each field also reads the assistant's values: written key names,
+level names, ids that must exist), so a new command is one for the assistant too. Commands run all
+or nothing, are saved, and go on an undo stack (`commands/core.ts`), so Undo works the same
+everywhere: on a toast, or for an assistant's turn as a whole. `src/ui/lit.ts` has the shared pieces (the
 View base class, setting rows and panels, segmented controls, steppers, headings with an ⓘ,
-hints); `src/ui/shell.ts` keeps the sheet frame, toasts, menus, swipes and Undo.
+hints); `src/ui/shell.ts` keeps the sheet frame, toasts, menus, swipes, and running commands.
 
 ```sh
 git submodule update --init   # chord charts (vendor/JazzStandards)
@@ -439,7 +451,10 @@ Layout:
 - `src/keys.ts`, `src/dates.ts`: key names and transposition, calendar-day helpers
 - `src/keystats.ts`: key familiarity and choosing exercise keys
 - `src/tempo.ts`, `src/metronome.ts`: working tempos and suggestions; the metronome engine
-- `src/assistant/`: the assistant's tools (`tools.ts`), conversation loop (`agent.ts`) and cost tracking (`cost.ts`)
+- `src/commands/`: every change to the data, as commands (today's set, items, diary, settings), with
+  the registry, running and undo (`core.ts`, `index.ts`)
+- `src/assistant/`: the assistant's tools (`tools.ts`: its queries, and the commands), conversation
+  loop (`agent.ts`) and cost tracking (`cost.ts`)
 - `src/abc.ts`: building notation (ABC), note lengths, transposition
 - `src/diary.ts`: practice notes and flagged to-dos
 - `src/media.ts`: recorded clips (formats, storage, cleanup)

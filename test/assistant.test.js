@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store } from '../src/store.js';
-import { runTool, validate, TOOLS, apiTools, appSnapshot, takeChanges, concertKey } from '../src/assistant/tools.js';
+import { runTool, validate, TOOLS, apiTools, appSnapshot, concertKey, takeConfirms } from '../src/assistant/tools.js';
+import { beginGroup, endGroup, toolSchema } from '../src/commands/core.js';
 import { buildPlan } from '../src/plan.js';
 import { markPlayed } from '../src/practice.js';
 import { freezeToday, tune, setState, entry } from './helpers.js';
@@ -15,9 +16,17 @@ beforeEach(() => {
     settings: { instruments: ['bb', 'c'], view: 'bb', hone: 1, learn: 1, fresh: 0, exercises: 0 },
     log: [entry(stella.id, '2026-09-01', { key: 10, rating: 'solid', bpm: 120 })],
   });
-  takeChanges();
+  endGroup();
+  takeConfirms();
 });
 afterEach(() => vi.useRealTimers());
+
+// What the tools run inside do, in words (as the assistant's turn lists it).
+function changes(fn) {
+  beginGroup();
+  fn();
+  return endGroup().notes;
+}
 
 describe('tool definitions', () => {
   it('are schemas the API accepts: optional fields are the nullable ones, no extras', () => {
@@ -39,14 +48,22 @@ describe('tool definitions', () => {
   });
 
   it('validates inputs', () => {
-    const schema = TOOLS.find((t) => t.name === 'update_item').input_schema;
-    const ok = { item_id: 'x', level: null, priority: 'high', focus: null, tempo: 100, goal_tempo: null, keys: null, notes_append: null };
+    const schema = toolSchema(TOOLS.find((t) => t.name === 'update_item'));
+    const ok = { item: 'x', level: null, priority: 'high', status: null, tempo: 100, goal_tempo: null, keys: null, notes_append: null };
     expect(validate(schema, ok)).toBe(null);
     expect(validate(schema, { ...ok, priority: 'urgent' })).toMatch(/priority/);
     expect(validate(schema, { ...ok, tempo: '100' })).toMatch(/tempo/);
-    expect(validate(schema, { item_id: 'x', priority: 'high' })).toBe(null); // optional fields left out
-    expect(validate(schema, { priority: 'high' })).toMatch(/item_id is missing/);
+    expect(validate(schema, { item: 'x', priority: 'high' })).toBe(null); // optional fields left out
+    expect(validate(schema, { priority: 'high' })).toMatch(/item is missing/);
     expect(runTool('update_item', { priority: 'high' }).error).toMatch(/Invalid input/);
+  });
+
+  it('are every command the app has with a description, and the app’s own ones only it can run', () => {
+    const names = TOOLS.map((t) => t.name);
+    for (const n of ['add_to_today', 'remove_from_today', 'swap_in_today', 'change_today', 'mark_played', 'rate_today', 'new_set', 'update_item', 'delete_item', 'create_exercise', 'add_diary_note', 'update_diary_note', 'change_settings', 'end_practice']) expect(names).toContain(n);
+    for (const n of ['add_draft', 'add_warmup', 'set_chart']) expect(names).not.toContain(n);
+    // Fields only the app sets aren't in the schemas.
+    expect(Object.keys(toolSchema(TOOLS.find((t) => t.name === 'update_item')).properties)).not.toContain('pattern_unfinished');
   });
 });
 
@@ -65,9 +82,9 @@ describe('reading', () => {
   });
 
   it('describes an item with its history', () => {
-    const res = runTool('get_item', { item_id: stella.id });
+    const res = runTool('get_item', { item: stella.id });
     expect(res.history[0]).toMatchObject({ date: '2026-09-01', keys: ['C'], rating: 'solid', tempo: 120 });
-    expect(runTool('get_item', { item_id: 'nope' }).error).toMatch(/No item/);
+    expect(runTool('get_item', { item: 'nope' }).error).toMatch(/No item/);
   });
 
   it('summarizes the app for each message', () => {
@@ -80,27 +97,29 @@ describe('reading', () => {
 describe('changing things', () => {
   it('adds to today with a chosen key, and reports what changed', () => {
     buildPlan();
-    const res = runTool('add_to_today', { items: [{ item_id: scale.id, keys: ['F', 'G'] }, { item_id: 'nope', keys: null }] });
-    expect(res.added).toEqual(['Major scale']);
-    expect(res.notes[0]).toMatch(/No item with id nope/);
+    let res;
+    expect(changes(() => { res = runTool('add_to_today', { item: scale.id, keys: ['F', 'G'] }); })).toEqual(['Added Major scale to today’s set']);
+    expect(res.added).toBe('Major scale');
+    expect(runTool('add_to_today', { item: 'nope', keys: null }).error).toMatch(/No item with id nope/);
+    expect(runTool('add_to_today', { item: scale.id }).error).toMatch(/already in today's set/);
     const item = store.state.plan.items.find((i) => i.itemId === scale.id);
     expect(item.keys).toEqual([3, 5]); // concert E♭ and F
-    expect(takeChanges()).toEqual(['Added to today: Major scale']);
+    expect(res.entry_id).toBe(item.pid);
   });
 
   it('removes unplayed items and keeps played ones', () => {
     buildPlan();
-    const [a, b] = store.state.plan.items.map((i) => i.itemId);
-    markPlayed(a);
-    const res = runTool('remove_from_today', { item_ids: [a, b] });
-    expect(res.removed).toHaveLength(1);
-    expect(res.already_played_so_kept).toHaveLength(1);
-    expect(store.state.plan.items.map((i) => i.itemId)).toEqual([a]);
-    expect(store.state.plan.skipped).toContain(b);
+    const [a, b] = store.state.plan.items;
+    markPlayed(a.itemId, a);
+    expect(runTool('remove_from_today', { entry: a.pid }).error).toMatch(/has been played today/);
+    expect(runTool('remove_from_today', { entry: b.pid }).removed).toBeTruthy();
+    expect(store.state.plan.items.map((i) => i.itemId)).toEqual([a.itemId]);
+    expect(store.state.plan.skipped).toContain(b.itemId);
+    expect(runTool('remove_from_today', { entry: 'nope' }).error).toMatch(/entry_id/);
   });
 
   it('updates items', () => {
-    runTool('update_item', { item_id: solar.id, level: 'proficient', priority: 'low', focus: true, tempo: 132, goal_tempo: 180, keys: ['Dm', 'Em'], notes_append: 'Watch the bridge' });
+    runTool('update_item', { item: solar.id, level: 'proficient', priority: 'low', status: 'focus', tempo: 132, goal_tempo: 180, keys: ['Dm', 'Em'], notes_append: 'Watch the bridge' });
     expect(solar).toMatchObject({ level: 2, priority: 4, focus: true, tempo: 132, goalTempo: 180, keys: [12, 14] });
     expect(solar.notes).toBe('Watch the bridge');
   });
@@ -116,8 +135,12 @@ describe('changing things', () => {
   });
 
   it('writes diary notes and remembers unsupported requests', () => {
-    runTool('add_diary_note', { text: 'Ask about altissimo', flag: 'teacher', item_id: null });
+    runTool('add_diary_note', { text: 'Ask about altissimo', flag: 'teacher', item: null });
     expect(store.state.diary[0]).toMatchObject({ text: 'Ask about altissimo', flag: 'teacher' });
+    // …and marks its to-do done, by its id from get_diary.
+    const [note] = runTool('get_diary', { open_todos_only: true });
+    runTool('update_diary_note', { note: note.id, done: true });
+    expect(store.state.diary[0].done).toBe(true);
     runTool('report_unsupported', { request: 'Email my teacher' });
     expect(store.state.assistantWishes[0].request).toBe('Email my teacher');
   });
@@ -130,26 +153,36 @@ describe('deleting', () => {
     });
     store.state.diary.push({ id: 'n1', date: '2026-10-05', text: 'about it', itemId: 'x', media: [] });
     buildPlan(true);
-    takeChanges();
-    const r = runTool('delete_item', { item_id: 'x' });
+    // With practice history: the user confirms with a tap first.
+    const asked = runTool('delete_item', { item: 'x' });
+    expect(asked.needs_confirmation).toMatch(/Delete Oops exercise and its 1 practice session/);
+    expect(store.state.items).toHaveLength(2);
+    const [confirm] = takeConfirms();
+    let r;
+    expect(changes(() => { r = confirm.run().result; })).toEqual(['Deleted Oops exercise (and 1 practice session)']);
     expect(r).toEqual({ deleted: 'Oops exercise', practice_sessions_removed: 1 });
     expect(store.state.items.map((t) => t.id)).toEqual(['a']);
     expect(store.state.log.map((e) => e.itemId)).toEqual(['a']);
     expect(store.state.plan.items.some((i) => i.itemId === 'x')).toBe(false);
     expect(store.state.diary[0]).toMatchObject({ text: 'about it', itemId: null });
-    expect(takeChanges()).toEqual(['Deleted exercise: Oops exercise (and 1 practice session)']);
+  });
+
+  it('deletes one with no history straight away', () => {
+    setState([tune({ id: 'a', name: 'Solar' })]);
+    expect(runTool('delete_item', { item: 'a' })).toEqual({ deleted: 'Solar', practice_sessions_removed: 0 });
+    expect(takeConfirms()).toEqual([]);
   });
 
   it('reports an unknown item instead of failing', () => {
     setState([tune({ id: 'a' })]);
-    expect(runTool('delete_item', { item_id: 'nope' }).error).toMatch(/No item/);
+    expect(runTool('delete_item', { item: 'nope' }).error).toMatch(/No item/);
     expect(store.state.items).toHaveLength(1);
   });
 });
 
 describe('exercises that vary the scale or chord', () => {
   const blank = { category: 'scale', key_mode: 'weak', keys_per_session: 3, keys: null, abc: null, meter: null, tempo: null, notes: null, add_to_today: false };
-  const noChange = { level: null, priority: null, focus: null, tempo: null, goal_tempo: null, keys: null, notes_append: null };
+  const noChange = { level: null, priority: null, status: null, tempo: null, goal_tempo: null, keys: null, notes_append: null };
 
   it('creates one, with chosen types in catalogue order', () => {
     setState([]);
@@ -170,18 +203,17 @@ describe('exercises that vary the scale or chord', () => {
   it('turns variation on, changes it, and turns it off; today’s types follow', () => {
     setState([{ id: 'x', type: 'exercise', name: 'Arps', keyMode: 'random', keysPerSession: 2, abc: 'C E G c' }]);
     buildPlan(true);
-    takeChanges();
-    runTool('update_item', { ...noChange, item_id: 'x', vary: 'chord', types: ['m7', 'dom7'] });
+    const did = changes(() => runTool('update_item', { ...noChange, item: 'x', vary: 'chord', types: ['m7', 'dom7'] }));
     expect(store.state.items[0].vary).toMatchObject({ kind: 'chord', types: ['m7', 'dom7'], shape: 'updown' });
     const item = store.state.plan.items.find((i) => i.itemId === 'x');
     expect(item.types).toHaveLength(2);
     expect(item.types.every((id) => ['m7', 'dom7'].includes(id))).toBe(true);
-    expect(takeChanges()[0]).toMatch(/varies chord: Minor 7, Dominant 7/);
+    expect(did[0]).toMatch(/varies chord: Minor 7, Dominant 7/);
     // Only the types change; the kind stays.
-    runTool('update_item', { ...noChange, item_id: 'x', types: ['dim7'] });
+    runTool('update_item', { ...noChange, item: 'x', types: ['dim7'] });
     expect(store.state.items[0].vary.types).toEqual(['dim7']);
     expect(item.types).toEqual(['dim7', 'dim7']);
-    runTool('update_item', { ...noChange, item_id: 'x', vary: 'none' });
+    runTool('update_item', { ...noChange, item: 'x', vary: 'none' });
     expect(store.state.items[0].vary).toBe(null);
     expect(item.types).toBeUndefined();
     expect(store.state.items[0].abc).toBe('C E G c'); // its own notation is kept
@@ -192,8 +224,8 @@ describe('exercises that vary the scale or chord', () => {
     store.state.settings.view = 'c';
     buildPlan(true);
     store.state.plan.items = [];
-    const r = runTool('add_to_today', { items: [{ item_id: 'x', keys: ['F', 'Bb'], types: ['harmonic', 'lydian'] }] });
-    expect(r.notes[0]).toMatch(/lydian isn't turned on/);
+    const r = runTool('add_to_today', { item: 'x', keys: ['F', 'Bb'], types: ['harmonic', 'lydian'] });
+    expect(r.note).toMatch(/lydian isn't turned on/);
     const item = store.state.plan.items[0];
     expect(item.keys).toEqual([5, 10]);
     expect(item.types[0]).toBe('harmonic');
@@ -212,12 +244,11 @@ describe('chords and warm-ups', () => {
     store.state = seedState();
     store.state.settings.view = 'c';
     const t = store.state.items.find((x) => x.name === 'Autumn Leaves');
-    const item = runTool('get_item', { item_id: t.id });
+    const item = runTool('get_item', { item: t.id });
     expect(item.chords).toMatch(/^In Gm, 4\/4:\nA ×2: Cm7 \| F7 \| Bbmaj7/);
-    takeChanges();
-    const r = runTool('add_warmups', { tune_id: t.id, count: 2 });
+    let r;
+    expect(changes(() => { r = runTool('add_warmups', { tune: t.id, count: 2 }); })[0]).toMatch(/^Warm-ups for Autumn Leaves/);
     expect(r.added).toContain('Seventh-chord arpeggios');
-    expect(takeChanges()[0]).toMatch(/^Warm-ups for Autumn Leaves/);
     const today = runTool('get_today', {});
     const list = today.items || today;
     expect(list.some((i) => i.warm_up_for === 'Autumn Leaves')).toBe(true);
@@ -228,10 +259,10 @@ describe('chords and warm-ups', () => {
     store.state.settings.view = 'c';
     buildPlan(true);
     store.state.plan.items = [];
-    runTool('add_to_today', { items: [{ item_id: 'x', keys: ['F', 'Bb'], types: ['dorian', 'major'] }] });
-    markPlayed('x', store.state.plan.items[0]);
-    const r = runTool('change_today', { item_id: 'x', keys: ['F', 'Bb', 'Eb'], types: null });
-    expect(r.today.keys).toEqual(['F', 'B♭', 'E♭']);
+    const { entry_id } = runTool('add_to_today', { item: 'x', keys: ['F', 'Bb'], types: ['dorian', 'major'] });
+    expect(runTool('mark_played', { item: 'x', entry: entry_id, rating: 'solid' })).toMatchObject({ rating: 'solid' });
+    runTool('change_today', { entry: entry_id, keys: ['F', 'Bb', 'Eb'], types: null });
+    expect(runTool('get_today', {}).items[0].keys).toEqual(['F', 'B♭', 'E♭']);
     const e = store.state.log.at(-1);
     expect(e.keys).toEqual([5, 10, 3]);
     expect(e.types.slice(0, 2)).toEqual(['dorian', 'major']);

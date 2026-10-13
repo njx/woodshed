@@ -817,6 +817,9 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .changes ul { flex: 1; margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); }
 .changes.undone ul { text-decoration: line-through; opacity: .6; }
 .changes .pill-btn { background: var(--surface); }
+.confirm { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--danger) 10%, var(--surface)); display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+.confirm span { flex: 1; }
+.confirm .pill-btn { background: var(--surface); color: var(--danger); }
 .chat-error { color: var(--danger); font-size: 14px; margin-top: 6px; }
 .typing { display: inline-flex; gap: 4px; padding: 12px 14px; background: var(--surface); border-radius: 16px; }
 .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); animation: blink 1.2s infinite; }

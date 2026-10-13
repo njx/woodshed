@@ -3,8 +3,9 @@ import { itemById } from '../practice.js';
 import { todayItem } from '../plan.js';
 import { chartChords } from '../bass.js';
 import { metronome, takeAwayStop } from '../metronome.js';
-import { setTempo, clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
-import { ICON, render, toast } from './shell.js';
+import { clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
+import { ICON, render, toast, perform } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, live, raw, openSheetView, segButtons } from './lit.js';
 import type { Click } from '../metronome.js';
@@ -68,8 +69,8 @@ export class MetronomeSheet extends View {
     this.bpm = clampBpm(b);
     store.state.settings.metroBpm = this.bpm;
     if (metronome.state.running) metronome.setBpm(this.bpm);
-    if (this.item) setTempo(this.item, this.bpm);
-    save();
+    if (this.item) perform(cmd.updateItem, { item: this.item.id, tempo: this.bpm, tempo_today: true });
+    else save(); // (the metronome's own tempo, above)
   }
   setBeats(n: number) {
     this.beats = n;
@@ -85,8 +86,7 @@ export class MetronomeSheet extends View {
   }
   startWith(bass: boolean) {
     const item = this.item, settings = store.state.settings;
-    if (item && !item.tempo) setTempo(item, this.bpm);
-    save();
+    if (item && !item.tempo) perform(cmd.updateItem, { item: item.id, tempo: this.bpm, tempo_today: true });
     const cb = bass ? this.chartBass() : null;
     metronome.start({
       bpm: this.bpm, itemId: item?.id ?? null, click: settings.bassClick,
@@ -125,7 +125,7 @@ export class MetronomeSheet extends View {
         <div class="setting">
           <div><b>Goal tempo</b><span>Optional. Suggestions to speed up stop here.</span></div>
           <input class="goal-input" id="m-goal" type="number" inputmode="numeric" min=${MIN_BPM} max=${MAX_BPM} placeholder="—" .value=${live(String(item.goalTempo || ''))}
-            @change=${(e: Event) => { const g = Number((e.target as HTMLInputElement).value); item.goalTempo = g ? clampBpm(g) : null; save(); this.requestUpdate(); }}>
+            @change=${(e: Event) => { perform(cmd.updateItem, { item: item.id, goal_tempo: Number((e.target as HTMLInputElement).value) || 0 }); this.requestUpdate(); }}>
         </div>
         <p class="fine">${item.name}’s working tempo, saved with the session when you log it.</p>`
         : html`<ws-hint hint="metro-tip" cls="fine" text="Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice."></ws-hint>`}
@@ -142,15 +142,13 @@ export class MetronomeSheet extends View {
     return html`
       <div class="setting"><div><b>Walking bass</b><span>${this.bassOn() ? `Through ${metronome.state.bass!.label}, round and round` : 'Through its chart, after a bar to count in'}</span></div>
         <div class="seg" id="m-bass-seg">${segButtons([['off', 'Off'], ['on', 'On']] as const, on ? 'on' : 'off', (v) => {
-          settings.metroBass = v === 'on';
-          save();
+          perform(cmd.changeSettings, { walking_bass: v === 'on' });
           if (this.mine() && (v === 'on') !== this.bassOn()) this.startWith(v === 'on'); // (running: the click carries on)
           this.requestUpdate();
         })}</div></div>
       ${on ? html`<div class="setting"><div><b>Click</b><span>With the bass</span></div>
         <div class="seg" id="m-click">${segButtons([['all', 'Every beat'], ['twofour', '2 & 4'], ['off', 'Off']] as const, click, (v: Click) => {
-          settings.bassClick = v;
-          save();
+          perform(cmd.changeSettings, { bass_click: v });
           metronome.setClick(v);
           this.requestUpdate();
         })}</div></div>` : nothing}`;
@@ -208,8 +206,7 @@ export function tempoSuggestionPart(t: Item, sug: ReturnType<typeof tempoSuggest
   return html`<div class="suggest tempo ${sug.up ? 'up' : 'down'}"><span>${sug.text}</span>
     ${sug.to ? html`<button class="pill-btn" data-tempo-to=${sug.to} @click=${(e: Event) => {
       e.stopPropagation();
-      setTempo(t, sug.to!, { nextTime: true });
-      save();
+      perform(cmd.updateItem, { item: t.id, tempo: sug.to! }); // (for next time: today's session keeps its tempo)
       onChange?.();
     }}>${raw(ICON.quarter)}${sug.to}</button>` : nothing}</div>`;
 }

@@ -1,13 +1,14 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { dateStr, niceDate } from '../dates.js';
 import { itemById } from '../practice.js';
-import { FLAGS, addEntry, entryById, deleteEntry, openTodos, diaryDays, todoText, findItemByName, linkableItems } from '../diary.js';
+import { FLAGS, entryById, openTodos, diaryDays, todoText, findItemByName, linkableItems } from '../diary.js';
 import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize, playOnSpeaker } from '../media.js';
 import { openRecorder } from './recorder.js';
-import { ICON, ui, render, goTo, toast, withUndo, closeSheet } from './shell.js';
+import { ICON, ui, render, goTo, toast, perform, closeSheet } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, mount, html, nothing, raw, openSheetView } from './lit.js';
-import type { DateStr, DiaryEntry, Id } from '../types.js';
+import type { Clip, DateStr, DiaryEntry, Id } from '../types.js';
 
 type Flag = NonNullable<DiaryEntry['flag']>;
 type Filter = 'all' | Flag;
@@ -59,33 +60,18 @@ export function noteRows(entries: DiaryEntry[], { showDate = false, back, onChan
 }
 
 function toggleDone(e: DiaryEntry, onChange: () => void) {
-  e.done = !e.done;
-  save();
+  perform(cmd.updateNote, { note: e.id, done: !e.done }, { undo: !e.done });
   onChange();
-  if (e.done) toast('Marked done', { label: 'Undo', fn: () => { e.done = false; save(); onChange(); } });
 }
 
 // Deleting a recording, with Undo: a take (or a note that's only a recording) goes altogether; a
 // note you wrote keeps its text. The clip file is cleaned up the next time the app starts, if it's
 // still not wanted.
 function deleteTake(e: DiaryEntry, onChange: () => void) {
-  const diary = store.state.diary;
-  const i = diary.indexOf(e);
-  if (i < 0) return;
   if (listPlayer?.btn.dataset.play?.startsWith(`${e.id}:`)) toggleListPlay(listPlayer.btn);
-  const whole = e.take || !e.text;
-  const media = e.media;
-  if (whole) diary.splice(i, 1);
-  else e.media = [];
-  save();
+  if (e.take || !e.text) perform(cmd.deleteNote, { note: e.id });
+  else perform(cmd.updateNote, { note: e.id, media: [] }, { undo: true });
   onChange();
-  toast(media.length > 1 ? 'Recordings deleted' : 'Recording deleted', { label: 'Undo', fn: () => {
-    if (store.state.diary !== diary) return toast('Can’t undo — other things have changed since');
-    if (whole) diary.splice(Math.min(i, diary.length), 0, e);
-    else e.media = media;
-    save();
-    onChange();
-  } });
 }
 
 // One shared player for audio clips played straight from a list (it marks its button playing).
@@ -221,6 +207,11 @@ export class NoteSheet extends View {
   private next: (() => void) | null = null; // where to go after closing, instead of opts.back (e.g. the recorder)
   private urls: string[] = [];
   private done: boolean | undefined; // Done, as ticked (saved with the note)
+  @state() flag: Flag | null = null; // its flag, as picked (saved with the note)
+  connectedCallback() {
+    super.connectedCallback();
+    this.flag = this.entry.flag;
+  }
   private shut = false; // closed
 
   get text() { return this.querySelector<HTMLTextAreaElement>('#n-text')!; }
@@ -236,7 +227,7 @@ export class NoteSheet extends View {
       </div>
       ${Recognition ? nothing : html`<p class="fine">Tip: use the microphone on your keyboard to dictate.</p>`}
       <div class="flag-row">${(Object.entries(FLAGS) as [Flag, (typeof FLAGS)[Flag]][]).map(([k, f]) => html`
-        <button class="flag-btn flag-${k} ${e.flag === k ? 'on' : ''}" data-flag=${k} aria-pressed=${String(e.flag === k)} @click=${() => { e.flag = e.flag === k ? null : k; this.requestUpdate(); }}>${raw(FLAG_ICON[k])}${f.label}</button>`)}
+        <button class="flag-btn flag-${k} ${this.flag === k ? 'on' : ''}" data-flag=${k} aria-pressed=${String(this.flag === k)} @click=${() => { this.flag = this.flag === k ? null : k; }}>${raw(FLAG_ICON[k])}${f.label}</button>`)}
       </div>
       <label class="field">
         <span class="field-label">Tune (optional)</span>
@@ -253,7 +244,7 @@ export class NoteSheet extends View {
           </div>
         </li>`)}</ul>` : nothing}
       ${canRecord() ? html`<button class="ghost-btn rec-start" id="n-record" @click=${() => this.record()}>${raw(ICON.rec)}<span>${e.media?.length ? 'Record another' : 'Record audio or video'}</span></button>` : nothing}
-      ${!isNew && e.flag ? html`<label class="done-toggle"><input type="checkbox" id="n-done" .checked=${this.done ?? e.done} @change=${(ev: Event) => { this.done = (ev.target as HTMLInputElement).checked; }}> Done</label>` : nothing}
+      ${!isNew && this.flag ? html`<label class="done-toggle"><input type="checkbox" id="n-done" .checked=${this.done ?? e.done} @change=${(ev: Event) => { this.done = (ev.target as HTMLInputElement).checked; }}> Done</label>` : nothing}
       <button class="primary-btn" id="n-save" @click=${() => this.saveNote()}>${isNew ? 'Save note' : 'Done'}</button>
       ${isNew ? nothing : html`<button class="danger-btn" id="n-delete" @click=${() => this.deleteNote()}>Delete note</button>`}
     `;
@@ -281,19 +272,16 @@ export class NoteSheet extends View {
     else this.opts.back?.();
   }
   // Saves what's in the editor; false if there's nothing to save (no text and no recordings).
-  commit() {
+  commit(media?: Clip[]) {
     const e = this.entry;
     const tune = findItemByName(this.querySelector<HTMLInputElement>('#n-tune')!.value);
-    const fields = { text: this.text.value, flag: e.flag, itemId: tune?.id || null };
-    if (!fields.text.trim() && !e.media?.length) return false;
-    if (this.isNew) addEntry(fields);
-    else {
-      Object.assign(e, fields, { text: fields.text.trim() });
-      if (this.done != null) e.done = this.done;
-      if (!e.flag) e.done = false;
-    }
-    save();
-    return true;
+    const text = this.text.value;
+    if (!text.trim() && !(media ?? e.media)?.length) return false;
+    if (this.isNew) return !!perform(cmd.addNote, { text, ...(this.flag ? { flag: this.flag } : {}), ...(tune ? { item: tune.id } : {}) });
+    return !!perform(cmd.updateNote, {
+      note: e.id!, text, flag: this.flag ?? 'none', item: tune?.id || null,
+      ...(this.done != null ? { done: this.done } : {}), ...(media ? { media } : {}),
+    });
   }
   saveNote() {
     if (!this.text.value.trim() && !this.entry.media?.length) {
@@ -306,7 +294,7 @@ export class NoteSheet extends View {
     const id = this.entry.id!;
     this.finished = true;
     closeSheet();
-    withUndo('Note deleted', () => deleteEntry(id));
+    perform(cmd.deleteNote, { note: id });
   }
   // Record a take for it (saving it first), then come back to it.
   record() {
@@ -344,15 +332,14 @@ export class NoteSheet extends View {
   removeClip(i: number) {
     if (!confirm('Remove this recording?')) return;
     const e = this.entry;
-    e.media = e.media!.filter((_, j) => j !== i);
-    // The clip file itself is cleaned up the next time the app starts.
+    const media = e.media!.filter((_, j) => j !== i);
+    // (The clip file itself is cleaned up later, if it's still in no note: see media.ts.)
     this.finished = true;
-    if (!this.commit()) {
+    if (!this.commit(media)) {
       // Nothing left in the note: no text and no recordings.
-      deleteEntry(e.id!); // (a saved note: it has recordings)
-      save();
       closeSheet();
-      return toast('Note deleted');
+      perform(cmd.deleteNote, { note: e.id! }); // (a saved note: it has recordings)
+      return;
     }
     this.next = () => openNote(e.id!, this.opts); // reopen to redraw the clip list
     closeSheet();

@@ -44,8 +44,13 @@ async function mockApi(page) {
     if (!results.length) {
       reply = message([{ type: 'text', text: 'Let me look at your library.' }, { type: 'tool_use', id: 'tu1', name: 'search_library', input: search }, { type: 'tool_use', id: 'tu2', name: 'get_today', input: {} }], 'tool_use');
     } else if (results.some((r) => r.tool_use_id === 'tu1')) {
-      const found = JSON.parse(results.find((r) => r.tool_use_id === 'tu1').content).items;
-      reply = message([{ type: 'tool_use', id: 'tu3', name: 'add_to_today', input: { items: [{ item_id: found[0].id, keys: null }, { item_id: found[1].id, keys: null }] } }], 'tool_use');
+      // Two it found that aren't in today's set already.
+      const today = JSON.parse(results.find((r) => r.tool_use_id === 'tu2').content).items.map((i) => i.item_id);
+      const found = JSON.parse(results.find((r) => r.tool_use_id === 'tu1').content).items.filter((i) => !today.includes(i.id));
+      reply = message([
+        { type: 'tool_use', id: 'tu3', name: 'add_to_today', input: { item: found[0].id, keys: null } },
+        { type: 'tool_use', id: 'tu4', name: 'add_to_today', input: { item: found[1].id, keys: null } },
+      ], 'tool_use');
     } else {
       reply = message([{ type: 'text', text: 'Added two tunes you know a little:\n- **Thing one**\n- **Thing two**' }], 'end_turn');
     }
@@ -68,8 +73,8 @@ test('the assistant changes today’s set, shows the cost, and can undo', async 
   await connect(page);
   await page.locator('[data-suggest]').first().click();
 
-  await expect(page.locator('.changes li')).toHaveCount(1);
-  await expect(page.locator('.changes li')).toContainText('Added to today');
+  await expect(page.locator('.changes li')).toHaveCount(2);
+  await expect(page.locator('.changes li').first()).toContainText('to today’s set');
   await expect(page.locator('.tool-lines span')).toContainText(['Searched your library', 'Checked today’s set']);
   await expect(page.locator('.bot-text').last()).toContainText('Thing two');
   await expect(page.locator('.msg-cost')).toHaveText(/¢/);
@@ -78,7 +83,10 @@ test('the assistant changes today’s set, shows the cost, and can undo', async 
   // What was sent: model, fallbacks, tools, the user's key, the app state first.
   const q = api.requests[0];
   expect(q.body).toMatchObject({ model: 'claude-opus-5-5', fallbacks: 'default', output_config: { effort: 'medium' }, stream: true });
-  expect(q.body.tools).toHaveLength(15);
+  // Its own queries, and the app's commands (the same ones its buttons run).
+  const names = q.body.tools.map((t) => t.name);
+  for (const n of ['search_library', 'get_today', 'add_to_today', 'remove_from_today', 'mark_played', 'update_item', 'delete_item', 'change_settings']) expect(names).toContain(n);
+  expect(names).not.toContain('add_draft');
   expect(q.body.tools.every((t) => t.eager_input_streaming)).toBe(true);
   expect(q.headers['x-api-key']).toBe('sk-ant-test-1234');
   expect(q.headers['anthropic-beta']).toContain('server-side-fallback');
@@ -105,7 +113,7 @@ test('no Undo for the assistant once you’ve changed things since', async ({ pa
   await ui.backdrop();
   await page.locator('.card .check').first().click(); // practice something
   await page.click('#today-ask');
-  await expect(page.locator('.changes li')).toHaveCount(1);
+  await expect(page.locator('.changes li')).toHaveCount(2);
   await expect(page.locator('[data-undo]')).toHaveCount(0);
   await ui.backdrop();
   await expect(page.locator('.card.done')).toHaveCount(1);
@@ -117,7 +125,7 @@ test('a rejected API key gets a clear message; spending shows in Settings', asyn
   await ui.start();
   await connect(page);
   await page.locator('[data-suggest]').first().click();
-  await expect(page.locator('.changes li')).toHaveCount(1);
+  await expect(page.locator('.changes li')).toHaveCount(2);
   api.badKey = true;
   await page.click('#chat-new');
   await page.fill('#chat-text', 'hello');
@@ -145,4 +153,29 @@ test('request errors show Anthropic’s explanation', async ({ page, ui, pageErr
   await page.fill('#chat-text', 'hello again');
   await page.click('#chat-send');
   await expect(page.locator('.chat-error').last()).toContainText('tools.0.input_schema: something is wrong');
+});
+
+test('deleting something with practice history waits for a tap; then it’s done, with Undo', async ({ page, ui }) => {
+  await ui.start();
+  await page.locator('.card:not(.b-exercise) .check').first().click(); // practiced: it has history
+  const id = await page.locator('.card:not(.b-exercise)').first().getAttribute('data-item-id');
+  const name = await page.locator('.card:not(.b-exercise) h2').first().textContent();
+  await page.route('https://api.anthropic.com/**', async (route) => {
+    const body = JSON.parse(route.request().postData());
+    const last = body.messages.at(-1);
+    const answered = Array.isArray(last.content) && last.content.some((c) => c.type === 'tool_result');
+    return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: answered
+      ? message([{ type: 'text', text: 'Tap Yes to delete it.' }], 'end_turn')
+      : message([{ type: 'tool_use', id: 'd1', name: 'delete_item', input: { item: id } }], 'tool_use') });
+  });
+  await connect(page);
+  await page.fill('#chat-text', `delete ${name}`);
+  await page.click('#chat-send');
+  await expect(page.locator('.confirm')).toContainText(`Delete ${name} and its 1 practice session?`);
+  expect((await ui.saved()).state.items.some((t) => t.id === id)).toBe(true); // not yet
+  await page.click('.confirm [data-confirm]');
+  await expect(page.locator('.confirm')).toContainText('Done');
+  await expect.poll(async () => (await ui.saved()).state.items.some((t) => t.id === id)).toBe(false);
+  await page.click('#toast button'); // Undo
+  await expect.poll(async () => (await ui.saved()).state.items.some((t) => t.id === id)).toBe(true);
 });

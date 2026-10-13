@@ -1,4 +1,4 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { TRANSPOSITIONS } from '../constants.js';
 import { dateStr } from '../dates.js';
 import { isMinor } from '../keys.js';
@@ -7,7 +7,8 @@ import { chordName, formBars, chartShift, usesSharps, chartToText, chartFromText
 import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { pickWarmup } from './pickers.js';
-import { ICON, toast, closeSheet, kn, hintDone } from './shell.js';
+import { ICON, toast, closeSheet, kn, hintDone, perform } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, raw, openSheetView } from './lit.js';
 import type { BarSection } from '../bass.js';
@@ -221,17 +222,13 @@ export class ChartEditor extends View {
     const r = chartFromText(this.querySelector<HTMLTextAreaElement>('#ce-text')!.value, { key: this.base, meter: this.meter, shift: this.shift });
     this.pending = r.error || null;
     if (r.error) return;
-    this.tune.chart = r.chart;
-    this.tune.chartEdited = true;
-    save();
+    cmd.exec(cmd.setChart, { tune: this.tune.id, chart: r.chart!, edited: true }); // (shown behind once the editor closes)
   }
   // Back to a chart (as it was, or the original), leaving the editor.
   restore(chart: Chart | null, edited: boolean, msg: string) {
     clearTimeout(this.timer);
-    this.tune.chart = chart;
-    this.tune.chartEdited = edited;
     this.pending = null;
-    save();
+    perform(cmd.setChart, { tune: this.tune.id, chart, edited });
     closeSheet();
     toast(msg);
   }

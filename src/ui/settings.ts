@@ -2,14 +2,14 @@ import { store, save, flush, seedState, migrate, SCHEMA_VERSION, keepCopy, listC
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import { clone } from '../util.js';
-import { buildPlan, refreshExercises, orderPlan } from '../plan.js';
 import { loadSeedCharts } from '../charts.js';
 import { mediaStats, fmtSize, strayClips, restoreStrayClips } from '../media.js';
 import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost, type Usage } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
-import { ICON, render, toast, goTo, closeSheet } from './shell.js';
+import { ICON, render, toast, goTo, closeSheet, perform } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, state } from 'lit/decorators.js';
 import { View, mount, html, nothing, live, raw, settingRows, segButtons, stepperButtons, openSheetView } from './lit.js';
 import type { ListenService, Settings, Transposition } from '../types.js';
@@ -18,6 +18,11 @@ import type { ListenService, Settings, Transposition } from '../types.js';
 type CountKey = 'exercises' | 'hone' | 'learn' | 'fresh' | 'focusTunes' | 'focusExercises';
 type ChoiceKey = 'exerciseFocus' | 'priority' | 'newKeys';
 type SegKey = 'tuneOrder' | 'listen';
+// Their names in change_settings (see commands/settings.ts).
+const SNAKE: Record<CountKey | ChoiceKey | SegKey, string> = {
+  exercises: 'exercises', hone: 'hone', learn: 'learn', fresh: 'fresh', focusTunes: 'focus_tunes', focusExercises: 'focus_exercises',
+  exerciseFocus: 'exercise_focus', priority: 'priority', newKeys: 'new_keys', tuneOrder: 'tune_order', listen: 'listen',
+};
 interface Choice<K extends ChoiceKey> {
   setting: K; label: string; title: string; help?: string;
   options: [value: Settings[K], label: string, hint?: string][];
@@ -34,7 +39,7 @@ const CHOICES: { [K in ChoiceKey]: Choice<K> } = {
   exerciseFocus: {
     setting: 'exerciseFocus', label: 'Exercises on a day', title: 'Exercises on a day',
     options: [['own', 'Each its own', EX_FOCUS_HINTS.own], ['day', 'Key of the day', EX_FOCUS_HINTS.day]],
-    after: () => { refreshExercises(); toast('Today’s exercises picked again'); },
+    after: () => toast('Today’s exercises picked again'), // (see change_settings)
   },
   priority: {
     setting: 'priority', label: 'Priority matters', title: 'How much should priority matter?',
@@ -106,7 +111,7 @@ export class SettingsView extends View {
   render() {
     const s = store.state.settings;
     // A change to a setting: saved, and shown.
-    const set = <K extends keyof Settings>(k: K, v: Settings[K]) => { s[k] = v; save(); this.requestUpdate(); };
+    const set = <K extends CountKey | SegKey>(k: K, v: Settings[K]) => { perform(cmd.changeSettings, { [SNAKE[k]]: v }); this.requestUpdate(); };
     const stepper = (key: CountKey, label: string, hint: string) => html`
       <div class="setting">
         <div><b>${label}</b><span>${hint}</span></div>
@@ -140,11 +145,8 @@ export class SettingsView extends View {
         ${stepper('focusTunes', 'Focus tunes', 'At most, a day; they take turns')}
         ${stepper('focusExercises', 'Focus exercises', 'At most, a day; they take turns')}
         <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
-          ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']], () => {
-            // The tune order applies to today's set straight away.
-            if (store.state.plan?.date === dateStr()) { orderPlan(store.state.plan); save(); }
-          })}</div>
-        <button class="ghost-btn" id="rebuild" @click=${() => { buildPlan(true); goTo('today'); toast('Today’s set rebuilt'); }}>${raw(ICON.shuffle)}<span>Rebuild today’s set</span></button>
+          ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']])}</div>
+        <button class="ghost-btn" id="rebuild" @click=${() => { if (perform(cmd.newSet, {}, { quiet: true })) { goTo('today'); toast('Today’s set rebuilt'); } }}>${raw(ICON.shuffle)}<span>Rebuild today’s set</span></button>
       </section>
 
       <section class="panel">
@@ -200,11 +202,7 @@ export class SettingsView extends View {
   toggleInstrument(id: Transposition, on: boolean) {
     const s = store.state.settings;
     const picked = (Object.keys(TRANSPOSITIONS) as Transposition[]).filter((x) => (x === id ? on : s.instruments.includes(x)));
-    if (!picked.length) { toast('Pick at least one'); return this.requestUpdate(); } // (stays on)
-    s.instruments = picked;
-    s.instrumentsChosen = true;
-    if (!picked.includes(s.view)) s.view = picked[0];
-    save();
+    if (perform(cmd.changeSettings, { instruments: picked })) { s.instrumentsChosen = true; save(); } // (none: it says so, and stays on)
     this.requestUpdate();
   }
   // A less-used choice, picked in a sheet with what each option does.
@@ -215,10 +213,7 @@ export class SettingsView extends View {
       title: c.title, help: c.help, options: c.options, value: s[c.setting],
       onPick: (v) => {
         if (s[c.setting] === v) return;
-        s[c.setting] = v as Settings[K]; // (one of its options)
-        save();
-        c.after?.();
-        render();
+        if (perform(cmd.changeSettings, { [SNAKE[key]]: v })) c.after?.(); // (one of its options)
       },
     });
   }
@@ -238,6 +233,7 @@ export class SettingsView extends View {
     if (!confirm(`Put back this copy (${c.reason.toLowerCase()})? What’s here now is kept as a copy too.`)) return;
     await loadSeedCharts(); // (an old copy's tunes may need their charts)
     if (!(await restoreCopy(c.at))) return toast('That copy isn’t there any more');
+    cmd.invalidateUndo();
     await flush();
     render();
     this.load();
@@ -260,6 +256,7 @@ async function resetAll() {
   await keepCopy('Before reset').catch(() => {});
   store.state = seedState();
   save();
+  cmd.invalidateUndo();
   render();
   toast('Reset to the original list');
 }
@@ -302,6 +299,7 @@ async function importData(e: Event) {
     await keepCopy('Before restoring a backup').catch(() => {});
     store.state = migrate(data);
     save();
+    cmd.invalidateUndo();
     render();
     toast(keep.length ? `Backup restored — kept ${keep.length} note${keep.length > 1 ? 's' : ''} with recordings` : 'Backup restored');
   } catch {

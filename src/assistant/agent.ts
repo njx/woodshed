@@ -1,5 +1,6 @@
 import { kvGet, kvSet } from '../db.js';
-import { apiTools, runTool, isWriteTool, appSnapshot, takeChanges, type ToolResult } from './tools.js';
+import { apiTools, runTool, isWriteTool, appSnapshot, takeConfirms, type ToolResult, type Confirm } from './tools.js';
+import { beginGroup, endGroup, type UndoEntry } from '../commands/index.js';
 import { messageCost, tokensOf, recordUsage } from './cost.js';
 import type Anthropic from '@anthropic-ai/sdk';
 
@@ -23,12 +24,12 @@ How the app works:
 - There is a practice diary with to-dos flagged "remember" or "teacher".
 
 How to help:
-- Use the tools to look things up rather than guessing, and to make changes the user asks for. Look up ids with search_library before using them.
+- Use the tools to look things up rather than guessing, and to make changes the user asks for. Look up ids with search_library (items), get_today (entry_id: an item's place in today's set) or get_diary (notes) before using them. The tools that change things are the same as the app's own buttons.
 - When asked for a set or suggestions, offer generously — the user likes a longer list to pick from and will ask for more if they want. Add what they ask for to today's set rather than just listing it, unless they only asked a question.
 - Give musical reasons briefly when choosing (e.g. contrasting keys, a tune that shares changes with one they know, something neglected or due).
 - Key names in tool inputs and outputs are as written for the instrument the user is viewing (stated in the app state). Use the same names when you talk about keys.
 - After making changes, say what you changed in a sentence or two; the app also shows a summary with an Undo button.
-- Delete tunes or exercises only when the user asks. If one has practice history, check with them before deleting unless they've already said to.
+- Delete tunes, exercises or notes only when the user asks. Deleting one with practice history (or a note with recordings) waits for the user to confirm with a button the app shows under your reply.
 - If the user asks for something the tools can't do, call report_unsupported and tell them it isn't possible yet.
 - You can answer general music questions (theory, harmony, history, practice advice) from your own knowledge. Say so when you're unsure, especially about specific recordings.
 - Keep replies short and easy to read on a phone: a few sentences or a short list. Use **bold** sparingly and "- " for lists; no headings or tables.`;
@@ -75,7 +76,9 @@ export interface SendOptions {
   signal?: AbortSignal;
 }
 export type Stop = 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps';
-export interface TurnChanges { changes: string[]; cost: number }
+// What a turn changed (in words), its undo (all of it together; null if nothing changed), and any
+// changes waiting for the user to confirm with a tap.
+export interface TurnChanges { changes: string[]; cost: number; undo: UndoEntry | null; confirms: Confirm[] }
 export interface TurnResult extends TurnChanges { stop: Stop }
 // What send() throws: the error, with what had already been changed (and code 'no_key' with no key).
 export type AssistantError = Error & { code?: 'no_key'; partial?: TurnChanges };
@@ -83,12 +86,12 @@ export type AssistantError = Error & { code?: 'no_key'; partial?: TurnChanges };
 // Sends one user message and runs the tool loop until Claude is done.
 // Callbacks: onText(delta), onTool({ name, input, result }), onStep() between model calls,
 // onRetry() when a step's streamed text is to be dropped (it's being tried again).
-// Returns { changes: [summaries of what was changed], cost (dollars, this message),
+// Returns { changes: [summaries of what was changed], cost (dollars, this message), undo, confirms,
 //   stop: 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps' }.
-// On failure the thrown error has .partial = { changes, cost }.
+// On failure the thrown error has .partial = { changes, cost, undo, confirms }.
 export async function send(conv: Conversation, text: string, { onText, onTool, onStep, onRetry, signal }: SendOptions = {}): Promise<TurnResult> {
   const { Anthropic, client } = await getClient();
-  takeChanges(); // start this turn's change list fresh
+  takeConfirms(); // (none left from before)
   // The history is append-only: each message starts with a snapshot of the app's state.
   conv.messages.push({
     role: 'user',
@@ -99,13 +102,17 @@ export async function send(conv: Conversation, text: string, { onText, onTool, o
   });
 
   let cost = 0;
-  const done = (stop: Stop): TurnResult => ({ changes: takeChanges(), cost, stop });
+  // The turn's changes are one undo (see commands/core.ts).
+  const finish = (): TurnChanges => { const { undo, notes } = endGroup(); return { changes: notes, cost, undo, confirms: takeConfirms() }; };
+  const done = (stop: Stop): TurnResult => ({ ...finish(), stop });
   // If a later step fails, earlier steps may already have changed things: the error carries them
   // (err.partial) so the app can still show them with an Undo.
+  beginGroup();
   try {
     return await loop();
   } catch (err) {
-    if (err && typeof err === 'object') (err as AssistantError).partial = { changes: takeChanges(), cost };
+    const partial = finish();
+    if (err && typeof err === 'object') (err as AssistantError).partial = partial;
     throw err;
   }
 

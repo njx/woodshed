@@ -1,4 +1,5 @@
 import { store, save } from './store.js';
+import { invalidateUndo } from './commands/core.js';
 import { BUCKETS, BUCKET_ORDER, PRIORITY_WEIGHTS, SHIFTS } from './constants.js';
 import { dateStr } from './dates.js';
 import { isMinor } from './keys.js';
@@ -409,7 +410,10 @@ export function syncFocus(): void {
 
 export function ensurePlan(): void {
   const plan = store.state.plan;
-  if (!plan || plan.date !== dateStr()) return buildPlan();
+  if (!plan || plan.date !== dateStr()) {
+    invalidateUndo(); // (a new day's set: an undo from before would put yesterday's back)
+    return buildPlan();
+  }
   // A set made before exercises existed (e.g. earlier today, before an update): add them once.
   if (!plan.withExercises) {
     const stats = itemStats();

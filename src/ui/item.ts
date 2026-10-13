@@ -1,12 +1,10 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { LEVELS, PRIORITIES, RATINGS, SHIFTS, TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { writtenToConcert } from '../keys.js';
-import { uid } from '../util.js';
 import {
-  itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem,
-} from '../practice.js';
-import { setItemStatus, itemStatus, addToToday, inToday, todayItem, setTodayKey } from '../plan.js';
+  itemStats, itemById, isPlayedToday, isPlanItemPlayed, levelSuggestion, } from '../practice.js';
+import { itemStatus, inToday, todayItem } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
 import { entriesFor } from '../diary.js';
 import { noteRows, openNote } from './diary.js';
@@ -18,7 +16,8 @@ import './chart.js'; // (<ws-chart>)
 import { swapInToday, removeFromToday } from './today.js';
 import { canRecord } from '../media.js';
 import { autoStart } from '../practicetime.js';
-import { ICON, ui, render, toast, withUndo, haptic, closeSheet, goTo, kn, openMenu, keysText } from './shell.js';
+import { ICON, ui, render, toast, perform, haptic, closeSheet, goTo, kn, openMenu, keysText } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   View, html, nothing, live, raw, openSheetView, segButtons, settingRows, subPanel, statusControl, levelSuggestionPart,
@@ -31,7 +30,7 @@ export function openItem(id: Id | null, opts?: ExerciseOpts): void {
   if (id && itemById(id)?.type === 'exercise') return openExercise(id, opts);
   const isNew = !id;
   const t = isNew
-    ? { id: uid(), type: 'tune', name: ui.query.trim(), style: 'Standard', priority: 2, level: 0, keys: [] as Key[], notes: '', mine: true, focus: false, ivl: null, due: null } satisfies Tune as Tune
+    ? { ...cmd.blank.tune(), name: ui.query.trim() }
     : itemById(id) as Tune | undefined; // (an exercise opened above)
   if (!t) return;
   const el = document.createElement('ws-tune-sheet') as TuneSheet;
@@ -43,7 +42,7 @@ export function openItem(id: Id | null, opts?: ExerciseOpts): void {
       added = true;
       t.name = t.name.trim();
       ui.query = '';
-      withUndo(`Added ${t.name}`, () => store.state.items.push(t));
+      perform(cmd.addDraft, { draft: t });
     } else if (!isNew) render();
   });
 }
@@ -61,9 +60,13 @@ export class TuneSheet extends View {
   @state() panel: PanelKey | null = null; // the setting open over the sheet
   @state() adding = false; // adding a recording
 
-  // A change: saved (a new tune is saved when it's added), and shown (with the chart in it).
-  commit() {
-    if (!this.isNew) save();
+  // A change to it: one being made (not in the library yet) takes it straight away; otherwise it's
+  // the update_item command, saved and undoable. Then shown (with the chart in it).
+  edit(fields: cmd.ItemFields) {
+    if (!this.isNew) perform(cmd.updateItem, { item: this.tune.id, ...fields });
+    else {
+      try { cmd.applyItem(this.tune, fields); } catch (err) { if (err instanceof cmd.CommandError) toast(err.message); else throw err; }
+    }
     this.refresh();
   }
   back = () => openItem(this.tune.id, { pid: this.pid }); // (as it was opened: from its card, it's today's)
@@ -74,15 +77,15 @@ export class TuneSheet extends View {
       <textarea class="title-input" id="f-name" rows="1" placeholder="Tune name" aria-label="Tune name" enterkeyhint="done" ?autofocus=${isNew}
         .value=${live(t.name)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLElement).blur(); } }}
         @input=${(e: Event) => this.rename(e.target as HTMLTextAreaElement)}></textarea>
-      ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => { setItemStatus(t, st); this.commit(); }, (b) => this.menu(b))}
+      ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => this.edit({ status: st }), (b) => this.menu(b))}
       ${!isNew && inToday(t) ? html`<p class="in-today">${raw(ICON.check)}In today’s set</p>` : nothing}
       ${isNew ? nothing : this.todayKey()}
-      ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => { setLevel(t, l); this.commit(); })}
+      ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => this.edit({ level: l }))}
       ${isNew ? nothing : html`<div data-item-id=${t.id}>${tempoRow(t, () => openMetronome({ itemId: t.id, back: this.back }))}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
       ${isNew ? nothing : html`<div id="chart-box" class="chart-box"><ws-chart .tune=${t} .back=${this.back}></ws-chart></div>`}
       <label class="field">
         <span class="field-label">Notes</span>
-        <textarea id="f-notes" rows="2" placeholder="Tricky bars, ideas…" .value=${live(t.notes)} @input=${(e: Event) => { t.notes = (e.target as HTMLTextAreaElement).value; if (!isNew) save(); }}></textarea>
+        <textarea id="f-notes" rows="2" placeholder="Tricky bars, ideas…" .value=${live(t.notes)} @input=${(e: Event) => this.edit({ notes: (e.target as HTMLTextAreaElement).value })}></textarea>
       </label>
       ${isNew
         ? (Object.keys(PANEL_LABELS) as PanelKey[]).map((k) => html`<label class="field-label">${PANEL_LABELS[k]}</label>${this.panelBody(k)}`)
@@ -101,8 +104,8 @@ export class TuneSheet extends View {
 
   rename(el: HTMLTextAreaElement) {
     if (/\n/.test(el.value)) el.value = el.value.replace(/\s*\n\s*/g, ' ');
-    this.tune.name = el.value;
-    if (!this.isNew && this.tune.name.trim()) save();
+    if (this.isNew) this.tune.name = el.value; // (checked when it's added)
+    else if (el.value.trim()) this.edit({ name: el.value }); // (left as it was while it's empty)
     this.requestUpdate();
   }
   add() {
@@ -114,13 +117,13 @@ export class TuneSheet extends View {
     const t = this.tune;
     const card = this.pid && store.state.plan?.items.find((i) => i.pid === this.pid && !isPlanItemPlayed(i));
     openMenu(anchor, [
-      !inToday(t) && { label: 'Add to today’s set', fn: () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); this.requestUpdate(); } },
+      !inToday(t) && { label: 'Add to today’s set', fn: () => { if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`); this.refresh(); } },
       card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
       card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
       { label: 'Delete tune', danger: true, fn: () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
         closeSheet();
-        withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
+        perform(cmd.deleteItem, { item: t.id });
       } },
     ]);
   }
@@ -131,22 +134,22 @@ export class TuneSheet extends View {
   }
   panelBody(k: PanelKey) {
     const t = this.tune;
-    if (k === 'level') return html`<div class="seg four" data-field="level">${segButtons(LEVELS.map((l) => [l.v, l.label] as const), t.level, (v) => { setLevel(t, v); this.commit(); })}</div>`;
-    if (k === 'priority') return html`<div class="seg four" data-field="priority">${segButtons(PRIORITIES.map((p) => [p.v, p.label] as const), t.priority, (v) => { t.priority = v as Priority; this.commit(); })}</div>`;
+    if (k === 'level') return html`<div class="seg four" data-field="level">${segButtons(LEVELS.map((l) => [l.v, l.label] as const), t.level, (v) => this.edit({ level: v }))}</div>`;
+    if (k === 'priority') return html`<div class="seg four" data-field="priority">${segButtons(PRIORITIES.map((p) => [p.v, p.label] as const), t.priority, (v) => this.edit({ priority: v as Priority }))}</div>`;
     if (k === 'keys') {
       const tr = TRANSPOSITIONS[store.state.settings.view];
       return html`<p class="fine">${tr.label}${tr.offset ? '' : ' pitch'} · the first is the most common.</p><div id="keygrids">${this.keyGrid()}</div>`;
     }
     // The styles in use, to pick from.
     const styles = [...new Set(store.state.items.flatMap((x) => (x.type === 'tune' ? [x.style] : [])))].sort();
-    return html`<div class="field"><input id="f-style" list="styles" .value=${live(t.style)} aria-label="Style" @change=${(e: Event) => { t.style = (e.target as HTMLInputElement).value.trim() || 'Standard'; this.commit(); }}>
+    return html`<div class="field"><input id="f-style" list="styles" .value=${live(t.style)} aria-label="Style" @change=${(e: Event) => this.edit({ style: (e.target as HTMLInputElement).value })}>
       <datalist id="styles">${styles.map((s) => html`<option value=${s}></option>`)}</datalist></div>`;
   }
   // Its usual keys: chips laid out by written pitch for the instrument shown; the first is its main key.
   keyGrid() {
     const t = this.tune;
     const view = store.state.settings.view;
-    const toggle = (k: Key) => { t.keys = t.keys.includes(k) ? t.keys.filter((x) => x !== k) : [...t.keys, k]; this.commit(); };
+    const toggle = (k: Key) => this.edit({ keys: t.keys.includes(k) ? t.keys.filter((x) => x !== k) : [...t.keys, k] });
     return [false, true].map((minor) => html`
       <div class="keygrid">${[...Array(12).keys()].map((w) => {
         const k = writtenToConcert(w, view) + (minor ? 12 : 0);
@@ -168,7 +171,7 @@ export class TuneSheet extends View {
         <select id="f-todaykey" aria-label="Today’s key" @change=${(e: Event) => {
           const v = (e.target as HTMLSelectElement).value;
           if (v === '') return;
-          setTodayKey(it, Number(v));
+          perform(cmd.changeToday, { entry: it.pid, key: Number(v) });
           this.refresh(); // (the chart follows)
         }}>
           ${it.key == null ? html`<option value="" selected>—</option>` : nothing}
@@ -193,7 +196,7 @@ export class TuneSheet extends View {
               <span class="rec-text"><b>${r.artist}</b><small>${[r.album, r.year].filter(Boolean).join(' · ') || 'Search this artist'}</small></span>
               <span class="rec-out">${raw(ICON.out)}</span>
             </a>
-            ${r.mine ? html`<button class="rec-remove" data-rm=${i} aria-label="Remove this recording" @click=${() => { t.recordings = (t.recordings || []).filter((_, j) => j !== i); this.commit(); }}>${raw(ICON.skip)}</button>` : nothing}
+            ${r.mine ? html`<button class="rec-remove" data-rm=${i} aria-label="Remove this recording" @click=${() => { perform(cmd.removeRecording, { tune: t.id, artist: r.artist, album: r.album ?? undefined }); this.refresh(); }}>${raw(ICON.skip)}</button>` : nothing}
           </li>`)}
         <li class="rec-more">
           <a href=${searchUrl(service, searchName(t))} target="_blank" rel="noopener">${raw(ICON.search)}<span>${recs.length ? 'Other versions' : `Search ${label}`}</span></a>
@@ -217,10 +220,10 @@ export class TuneSheet extends View {
     const field = (name: string) => (f.elements.namedItem(name) as HTMLInputElement).value.trim();
     const artist = field('artist');
     if (!artist) return;
-    this.tune.recordings = [...(this.tune.recordings || []), { artist, album: field('album') || null }];
+    if (!perform(cmd.addRecording, { tune: this.tune.id, artist, album: field('album') || undefined })) return;
     f.reset();
     this.adding = false;
-    this.commit();
+    this.refresh();
   }
 
   // How often and when it's been played; logging it for today; its notes and takes.
@@ -250,13 +253,11 @@ export class TuneSheet extends View {
   }
   logToday() {
     const t = this.tune;
-    if (isPlayedToday(t.id)) unmarkPlayed(t.id);
-    else {
-      markPlayed(t.id, todayItem(t) || { key: t.keys[0] ?? null });
+    if (isPlayedToday(t.id)) perform(cmd.unmarkPlayed, { item: t.id });
+    else if (perform(cmd.markPlayed, { item: t.id, entry: todayItem(t)?.pid })) {
       autoStart();
       haptic();
     }
-    save();
     this.requestUpdate();
   }
 }

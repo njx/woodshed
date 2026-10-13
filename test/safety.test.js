@@ -126,7 +126,7 @@ describe('key suggestions', () => {
 describe('assistant input checks', () => {
   it('refuses key names it can’t read, without changing anything', () => {
     setState([tune({ id: 'a', name: 'Solar', keys: [12], level: 1 })]);
-    const r = runTool('update_item', { item_id: 'a', level: 'proficient', priority: null, focus: null, tempo: null, goal_tempo: null, keys: ['B flat major'], notes_append: null });
+    const r = runTool('update_item', { item: 'a', level: 'proficient', priority: null, status: null, tempo: null, goal_tempo: null, keys: ['B flat major'], notes_append: null });
     expect(r.error).toMatch(/B flat major/);
     expect(store.state.items[0]).toMatchObject({ keys: [12], level: 1 });
   });

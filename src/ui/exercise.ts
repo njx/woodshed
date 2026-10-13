@@ -1,11 +1,10 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { autoStart } from '../practicetime.js';
 import { LEVELS, PRIORITIES, RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
-import { uid } from '../util.js';
-import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { setItemStatus, itemStatus, refreshTypes, refreshKeys, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
+import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, levelSuggestion } from '../practice.js';
+import { itemStatus, inToday, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
 import './chart.js'; // (<ws-chart>)
 import { swapInToday, removeFromToday } from './today.js';
@@ -32,7 +31,8 @@ import {
 import type { TuneObject } from 'abcjs';
 import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, PlanItem, Priority, Progression, Shape, Tune, Vary } from '../types.js';
 import {
-  ICON, render, toast, withUndo, haptic, closeSheet, kn, openMenu, overLabel } from './shell.js';
+  ICON, render, toast, perform, haptic, closeSheet, kn, openMenu, overLabel } from './shell.js';
+import * as cmd from '../commands/index.js';
 
 const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
@@ -82,7 +82,7 @@ export interface ExerciseOpts { pid?: Id; keys?: Key[] | null; types?: string[];
 export function openExercise(id: Id | null, opts: ExerciseOpts = {}): void {
   const item: Item | undefined = id
     ? itemById(id)
-    : { id: uid(), type: 'exercise', name: '', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '', meter: '4/4', vary: null, notes: '', priority: 2, level: 0, focus: false, ivl: null, due: null } satisfies Exercise;
+    : cmd.blank.exercise();
   if (!item || item.type !== 'exercise') return;
   const el = document.createElement('ws-exercise-sheet') as ExerciseSheet;
   el.setup(item, !id, opts);
@@ -146,8 +146,7 @@ export class ExerciseSheet extends View {
     const t = this.t;
     if (this.added || !t.name.trim()) return;
     this.added = true;
-    t.name = t.name.trim();
-    withUndo(`Added ${t.name}`, () => store.state.items.push(t));
+    perform(cmd.addDraft, { draft: t });
   }
   // Leave this sheet for another (note, recorder, editor) and come back after.
   goTo(fn: () => void) {
@@ -156,10 +155,17 @@ export class ExerciseSheet extends View {
     fn();
   }
   back = () => openExercise(this.t.id, { ...this.opts, keys: this.todayKeys }); // (as it was opened: a warm-up stays one)
-  // A change: saved (a new exercise is saved when it's added), and shown.
-  commit() {
-    if (!this.isNew) save();
+  // A change to it: one being made (not in the library yet) takes it straight away; otherwise it's
+  // the update_item command, saved and undoable (which also picks today's keys and types again
+  // when how it picks them changes). Then shown. False if it couldn't be done (it says why).
+  edit(fields: cmd.ItemFields): boolean {
+    let ok = true;
+    if (!this.isNew) ok = !!perform(cmd.updateItem, { item: this.t.id, ...fields });
+    else {
+      try { cmd.applyItem(this.t, fields); } catch (err) { if (!(err instanceof cmd.CommandError)) throw err; toast(err.message); ok = false; }
+    }
     this.refresh();
+    return ok;
   }
 
   // What Played logs against: its plan item, or if it's only in the set as warm-ups, one of them
@@ -286,9 +292,8 @@ export class ExerciseSheet extends View {
     // For a new exercise (a lick, say) the notation is the point: add it, then write it.
     if (this.isNew) {
       t.name = t.name.trim() || `Untitled ${(CATEGORIES[t.category] || 'exercise').toLowerCase()}`;
-      store.state.items.push(t);
-      save();
-      render();
+      this.added = true;
+      perform(cmd.addDraft, { draft: t }, { quiet: true });
     }
     this.goTo(() => openNotationEditor(t, this.back));
   }
@@ -299,7 +304,7 @@ export class ExerciseSheet extends View {
       <textarea class="title-input" id="x-name" rows="1" placeholder="Exercise name" aria-label="Exercise name" enterkeyhint="done" ?autofocus=${isNew}
         .value=${live(t.name)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLElement).blur(); } }}
         @input=${(e: Event) => this.rename(e.target as HTMLTextAreaElement)}></textarea>
-      ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => { setItemStatus(t, st); this.commit(); }, (b) => this.menu(b))}
+      ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => this.edit({ status: st }), (b) => this.menu(b))}
       ${isNew ? nothing : planItem?.warmup
         ? html`<p class="in-today">${raw(ICON.check)}In today’s set, as a warm-up for ${itemById(planItem.warmup)?.name || 'a tune'}</p>`
         : inToday(t) ? html`<p class="in-today">${raw(ICON.check)}In today’s set</p>` : nothing}
@@ -313,9 +318,9 @@ export class ExerciseSheet extends View {
       ${this.todayKeysPart()}
       <label class="field">
         <span class="field-label">How to practice it</span>
-        <textarea id="x-notes" rows="3" placeholder="Tempo, articulation, range, variations…" .value=${live(t.notes)} @input=${(e: Event) => { t.notes = (e.target as HTMLTextAreaElement).value; if (!isNew) save(); }}></textarea>
+        <textarea id="x-notes" rows="3" placeholder="Tempo, articulation, range, variations…" .value=${live(t.notes)} @input=${(e: Event) => this.edit({ notes: (e.target as HTMLTextAreaElement).value })}></textarea>
       </label>
-      ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => { setLevel(t, l); this.commit(); })}
+      ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => this.edit({ level: l }))}
 
       ${isNew ? nothing : this.tempoFrom !== t
         ? html`<div data-item-id=${this.tempoFrom.id}>${tempoRow(this.tempoFrom, () => this.openMetronome())}<p class="fine">As a warm-up it’s played at ${this.tempoFrom.name}’s tempo.</p></div>`
@@ -385,10 +390,9 @@ export class ExerciseSheet extends View {
   }
   setAsWritten(on: boolean) {
     this.stopPlaying();
-    if (on) this.t.asWritten = true;
-    else delete this.t.asWritten;
+    if (!this.edit({ as_written: on })) return;
     this.previewRoot = this.asWritten() ? this.writtenC() : this.todayKeys[0] ?? 0;
-    this.commit();
+    this.requestUpdate();
   }
 
   // Today's keys (and types) for this exercise, changeable: not for a warm-up (its come from its
@@ -424,7 +428,7 @@ export class ExerciseSheet extends View {
       // A new key gets a type the usual way: one played least.
       if (types) types.push(chooseTypes(t.vary!, 1, itemStats().get(t.id)?.types || [], Math.random, typeCounts())[0] ?? t.vary!.types[0]);
     }
-    setTodayKeys(it, keys, types);
+    if (!perform(cmd.changeToday, { entry: it.pid, keys, ...(types ? { types } : {}) })) return;
     this.todayKeys = it.keys!; // (just set)
     if (t.vary && this.todayKeys.includes(this.previewRoot)) this.previewType = this.typeFor(this.previewRoot);
     this.requestUpdate();
@@ -433,7 +437,7 @@ export class ExerciseSheet extends View {
     const it = this.planItem!;
     const types = [...(it.types || [])];
     types[i] = type;
-    setTodayKeys(it, it.keys!, types);
+    if (!perform(cmd.changeToday, { entry: it.pid, keys: it.keys!, types })) return;
     if (it.keys![i] === this.previewRoot) this.previewType = type;
     this.requestUpdate();
   }
@@ -466,7 +470,7 @@ export class ExerciseSheet extends View {
     return html`${settingRows([
       ...keys.slice(0, 2).map(row),
       !t.fromTune && { content: html`<label class="as-written use-tunes"><span>Use with tunes${help.btn}</span><input type="checkbox" id="x-tunes" .checked=${!t.solo}
-        @change=${(e: Event) => { if ((e.target as HTMLInputElement).checked) delete t.solo; else t.solo = true; this.commit(); }}></label>` },
+        @change=${(e: Event) => this.edit({ use_with_tunes: (e.target as HTMLInputElement).checked })}></label>` },
       ...keys.slice(2).map(row),
     ], (k) => (this.panel = k as PanelKey))}${t.fromTune ? nothing : help.text}`;
   }
@@ -476,37 +480,33 @@ export class ExerciseSheet extends View {
     await this.updateComplete;
     this.querySelector('.sub-panel .pattern-card')?.scrollIntoView({ block: 'start' });
   }
-  // After the scale or chord settings change, today's types for this exercise are picked again
-  // (unless it's already been played today).
-  varyChanged() {
-    if (this.planItem) {
-      refreshTypes(this.t);
-      this.previewType = this.typeFor(this.previewRoot);
-    }
-    this.commit();
+  // Its scale or chord settings changed (and today's types with them, unless it's been played
+  // today): the type shown follows.
+  varyChanged(fields: cmd.ItemFields) {
+    if (!this.edit(fields)) return;
+    this.previewType = this.typeFor(this.previewRoot);
+    this.requestUpdate();
   }
-  // After how it picks its keys changes, today's keys are picked again too (unless it's already
-  // been played today): with no key, none, and the notation is shown as written.
-  keysChanged() {
+  // How it picks its keys changed (and today's keys with them, unless it's been played today):
+  // what's shown follows — with no key, the notation as written.
+  keysChanged(fields: cmd.ItemFields) {
     const t = this.t;
-    if (this.planItem) {
-      refreshKeys(t);
-      this.todayKeys = this.planItem.keys || [];
-    }
+    this.stopPlaying();
+    if (!this.edit(fields)) return;
+    if (this.planItem) this.todayKeys = this.planItem.keys || [];
     this.previewRoot = this.asWritten() || t.keyMode === 'none' ? this.writtenC() : this.todayKeys[0] ?? this.previewRoot;
     this.previewType = this.typeFor(this.previewRoot);
-    this.stopPlaying();
-    this.commit();
+    this.requestUpdate();
   }
   panelBody(k: PanelKey) {
     const t = this.t;
     switch (k) {
       case 'harmony': return this.harmonyBody();
-      case 'kind': return html`<div class="chips wrap" id="x-cat">${(Object.entries(CATEGORIES) as [Category, string][]).map(([c, l]) => html`<button class="chip ${t.category === c ? 'on' : ''}" data-cat=${c} @click=${() => { t.category = c; this.commit(); }}>${l}</button>`)}</div>`;
+      case 'kind': return html`<div class="chips wrap" id="x-cat">${(Object.entries(CATEGORIES) as [Category, string][]).map(([c, l]) => html`<button class="chip ${t.category === c ? 'on' : ''}" data-cat=${c} @click=${() => this.edit({ category: c })}>${l}</button>`)}</div>`;
       case 'vary': return this.varyBody();
       case 'keys': return this.keysBody();
-      case 'level': return html`<div class="seg four" data-field="level">${segButtons(LEVELS.map((l) => [l.v, l.label] as const), t.level, (v) => { setLevel(t, v); this.commit(); })}</div>`;
-      case 'priority': return html`<div class="seg four" data-field="priority">${segButtons(PRIORITIES.map((p) => [p.v, p.label] as const), t.priority, (v) => { t.priority = v as Priority; this.commit(); })}</div>`;
+      case 'level': return html`<div class="seg four" data-field="level">${segButtons(LEVELS.map((l) => [l.v, l.label] as const), t.level, (v) => this.edit({ level: v }))}</div>`;
+      case 'priority': return html`<div class="seg four" data-field="priority">${segButtons(PRIORITIES.map((p) => [p.v, p.label] as const), t.priority, (v) => this.edit({ priority: v as Priority }))}</div>`;
     }
   }
   // The chords a written exercise goes with (so it can be a warm-up over them in tunes): typed
@@ -528,10 +528,10 @@ export class ExerciseSheet extends View {
     const t = this.t;
     this.harmonyText = value;
     const text = value.trim();
-    if (text && !chordsFromText(text)) return; // (said so, under it)
-    if (!text || text === this.guessed()) delete t.harmony; // the notation's own, then
-    else t.harmony = text;
-    this.commit();
+    if (text && !chordsFromText(text)) return this.requestUpdate(); // (said so, under it)
+    if (!text || text === this.guessed()) { if (t.harmony != null) this.edit({ harmony: '' }); } // the notation's own, then
+    else this.edit({ harmony: text });
+    this.requestUpdate();
   }
   varyBody() {
     const t = this.t, vary = t.vary;
@@ -540,13 +540,11 @@ export class ExerciseSheet extends View {
     // No key (as written, like long tones); or a key each time, with a scale or chord type too.
     const setKind = (kind: Vary['kind'] | '' | 'none') => {
       if (current === kind) return;
-      t.vary = kind && kind !== 'none' ? { kind, types: [...VARY[kind].defaults], shape: 'updown', pattern: '' } : null;
-      this.previewType = t.vary?.types[0];
-      const keysToo = (kind === 'none') !== noKey;
-      if (kind === 'none') t.keyMode = 'none';
-      else if (noKey) t.keyMode = 'weak'; // (keys again: weak keys first, as a new exercise does)
-      if (keysToo) this.keysChanged();
-      else this.varyChanged();
+      const vary = kind && kind !== 'none' ? kind : 'none';
+      // (keys again after No key: weak keys first, as a new exercise does)
+      const keyMode = kind === 'none' ? 'none' : noKey ? 'weak' : undefined;
+      if (keyMode) this.keysChanged({ vary, key_mode: keyMode });
+      else this.varyChanged({ vary });
     };
     return html`
       <div class="seg four" id="x-vary">${([['none', 'No key'], ['', 'Key only'], ['scale', 'Scale type'], ['chord', 'Chord type']] as const).map(([v, l]) => html`
@@ -566,18 +564,13 @@ export class ExerciseSheet extends View {
   toggleType(id: string) {
     const vary = this.t.vary!; // (its buttons are there only when it varies)
     const on = vary.types.includes(id);
-    if (on && vary.types.length === 1) return toast('Keep at least one turned on');
-    // Keep the catalogue's order.
-    vary.types = Object.keys(typesOf(vary.kind)).filter((x) => (x === id ? !on : vary.types.includes(x)));
-    if (!vary.types.includes(this.previewType!)) this.previewType = vary.types[0];
-    this.varyChanged();
+    this.varyChanged({ types: on ? vary.types.filter((x) => x !== id) : [...vary.types, id] });
   }
   setShape(shape: Shape) {
     const vary = this.t.vary!;
     // Custom starts from the preset that was chosen (its numbers to change).
-    if (shape === 'custom' && vary.shape !== 'custom') vary.pattern = patternText(vary.kind, vary.shape, vary.pattern);
-    vary.shape = shape;
-    this.commit();
+    const pattern = shape === 'custom' && vary.shape !== 'custom' ? patternText(vary.kind, vary.shape, vary.pattern) : undefined;
+    this.edit({ shape, ...(pattern != null ? { pattern } : {}), pattern_unfinished: true });
   }
   // The pattern's numbers; for Custom, a number pad to change them (changing a preset makes it
   // your own). The notation follows once it's a pattern that can be played.
@@ -591,10 +584,8 @@ export class ExerciseSheet extends View {
       if (v === 'back') list.pop();
       else if (v === 'clear') list.length = 0;
       else if (list.length < 64) list.push(v);
-      vary.shape = 'custom';
-      vary.pattern = list.join(' ');
       this.stopPlaying();
-      this.commit();
+      this.edit({ shape: 'custom', pattern: list.join(' '), pattern_unfinished: true });
     };
     return html`
       <div class="pattern-card">
@@ -607,15 +598,15 @@ export class ExerciseSheet extends View {
   keysBody() {
     const t = this.t;
     return html`
-      <div class="chips wrap" id="x-mode">${(Object.entries(KEY_MODES) as [KeyMode, (typeof KEY_MODES)[KeyMode]][]).filter(([k]) => k !== 'none').map(([k, m]) => html`<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode=${k} @click=${() => { t.keyMode = k; this.keysChanged(); }}>${m.label}</button>`)}</div>
+      <div class="chips wrap" id="x-mode">${(Object.entries(KEY_MODES) as [KeyMode, (typeof KEY_MODES)[KeyMode]][]).filter(([k]) => k !== 'none').map(([k, m]) => html`<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode=${k} @click=${() => this.keysChanged({ key_mode: k })}>${m.label}</button>`)}</div>
       <p class="fine">${KEY_MODES[t.keyMode].hint}</p>
       ${t.keyMode === 'fixed' ? html`<div class="keygrid" id="x-fixed">${[...Array(12).keys()].map((w) => {
         const r = writtenToConcert(w, view());
-        return html`<button class=${t.keys.includes(r) ? 'on' : ''} data-fixed=${r} @click=${() => { t.keys = t.keys.includes(r) ? t.keys.filter((x) => x !== r) : [...t.keys, r]; this.keysChanged(); }}>${rootName(r)}</button>`;
+        return html`<button class=${t.keys.includes(r) ? 'on' : ''} data-fixed=${r} @click=${() => this.keysChanged({ keys: t.keys.includes(r) ? t.keys.filter((x) => x !== r) : [...t.keys, r] })}>${rootName(r)}</button>`;
       })}</div>` : nothing}
       <div class="setting">
         <div><b>Keys per session</b><span>How many keys to play it in each time</span></div>
-        <div class="stepper" id="x-kps">${stepperButtons(t.keysPerSession, (v) => { t.keysPerSession = v; this.keysChanged(); }, 1, 12)}</div>
+        <div class="stepper" id="x-kps">${stepperButtons(t.keysPerSession, (v) => this.keysChanged({ keys_per_session: v }), 1, 12)}</div>
       </div>`;
   }
 
@@ -654,20 +645,18 @@ export class ExerciseSheet extends View {
         : html`<p class="fine">Notes about this exercise show up here.</p>`}`;
   }
   logToday() {
-    const t = this.t;
-    if (this.isPlayed()) unmarkPlayed(t.id, this.logItem());
-    else {
-      markPlayed(t.id, this.logItem() || { keys: this.todayKeys });
+    const t = this.t, it = this.logItem();
+    if (this.isPlayed()) perform(cmd.unmarkPlayed, { item: t.id, entry: it?.pid });
+    else if (perform(cmd.markPlayed, { item: t.id, entry: it?.pid, keys: this.todayKeys })) {
       autoStart();
       haptic();
     }
-    save();
     this.requestUpdate();
   }
   rename(el: HTMLTextAreaElement) {
     el.value = el.value.replace(/\s*\n\s*/g, ' ');
-    this.t.name = el.value;
-    if (!this.isNew && this.t.name.trim()) save();
+    if (this.isNew) this.t.name = el.value; // (checked when it's added)
+    else if (el.value.trim()) this.edit({ name: el.value }); // (left as it was while it's empty)
     this.requestUpdate();
   }
   add() {
@@ -679,14 +668,14 @@ export class ExerciseSheet extends View {
     const t = this.t, planItem = this.planItem;
     const card = this.opts.pid && planItem?.pid === this.opts.pid && !isPlanItemPlayed(planItem) ? planItem : null;
     openMenu(anchor, [
-      !planItem?.warmup && !inToday(t) && { label: 'Add to today’s set', fn: () => { if (addToToday(t)) toast(`Added ${t.name} to today’s set`); this.requestUpdate(); } },
+      !planItem?.warmup && !inToday(t) && { label: 'Add to today’s set', fn: () => { if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`); this.refresh(); } },
       card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
       card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
       !t.solo && { label: 'Try it through a tune…', fn: () => this.goTo(() => pickTune(t, { back: this.back })) },
       { label: 'Delete exercise', danger: true, fn: () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
         closeSheet();
-        withUndo(`Deleted ${t.name}`, () => deleteItem(t.id));
+        perform(cmd.deleteItem, { item: t.id });
       } },
     ]);
   }

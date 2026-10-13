@@ -1,8 +1,9 @@
 import { store } from '../store.js';
 import { itemById } from '../practice.js';
 import { warmupChoices } from '../warmups.js';
-import { todayItem, addWarmup, addWarmups, tryWithTune, tunesToTry } from '../plan.js';
-import { ICON, render, toast, closeSheet, kn, overLabel } from './shell.js';
+import { todayItem, tunesToTry } from '../plan.js';
+import { ICON, toast, closeSheet, kn, overLabel, perform } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { exerciseKeysText, rootName } from './exercise.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, raw, openSheetView, type TemplateResult } from './lit.js';
@@ -51,10 +52,8 @@ export class PickWarmup extends View {
     const rows = (list: PlanItem[]): Row[] => list.map((it) => {
       const x = itemById(it.itemId) as Exercise; // (warm-ups are exercises)
       return { name: x.name, sub: how(it, x), pick: () => {
-        addWarmup(t, it);
         closeSheet();
-        render();
-        toast(`Added ${x.name} before ${t.name}`);
+        if (perform(cmd.addWarmup, { tune: t.id, warmup: it })) toast(`Added ${x.name} before ${t.name}`);
       } };
     });
     return html`
@@ -71,13 +70,9 @@ export class PickWarmup extends View {
   // its changes and something on its chords.
   pickForMe() {
     const t = this.tune;
-    const before = new Set(store.state.plan?.items.map((i) => i.pid));
-    const n = addWarmups(t);
     closeSheet();
-    render();
-    const added = store.state.plan!.items.find((i) => !before.has(i.pid) && i.warmup === t.id);
-    if (!n || !added) return toast(`No more warm-ups for ${t.name}`);
-    toast(`Added ${itemById(added.itemId)?.name} before ${t.name}`);
+    const r = perform(cmd.addWarmups, { tune: t.id });
+    if (r) toast(`Added ${r.added.join(', ')} before ${t.name}`);
   }
 }
 
@@ -102,10 +97,8 @@ export class PickTune extends View {
     const rows = (list: Tune[]): Row[] => list.map((t) => ({
       name: t.name, sub: t.style || '', hidden: !!q && !t.name.toLowerCase().includes(q),
       pick: () => {
-        const added = tryWithTune(x, t);
         closeSheet();
-        render();
-        if (added) toast(`Added ${added.name} to today’s set, with ${x.name} before it`);
+        if (perform(cmd.tryWithTune, { exercise: x.id, tune: t.id })) toast(`Added ${t.name} to today’s set, with ${x.name} before it`);
       },
     }));
     const { today, fit, known, other } = this.tunes;

@@ -1,9 +1,10 @@
 import { store, save } from '../store.js';
+import { exec, undo, CommandError, changeSettings, type Command, type Done } from '../commands/index.js';
 import { LEVELS } from '../constants.js';
 import { keyName } from '../keys.js';
 import { overName } from '../chords.js';
-import { esc, clone } from '../util.js';
-import type { Key, Level, State } from '../types.js';
+import { esc } from '../util.js';
+import type { Key, Level } from '../types.js';
 
 // The element a selector finds (taken to be there: check the result where it may not be), and
 // all of them.
@@ -75,27 +76,39 @@ export function toast(msg: string, action?: ToastAction): void {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), action ? 5000 : 2500);
 }
-export function withUndo(msg: string, fn: () => void): void {
-  const snapshot = clone(store.state);
-  fn();
-  save();
+// ---------- Commands ----------
+// Every change made with a tap is a command (see commands/): perform() runs it, shows the change,
+// and for one that takes something away or replaces something (its undoToast), says what it did
+// with an Undo. One that can't be done says why. Returns its result, or undefined if it failed.
+// (undo: offer Undo for this one too; quiet: not even for one that would.)
+export function perform<I, R>(c: Command<I, R>, input: I, { quiet = false, undo: withUndo = false }: { quiet?: boolean; undo?: boolean } = {}): R | undefined {
+  let done: Done<R>;
+  try {
+    done = exec(c, input);
+  } catch (err) {
+    if (!(err instanceof CommandError)) throw err;
+    if (err.restored) closeSheet(); // (it holds objects from before)
+    render();
+    toast(err.message);
+    return undefined;
+  }
   render();
-  const rev = store.rev;
-  toast(msg, {
+  if ((c.undoToast || withUndo) && !quiet) offerUndo(done);
+  return done.result;
+}
+// What a command did, with Undo (while nothing else has changed since).
+export function offerUndo(done: Pick<Done<unknown>, 'notes' | 'undo'>): void {
+  const entry = done.undo;
+  toast(done.notes.join(' · ') || 'Done', entry ? {
     label: 'Undo',
     fn: () => {
-      if (store.rev !== rev) return toast('Can’t undo — other things have changed since');
-      restoreState(snapshot);
+      if (!undo(entry)) return toast('Can’t undo — other things have changed since');
+      // An open sheet holds objects from the state put back over: it's closed (after the swap, so
+      // anything it reopens reads the restored state).
+      closeSheet();
+      render();
     },
-  });
-}
-// Puts back an earlier copy of the state. An open sheet holds objects from the replaced state,
-// so it's closed (after the swap, so anything it reopens reads the restored state).
-export function restoreState(snapshot: State): void {
-  store.state = snapshot;
-  save();
-  closeSheet();
-  render();
+  } : undefined);
 }
 export function haptic(): void {
   navigator.vibrate?.(12);
@@ -131,13 +144,7 @@ export const levelLabel = (l: Level | null | undefined): string => LEVELS[l ?? 0
 export function switchView(): void {
   const s = store.state.settings;
   if (s.instruments.length < 2) return goTo('settings');
-  s.view = s.instruments[(s.instruments.indexOf(s.view) + 1) % s.instruments.length];
-  save();
-  render();
-}
-export function bindTransposeToggle(root: Root): void {
-  const b = $('#transpose', root);
-  if (b) b.onclick = switchView;
+  perform(changeSettings, { view: s.instruments[(s.instruments.indexOf(s.view) + 1) % s.instruments.length] });
 }
 
 // ---------- Bottom sheet ----------

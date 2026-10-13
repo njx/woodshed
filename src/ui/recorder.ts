@@ -1,6 +1,7 @@
 import { store, save, flush } from '../store.js';
 import { itemById } from '../practice.js';
-import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
+import { entryById, findItemByName, linkableItems } from '../diary.js';
+import * as cmd from '../commands/index.js';
 import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving } from '../media.js';
 import { mediaDelete } from '../db.js';
 import { ICON, render, toast, closeSheet } from './shell.js';
@@ -374,8 +375,8 @@ export class RecorderSheet extends View {
     try {
       const clip = (await t.stored) ?? await saveClip(t.blob, this.kind, t.ms);
       const entry = this.existing && entryById(this.existing.id);
-      if (entry) (entry.media ||= []).push(clip);
-      else addEntry({ text, itemId: tune?.id || null, flag: opts.flag || null, media: [clip], take: true });
+      if (entry) cmd.exec(cmd.updateNote, { note: entry.id, media: [...(entry.media || []), clip] });
+      else cmd.exec(cmd.addNote, { text, ...(tune ? { item: tune.id } : {}), ...(opts.flag ? { flag: opts.flag } : {}), media: [clip], take: true });
       // Saved now, not in a moment: the note is what keeps the recording.
       if (!(await flush())) throw new Error('The note wasn’t saved');
       render();

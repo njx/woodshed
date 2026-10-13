@@ -1,16 +1,16 @@
-import { store, save } from '../store.js';
+import { store } from '../store.js';
 import { BUCKETS, RATINGS, SHIFTS, LEVELS, TRANSPOSITIONS, CATEGORIES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
-import { randomOf } from '../util.js';
 import {
-  itemStats, itemById, planEntry, isPlanItemPlayed, markPlayed, unmarkPlayed, rate, setLevel, tempoSource,
+  itemStats, itemById, planEntry, isPlanItemPlayed, tempoSource,
   levelSuggestion, overdue,
 } from '../practice.js';
-import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
+import { ensurePlan } from '../plan.js';
 import {
-  $, ICON, render, toast, withUndo, haptic, attachSwipe, closeSwipes, kn, keysText,
+  $, ICON, render, toast, perform, haptic, attachSwipe, closeSwipes, kn, keysText,
   switchView, hintDone, overLabel,
 } from './shell.js';
+import * as cmd from '../commands/index.js';
 import { tuneRow } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, openNote } from './diary.js';
@@ -28,7 +28,7 @@ import { openAssistant } from './assistant.js';
 import { canRecord } from '../media.js';
 import { chartFor } from '../charts.js';
 import { greeted } from './greet.js';
-import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
+import { running, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { View, mount, html, nothing, raw, levelSuggestionPart, type TemplateResult, priBadge } from './lit.js';
@@ -63,7 +63,7 @@ export class TodayView extends View {
           <h1 class="tt-title">Today’s set</h1>
           <div class="top-actions">
             ${progressRing(done, items.length)}
-            <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)" @click=${() => withUndo('New set picked', () => buildPlan(true))}>${raw(ICON.shuffle)}</button>
+            <button class="icon-btn" id="reshuffle" aria-label="New set (keeps what you've played)" @click=${() => perform(cmd.newSet, {})}>${raw(ICON.shuffle)}</button>
           </div>
         </div>
         ${dayNote()}
@@ -87,12 +87,7 @@ export class TodayView extends View {
     liveTools();
   }
   oneMore() {
-    const t = pickItem(randomOf(['fresh', 'learn', 'hone']), excludedIds(), itemStats());
-    if (!t) return toast('No more tunes to suggest');
-    store.state.plan!.items.push(makePlanItem(t, itemStats()));
-    dropOrphanWarmups();
-    save();
-    render();
+    perform(cmd.oneMoreTune, {});
   }
 }
 
@@ -155,48 +150,9 @@ metronome.subscribe(() => liveTools());
 tuner.subscribe(() => liveTools());
 
 // Swap (for another pick, warm-up or focus item) or take out an unplayed item of today's set —
-// from its card (swipe left) or its details (⋯).
-  // Take it out of today's set: a focus item for today, a warm-up, or a pick (not suggested again today).
-export function removeFromToday(item: PlanItem): void {
-  const state = store.state;
-  const i = state.plan!.items.indexOf(item); // (the item is from today's set)
-  const name = () => itemById(item.itemId)!.name;
-  if (i < 0 || isPlanItemPlayed(item)) return;
-  const msg = item.warmup ? `Took out the ${name()} warm-up` : `Took ${name()} out of today’s set`;
-  withUndo(msg, () => {
-    if (item.bucket === 'focus') state.plan!.focusSkipped.push(item.itemId);
-    else if (!item.warmup) state.plan!.skipped.push(item.itemId);
-    state.plan!.items.splice(i, 1);
-    dropOrphanWarmups(); // a tune's warm-ups go with it
-  });
-}
-export function swapInToday(item: PlanItem): void {
-  const state = store.state;
-  const i = state.plan!.items.indexOf(item);
-  const name = () => itemById(item.itemId)!.name;
-  if (i < 0 || isPlanItemPlayed(item)) return;
-  if (item.warmup) {
-    const was = name();
-    if (!swapWarmup(i)) { render(); return toast('No other warm-up for this tune'); }
-    save();
-    render();
-    return toast(`Swapped the ${was} warm-up`);
-  }
-  const focus = item.bucket === 'focus';
-  const was = itemById(item.itemId)!;
-  // A focus item swaps for another focus one; anything else, for a pick from its group.
-  const t = focus ? pickFocus(was) : pickItem(item.bucket, excludedIds(), itemStats());
-  if (!t) {
-    render();
-    return toast(focus ? `No other focus ${was.type === 'exercise' ? 'exercises' : 'tunes'} to swap in` : item.bucket === 'exercise' ? 'No other exercises to suggest' : 'No other tunes to suggest');
-  }
-  withUndo(`Swapped out ${name()}`, () => {
-    if (focus) state.plan!.focusSkipped.push(item.itemId);
-    else state.plan!.skipped.push(item.itemId);
-    state.plan!.items[i] = makePlanItem(t, itemStats(), item.bucket);
-    dropOrphanWarmups();
-  });
-}
+// from its card (swipe left) or its details (⋯). (See commands/today.ts.)
+export const removeFromToday = (item: PlanItem): void => { perform(cmd.removeFromToday, { entry: item.pid }); };
+export const swapInToday = (item: PlanItem): void => { perform(cmd.swapInToday, { entry: item.pid }); };
 
 
 // A card in today's set: swipe right to mark it played, left to swap or remove it; tap for its
@@ -261,10 +217,7 @@ export class Card extends View {
     }
   }
   levelUp(t: Item, l: Level) {
-    setLevel(t, l);
-    save();
-    render();
-    toast(`${t.name} is now ${LEVELS[t.level].label}`);
+    if (perform(cmd.updateItem, { item: t.id, level: l })) toast(`${t.name} is now ${LEVELS[t.level].label}`);
   }
 
   // What a left swipe offers, the same on every card: Swap, and Remove (for today) at the edge,
@@ -274,21 +227,15 @@ export class Card extends View {
   }
   toggle() {
     const item = this.item;
-    if (isPlanItemPlayed(item)) unmarkPlayed(item.itemId, item);
-    else {
-      markPlayed(item.itemId, item);
-      autoStart();
-      haptic();
-      if (store.state.plan!.items.every((it) => !itemById(it.itemId) || isPlanItemPlayed(it))) toast('All done for today — nice work 🎷');
-    }
-    save();
-    render();
+    if (isPlanItemPlayed(item)) return void perform(cmd.unmarkPlayed, { item: item.itemId, entry: item.pid });
+    if (!perform(cmd.markPlayed, { item: item.itemId, entry: item.pid })) return;
+    if (autoStart()) render();
+    haptic();
+    if (store.state.plan!.items.every((it) => !itemById(it.itemId) || isPlanItemPlayed(it))) toast('All done for today — nice work 🎷');
   }
   rate(e: Event, r: Rating) {
     e.stopPropagation();
-    rate(this.item.itemId, r, this.item);
-    save();
-    render();
+    perform(cmd.rateToday, { item: this.item.itemId, entry: this.item.pid, rating: r });
   }
   open(e: Event) {
     const card = e.currentTarget as SwipeCard;
@@ -364,10 +311,10 @@ export class Timer extends View {
   render() {
     const total = practicedMs();
     const bar = (cls: string, text: TemplateResult, buttons: TemplateResult) => html`<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
-    const start = (label: string, aria?: string) => html`<button class="pill-btn" id="pt-start" aria-label=${aria ?? nothing} @click=${() => { startPractice(); render(); }}>${raw(ICON.play)}${label}</button>`;
+    const start = (label: string, aria?: string) => html`<button class="pill-btn" id="pt-start" aria-label=${aria ?? nothing} @click=${() => perform(cmd.startPractice, {})}>${raw(ICON.play)}${label}</button>`;
     if (running()) {
       return bar('on', html`<span class="pt-dot" aria-hidden="true"></span>Practicing · <b id="pt-clock">${fmtClock(total)}</b> today`,
-        html`<button class="pill-btn" id="pt-end" aria-label="End practice" @click=${() => withUndo(`Practice ended · ${fmtDuration(practicedMs())} today`, () => endPractice())}>${raw(ICON.stop)}End</button>`);
+        html`<button class="pill-btn" id="pt-end" aria-label="End practice" @click=${() => perform(cmd.endPractice, {})}>${raw(ICON.stop)}End</button>`);
     }
     const away = awayStop();
     if (away) {
@@ -408,14 +355,8 @@ function welcome() {
   const pick = (id: Transposition) => {
     if (s.instruments.includes(id)) {
       if (s.instruments.length === 1) return;
-      s.instruments = s.instruments.filter((x) => x !== id);
-      if (s.view === id) s.view = s.instruments[0];
-    } else {
-      s.instruments = [...s.instruments, id];
-      s.view = id; // show keys for the instrument just picked
-    }
-    save();
-    render();
+      perform(cmd.changeSettings, { instruments: s.instruments.filter((x) => x !== id) });
+    } else perform(cmd.changeSettings, { instruments: [...s.instruments, id], view: id }); // keys shown for the one just picked
   };
   return html`
     <div class="welcome">
