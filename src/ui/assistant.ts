@@ -182,11 +182,13 @@ export class AssistantSheet extends View {
     };
     const message = pendingNote ? `(${pendingNote})\n\n${text}` : text;
     pendingNote = null;
+    let stepAt = 0; // where this step's text starts in the reply
     try {
       const result = await send(conv, message, {
         signal: this.controller.signal,
         onText: (d) => { reply.text += d; this.requestUpdate(); },
-        onStep: () => { if (reply.text && !reply.text.endsWith('\n')) reply.text += '\n\n'; },
+        onStep: () => { if (reply.text && !reply.text.endsWith('\n')) reply.text += '\n\n'; stepAt = reply.text.length; },
+        onRetry: () => { reply.text = reply.text.slice(0, stepAt); this.requestUpdate(); },
         onTool: ({ name, input: args, write }) => {
           if (!write && TOOL_LABELS[name]) {
             const label = TOOL_LABELS[name](args);

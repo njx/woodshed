@@ -8,8 +8,9 @@ import { tune, setState } from './helpers.js';
 const script = [];
 const requests = [];
 vi.mock('@anthropic-ai/sdk', () => {
-  class APIError extends Error {}
-  class APIUserAbortError extends Error {}
+  class AnthropicError extends Error {}
+  class APIError extends AnthropicError {}
+  class APIUserAbortError extends AnthropicError {}
   class Anthropic {
     constructor() {
       this.beta = {
@@ -23,7 +24,11 @@ vi.mock('@anthropic-ai/sdk', () => {
       };
     }
   }
-  Object.assign(Anthropic, { APIError, APIUserAbortError, AuthenticationError: class extends APIError {} });
+  const sub = () => class extends APIError {};
+  Object.assign(Anthropic, {
+    AnthropicError, APIError, APIUserAbortError,
+    AuthenticationError: sub(), PermissionDeniedError: sub(), RateLimitError: sub(), APIConnectionError: sub(),
+  });
   return { default: Anthropic };
 });
 
@@ -79,6 +84,36 @@ describe('assistant conversation loop', () => {
     const r = await send(newConversation(), 'hi');
     expect(requests).toHaveLength(2);
     expect(r.stop).toBe('refusal');
+  });
+
+  it('keeps a reply cut off in a tool call answerable: the unrun call is left out of the history', async () => {
+    script.push(
+      reply([{ type: 'text', text: 'Adding' }, { type: 'tool_use', id: 't1', name: 'get_today', input: {} }], 'max_tokens'),
+      reply([{ type: 'text', text: 'Hi.' }], 'end_turn'),
+    );
+    const conv = newConversation();
+    expect((await send(conv, 'add lots')).stop).toBe('max_tokens');
+    await send(conv, 'and?');
+    const sent = requests[1].messages;
+    expect(sent.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(sent[1].content.map((b) => b.type)).toEqual(['text']);
+  });
+
+  it('tries a reply with unreadable tool input again, dropping its text; a dropped connection is an error', async () => {
+    const bad = () => { throw new Anthropic.AnthropicError('Unable to parse tool parameter JSON from model. JSON: {"a'); };
+    script.push(bad, reply([{ type: 'text', text: 'OK.' }], 'end_turn'));
+    const retries = [];
+    expect((await send(newConversation(), 'hi', { onRetry: () => retries.push(1) })).stop).toBe('done');
+    expect(retries).toHaveLength(1);
+
+    script.length = 0;
+    requests.length = 0;
+    script.push(() => { throw new Anthropic.AnthropicError('network error'); }, reply([{ type: 'text', text: 'again' }], 'end_turn'));
+    const err = await send(newConversation(), 'hi').catch((e) => e);
+    expect(err.message).toBe('network error');
+    expect(requests).toHaveLength(1);
+    const { describeError } = await import('../src/assistant/agent.js');
+    expect(await describeError(err)).toMatch(/online/);
   });
 
   it('gives up after too many steps', async () => {

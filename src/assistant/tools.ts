@@ -5,7 +5,7 @@ import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName, parseKey, isMinor } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isDue, isPlanItemPlayed, planEntry, setLevel, deleteItem } from '../practice.js';
-import { ensurePlan, makePlanItem, syncFocus, setFocus, setItemStatus, refreshTypes, addWarmups, dropOrphanWarmups, todayItem, setTodayKeys, setTodayKey, typeCounts } from '../plan.js';
+import { ensurePlan, addToToday, inToday, refreshKeys, syncFocus, setFocus, setItemStatus, refreshTypes, addWarmups, dropOrphanWarmups, todayItem, setTodayKeys, setTodayKey, typeCounts } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
 import { VARY, SHAPES, SCALES, CHORDS, typeInfo, parsePattern, chooseTypes, type TypeInfo } from '../theory.js';
@@ -273,11 +273,10 @@ export function takeChanges(): string[] {
   return changes.splice(0);
 }
 
+// Adds it as the app does (see plan.ts addToToday), then in the keys asked for.
 function addToPlan(t: AnyItem, keys: string[] | null | undefined, types: string[] | null = null): string | null {
-  ensurePlan();
-  const plan = store.state.plan!; // (ensurePlan made it)
-  if (plan.items.some((i) => i.itemId === t.id && !i.warmup)) return `${t.name} is already in today's set.`;
-  const item = makePlanItem(t, itemStats());
+  if (!addToToday(t)) return `${t.name} is already in today's set.`;
+  const item = todayItem(t)!; // (just added)
   if (keys?.length) {
     if (t.type === 'exercise') {
       const roots = keys.map(concertKey).filter((k) => k != null).map((k) => k % 12);
@@ -291,8 +290,6 @@ function addToPlan(t: AnyItem, keys: string[] | null | undefined, types: string[
       }
     }
   }
-  plan.items.push(item);
-  plan.skipped = (plan.skipped || []).filter((id) => id !== t.id);
   // Types to go with the keys (asked-for ones first).
   if (t.vary && (keys?.length || types?.length)) refreshTypes(t, types);
   return null;
@@ -547,11 +544,14 @@ export const TOOLS: Tool[] = [
       const t = findItem(tune_id);
       if (t.type !== 'tune') return { error: 'Warm-ups are for tunes.' };
       if (!chartFor(t)) return { error: `There's no chord chart for ${t.name}, so warm-ups can't be picked. (Charts can be added in the tune's details.)` };
+      const warmups = () => store.state.plan?.items.filter((i) => i.warmup === t.id) ?? [];
+      const before = new Set(warmups().map((i) => i.pid));
+      const had = inToday(t);
       const n = addWarmups(t, Math.max(1, Math.min(4, count || 1)));
       if (!n) return { error: 'No more warm-ups to add for it.' };
-      const added = store.state.plan!.items.filter((i) => i.warmup === t.id).map((i) => itemById(i.itemId)?.name); // (addWarmups made the plan)
-      changes.push(`Warm-ups for ${t.name}: ${added.join(', ')}`);
-      return { added };
+      const added = warmups().filter((i) => !before.has(i.pid)).map((i) => itemById(i.itemId)?.name);
+      changes.push(`Warm-ups for ${t.name}: ${added.join(', ')}${had ? '' : ` (and ${t.name} added to today)`}`);
+      return { added, tune_added_to_today: !had };
     },
   },
   {
@@ -613,7 +613,7 @@ export const TOOLS: Tool[] = [
       if (a.goal_tempo) { t.goalTempo = clampBpm(a.goal_tempo); did.push(`goal tempo → ${t.goalTempo}`); }
       if (a.keys?.length) {
         const ks = keys.keys!; // (no error: checked first)
-        if (t.type === 'exercise') { t.keys = [...new Set(ks.map((k) => k % 12))]; t.keyMode = 'fixed'; }
+        if (t.type === 'exercise') { t.keys = [...new Set(ks.map((k) => k % 12))]; t.keyMode = 'fixed'; refreshKeys(t); }
         else t.keys = [...new Set(ks)];
         did.push(`keys → ${a.keys.join(', ')}`);
       }

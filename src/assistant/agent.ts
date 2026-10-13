@@ -70,6 +70,8 @@ export interface SendOptions {
   onText?: (delta: string) => void;
   onTool?: (call: ToolCall) => void;
   onStep?: () => void;
+  /** A step is being tried again: the text it streamed is to be dropped. */
+  onRetry?: () => void;
   signal?: AbortSignal;
 }
 export type Stop = 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps';
@@ -79,11 +81,12 @@ export interface TurnResult extends TurnChanges { stop: Stop }
 export type AssistantError = Error & { code?: 'no_key'; partial?: TurnChanges };
 
 // Sends one user message and runs the tool loop until Claude is done.
-// Callbacks: onText(delta), onTool({ name, input, result }), onStep() between model calls.
+// Callbacks: onText(delta), onTool({ name, input, result }), onStep() between model calls,
+// onRetry() when a step's streamed text is to be dropped (it's being tried again).
 // Returns { changes: [summaries of what was changed], cost (dollars, this message),
 //   stop: 'done' | 'stopped' | 'refusal' | 'max_tokens' | 'too_many_steps' }.
 // On failure the thrown error has .partial = { changes, cost }.
-export async function send(conv: Conversation, text: string, { onText, onTool, onStep, signal }: SendOptions = {}): Promise<TurnResult> {
+export async function send(conv: Conversation, text: string, { onText, onTool, onStep, onRetry, signal }: SendOptions = {}): Promise<TurnResult> {
   const { Anthropic, client } = await getClient();
   takeChanges(); // start this turn's change list fresh
   // The history is append-only: each message starts with a snapshot of the app's state.
@@ -132,8 +135,10 @@ export async function send(conv: Conversation, text: string, { onText, onTool, o
         jsonRetries = 0;
       } catch (err) {
         if (err instanceof Anthropic.APIUserAbortError || signal?.aborted) return done('stopped');
-        // With streamed tool inputs, an unparseable input rejects here; retry that turn a couple of times.
-        if (err instanceof Anthropic.APIError || jsonRetries++ >= 2) throw err;
+        // With streamed tool inputs, an unparseable input rejects here; retry that turn a couple of
+        // times. (Anything else, e.g. the connection dropping mid-reply, is an error.)
+        if (!isBadToolJson(err) || jsonRetries++ >= 2) throw err;
+        onRetry?.();
         continue;
       }
 
@@ -142,7 +147,11 @@ export async function send(conv: Conversation, text: string, { onText, onTool, o
       conv.cost = (conv.cost || 0) + stepCost;
       await recordUsage(stepCost, tokensOf(message)).catch(() => {});
 
-      conv.messages.push({ role: 'assistant', content: message.content });
+      // Cut off (or declined), a reply can end in a tool call that never runs; the API wants every
+      // tool call in the history answered, so it's kept without them.
+      const cut = message.stop_reason === 'refusal' || message.stop_reason === 'max_tokens';
+      const content = cut ? message.content.filter((b) => b.type !== 'tool_use') : message.content;
+      conv.messages.push({ role: 'assistant', content: content.length ? content : [{ type: 'text', text: '(cut off)' }] });
       if (message.stop_reason === 'refusal') return done('refusal');
       if (message.stop_reason === 'max_tokens') return done('max_tokens');
       if (message.stop_reason === 'pause_turn') continue;
@@ -166,6 +175,9 @@ export async function send(conv: Conversation, text: string, { onText, onTool, o
   }
 }
 
+// The SDK's error for a streamed tool input that isn't valid JSON (worth trying again).
+const isBadToolJson = (err: unknown) => err instanceof Error && /Unable to parse tool parameter JSON/.test(err.message);
+
 // Friendly text for API errors.
 export async function describeError(err: unknown): Promise<string> {
   if ((err as AssistantError | null)?.code === 'no_key') return 'Add your Anthropic API key to use the assistant.';
@@ -186,6 +198,8 @@ export async function describeError(err: unknown): Promise<string> {
       if (err.status === 529 || err.status >= 500) return 'Anthropic’s servers are busy or having trouble — try again in a moment.';
       return `The assistant had a problem (${err.status ?? 'error'}${detail ? `: ${detail}` : ''}). Try again.`;
     }
+    // The SDK's other errors: mostly the connection dropping partway through a reply.
+    if (err instanceof Anthropic.AnthropicError) return 'Lost the connection to the assistant. Are you online? Try again.';
   }
   return 'Something went wrong. Try again.';
 }
