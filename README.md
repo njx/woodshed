@@ -394,11 +394,12 @@ of album track lists checked online.
 It's a small Vite project in TypeScript (strict; `npm run typecheck`, which runs before every
 deploy), with Vitest for unit tests and Playwright for end-to-end tests. `src/types.ts` has the
 app's data model (what `store.state` holds).
-The screens are moving over to [Lit](https://lit.dev) components, one at a time: Today (with
-its cards and the practice timer), the library, Diary and the note editor, Progress, Settings,
-the pickers and the tune and exercise details so far; `src/ui/lit.ts` has the shared pieces. The
-notation editor and the tools (metronome, tuner, recorder, chord chart, assistant) still build
-HTML from template strings.
+The screens, sheets and tools are [Lit](https://lit.dev) components (`<ws-today>`, `<ws-card>`,
+`<ws-exercise-sheet>`, `<ws-recorder>`…), written with Lit's decorators and rendered into the
+light DOM so `styles.css` applies. They read what they show from `store.state` (changed in place,
+then `render()`), and Lit updates only what changed. `src/ui/lit.ts` has the shared pieces (the
+View base class, setting rows and panels, segmented controls, steppers, headings with an ⓘ,
+hints); `src/ui/shell.ts` keeps the sheet frame, toasts, menus, swipes and Undo.
 
 ```sh
 git submodule update --init   # chord charts (vendor/JazzStandards)
@@ -430,9 +431,9 @@ Layout:
 - `src/media.ts`: recorded clips (formats, storage, cleanup)
 - `src/listen.ts`, `src/data/`: recordings and search links; the seed tunes and exercises
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
-  sheet (`item`), exercises and the notation editor (`exercise`, `notation`), the recorder
-  (`recorder`), the metronome (`metronome`), the assistant chat (`assistant`), and shared pieces
-  (`shell`)
+  sheet (`item`), exercises (`exercise`), notation and its editor (`notation`, `notation-editor`),
+  the chord chart (`chart`), the recorder (`recorder`), the metronome and tuner (`metronome`,
+  `tuner`), the assistant chat (`assistant`), and shared pieces (`lit`, `shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the
   app works offline.
 - `test/`: unit tests (Vitest) for scheduling, planning, keys, exercises, notation, tempo,

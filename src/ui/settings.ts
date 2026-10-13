@@ -9,9 +9,9 @@ import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost, type Usage } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
-import { ICON, render, toast, goTo, openChoice } from './shell.js';
+import { ICON, render, toast, goTo, closeSheet } from './shell.js';
 import { customElement, state } from 'lit/decorators.js';
-import { View, mount, html, nothing, live, raw, settingRows, segButtons, stepperButtons } from './lit.js';
+import { View, mount, html, nothing, live, raw, settingRows, segButtons, stepperButtons, openSheetView } from './lit.js';
 import type { ListenService, Settings, Transposition } from '../types.js';
 
 // The settings changed with a stepper, with a choice in a sheet, and with a segmented control.
@@ -47,6 +47,34 @@ const CHOICES: { [K in ChoiceKey]: Choice<K> } = {
     options: [['mastered', 'Mastered tunes'], ['proficient', 'Proficient and mastered'], ['never', 'Never']],
   },
 };
+
+// A sheet to pick one option, with what the setting does. Picking closes it.
+interface ChoiceOpts {
+  title: string;
+  help?: string;
+  options: [value: string, label: string, hint?: string][];
+  value: string | null | undefined;
+  onPick: (value: string) => void;
+}
+function openChoice(opts: ChoiceOpts): void {
+  const el = document.createElement('ws-choice') as ChoiceSheet;
+  el.opts = opts;
+  openSheetView(el);
+}
+@customElement('ws-choice')
+export class ChoiceSheet extends View {
+  opts!: ChoiceOpts;
+  render() {
+    const { title, help, options, value, onPick } = this.opts;
+    return html`
+      <p class="eyebrow">Settings</p>
+      <h2 class="sheet-title">${title}</h2>
+      ${help ? html`<p class="fine">${raw(help)}</p>` : nothing}
+      <div class="set-list choice-list" role="radiogroup">${options.map(([v, label, hint]) => html`
+        <button class="set-row ${v === value ? 'on' : ''}" role="radio" aria-checked=${String(v === value)} data-pick=${v} @click=${() => { closeSheet(); onPick(v); }}>
+          <span class="set-label">${label}${hint ? html`<small>${hint}</small>` : nothing}</span><span class="set-check" aria-hidden="true">${v === value ? '✓' : ''}</span></button>`)}</div>`;
+  }
+}
 
 export function renderSettings(root: HTMLElement): void {
   mount(root, 'ws-settings');

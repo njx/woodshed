@@ -8,8 +8,8 @@ import {
 } from '../practice.js';
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
 import {
-  $, ICON, render, toast, withUndo, haptic, attachSwipe, closeSwipes, priBadge, kn, keysText,
-  switchView, hintHtml, hintDone,
+  $, ICON, render, toast, withUndo, haptic, attachSwipe, closeSwipes, kn, keysText,
+  switchView, hintDone,
 } from './shell.js';
 import { tuneRow } from './tunes.js';
 import { openItem } from './item.js';
@@ -31,7 +31,7 @@ import { greeted } from './greet.js';
 import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { View, mount, html, nothing, raw, levelSuggestionPart, type TemplateResult } from './lit.js';
+import { View, mount, html, nothing, raw, levelSuggestionPart, type TemplateResult, priBadge } from './lit.js';
 import type { SwipeCard } from './shell.js';
 import type { Id, Item, ItemStats, Level, PlanItem, Rating, Transposition } from '../types.js';
 
@@ -80,7 +80,7 @@ export class TodayView extends View {
           const row = (e.target as HTMLElement).closest<HTMLElement>('.row');
           if (row) openItem(row.dataset.id!); // (every row has its item's id)
         }}>${extras.map((t) => (t.type === 'exercise' ? exerciseRow(t, stats) : tuneRow(t, stats)))}</ul>` : nothing}
-      ${raw(hintHtml('swipe', 'Swipe a card right when you’ve played it, left to swap or remove it. Tap for details.'))}
+      <ws-hint hint="swipe" text="Swipe a card right when you’ve played it, left to swap or remove it. Tap for details."></ws-hint>
     `;
   }
   updated() {
@@ -232,7 +232,7 @@ export class Card extends View {
           <span class="bucket"><i></i>${it.warmup ? 'Warm-up' : BUCKETS[it.bucket].label}</span>
           <span class="style">${it.warmup ? `for ${itemById(it.warmup)?.name || 'a tune'}` : t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style}</span>
           ${late ? html`<em class="late">overdue</em>` : nothing}
-          ${raw(priBadge(t.priority))}
+          ${priBadge(t.priority)}
           <span class="card-tools">${this.noteChip(t)}${this.recChip(t)}${this.tempoChip(tempoSource(t, it))}</span>
         </div>
         ${chip !== nothing ? name : nothing}

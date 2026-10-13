@@ -28,13 +28,11 @@ import { metronome } from '../metronome.js';
 import { customElement, state } from 'lit/decorators.js';
 import {
   View, html, nothing, live, raw, openSheetView, segButtons, stepperButtons, settingRows, subPanel, statusControl, levelSuggestionPart, helpParts,
-  type TemplateResult,
-} from './lit.js';
+  type TemplateResult, priBadge } from './lit.js';
 import type { TuneObject } from 'abcjs';
 import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, PlanItem, Priority, Progression, Shape, Tune, Vary } from '../types.js';
 import {
-  ICON, render, toast, withUndo, haptic, closeSheet, kn, priBadge, openMenu, hintHtml,
-} from './shell.js';
+  ICON, render, toast, withUndo, haptic, closeSheet, kn, openMenu, } from './shell.js';
 
 const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
@@ -601,7 +599,7 @@ export class ExerciseSheet extends View {
         <button class="link-btn" id="x-rec" @click=${() => this.goTo(() => openRecorder({ itemId: this.t.id, back: this.back, text: this.label() }))}>${raw(ICON.rec)}Record</button></span></div>
       ${takes.length ? html`<ul class="notes panel-list" id="x-takes" @click=${{ handleEvent: () => this.stopPlaying(), capture: true }}>${noteRows(takes.slice(0, 3), { showDate: true, back: this.back, onChange: () => this.requestUpdate() })}</ul>
         ${takes.length > 3 ? html`<p class="fine">${takes.length - 3} more in the Diary.</p>` : nothing}`
-        : raw(hintHtml('takes', 'Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.', 'fine'))}`;
+        : html`<ws-hint hint="takes" cls="fine" text="Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary."></ws-hint>`}`;
   }
   history() {
     const t = this.t;
@@ -677,6 +675,6 @@ export function exerciseRow(t: Exercise, stats: Map<Id, ItemStats>): TemplateRes
       <b>${t.focus ? html`<span class="focus-mark" title="Focus">${raw(ICON.focus)}</span>` : nothing}${t.name}${t.abc ? html` <span class="has-abc" title="Has notation">♪</span>` : nothing}${t.off ? html` <span class="off-mark">off</span>` : nothing}</b>
       <span class="row-sub">${CATEGORIES[t.category] || 'Other'} · ${mode} · ${ago(s?.last)}</span>
     </div>
-    ${raw(priBadge(t.priority))}
+    ${priBadge(t.priority)}
   </li>`;
 }

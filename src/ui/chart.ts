@@ -7,7 +7,7 @@ import { chordName, chartShift, usesSharps, chartToText, chartFromText, progress
 import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { pickWarmup } from './pickers.js';
-import { ICON, toast, closeSheet, kn, hintHtml, hintDone } from './shell.js';
+import { ICON, toast, closeSheet, kn, hintDone } from './shell.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, raw, openSheetView } from './lit.js';
 import type { BarSection } from '../bass.js';
@@ -169,7 +169,7 @@ export class ChartView extends View {
     return html`<div class="loop-row"><span class="field-label">Loop</span><div class="chips">
       ${chip('Whole tune', !loop, null, 'all')}${sections.length > 1 ? sections.map((s, i) => chip(s.name, isSection(s), { from: s.from, to: s.to, name: s.name }, String(i))) : nothing}
       ${loop && !sections.some(isSection) ? chip(`${loop.name} ×`, true, null, 'all') : nothing}</div></div>
-      ${this.pick != null ? html`<p class="fine loop-hint">From bar ${this.pick + 1}: now tap the last bar to loop.</p>` : raw(hintHtml('loop-bars', 'Or tap a bar, then another, to loop just those.', 'fine loop-hint'))}`;
+      ${this.pick != null ? html`<p class="fine loop-hint">From bar ${this.pick + 1}: now tap the last bar to loop.</p>` : html`<ws-hint hint="loop-bars" cls="fine loop-hint" text="Or tap a bar, then another, to loop just those."></ws-hint>`}`;
   }
 }
 

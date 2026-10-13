@@ -1,8 +1,8 @@
 import { store, save } from '../store.js';
-import { LEVELS, PRIORITIES } from '../constants.js';
+import { LEVELS } from '../constants.js';
 import { keyName } from '../keys.js';
 import { esc, clone } from '../util.js';
-import type { Key, Level, Priority, State } from '../types.js';
+import type { Key, Level, State } from '../types.js';
 
 // The element a selector finds (taken to be there: check the result where it may not be), and
 // all of them.
@@ -123,15 +123,6 @@ export const ICON = {
 export const kn = (k: Key | null | undefined): string => keyName(k, store.state.settings.view);
 export const keysText = (t: { keys: Key[] }): string => t.keys.map(kn).join(' / ');
 export const levelLabel = (l: Level | null | undefined): string => LEVELS[l ?? 0].label;
-
-export function pips(level: Level | null | undefined): string {
-  const n = level ?? 0;
-  return `<span class="pips" aria-label="${esc(levelLabel(level))}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
-}
-// Only for the priorities that stand out (critical, high); medium and low show nothing.
-export function priBadge(p: Priority): string {
-  return p <= 2 ? `<span class="pri p${p}" title="${PRIORITIES[p - 1].label} priority">P${p}</span>` : '';
-}
 
 // The keys' instrument (the Keys in … button): the next one you play, or Settings to pick more.
 export function switchView(): void {
@@ -397,26 +388,15 @@ export const STATUS_HINTS = {
   off: { tune: 'Left out for now: not picked for your set.', exercise: 'Left out for now: not picked, and not offered as a warm-up.' },
 };
 // ---------- Hints shown until dismissed (or done) ----------
-// A line of help with an ×; once dismissed, or once the thing it explains has been done
-// (hintDone), it isn't shown again.
-export function hintHtml(id: string, html: string, cls = 'hint'): string {
-  if ((store.state.hintsSeen || []).includes(id)) return '';
-  return `<p class="${cls} once-hint" data-hint="${id}"><span>${html}</span><button class="hint-x" aria-label="Got it">×</button></p>`;
-}
+// A line of help (<ws-hint>, see lit.ts) is shown until it's dismissed, or until the thing it
+// explains has been done: hintDone. The hints showing it then go.
 export function hintDone(id: string): void {
   const seen = (store.state.hintsSeen ||= []);
   if (seen.includes(id)) return;
   seen.push(id);
   save();
-  document.querySelectorAll(`[data-hint="${id}"]`).forEach((el) => el.remove());
+  document.querySelectorAll<HTMLElement & { requestUpdate(): void }>(`ws-hint[hint="${id}"]`).forEach((el) => el.requestUpdate());
 }
-// The ×: wired once, for any hint on the page or in a sheet.
-document.addEventListener('click', (e) => {
-  const x = (e.target as Element).closest?.('.hint-x');
-  if (!x) return;
-  e.stopPropagation();
-  hintDone(x.closest<HTMLElement>('[data-hint]')!.dataset.hint!); // (an × is in its hint, see hintHtml)
-}, true);
 
 // ---------- A "⋯" menu ----------
 // items: [{ label, fn, danger? }] (falsy ones are skipped). Opens under `anchor`; a tap outside
@@ -470,26 +450,3 @@ document.addEventListener('click', (e) => {
   b.setAttribute('aria-expanded', String(!el.hidden));
 }, true);
 
-
-// A sheet to pick one option, with what the setting does: { title, help, options: [[value,
-// label, hint?]], value, onPick(value) }. Picking closes it.
-export interface ChoiceOpts {
-  title: string;
-  help?: string;
-  options: [value: string, label: string, hint?: string][];
-  value: string | null | undefined;
-  onPick: (value: string) => void;
-}
-export function openChoice({ title, help = '', options, value, onPick }: ChoiceOpts): void {
-  const sheet = openSheet(`
-    <p class="eyebrow">Settings</p>
-    <h2 class="sheet-title">${esc(title)}</h2>
-    ${help ? `<p class="fine">${help}</p>` : ''}
-    <div class="set-list choice-list" role="radiogroup">${options.map(([v, label, hint]) => `
-      <button class="set-row ${v === value ? 'on' : ''}" role="radio" aria-checked="${v === value}" data-pick="${esc(v)}">
-        <span class="set-label">${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ''}</span><span class="set-check" aria-hidden="true">${v === value ? '✓' : ''}</span></button>`).join('')}</div>`);
-  sheet.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) => (b.onclick = () => {
-    closeSheet();
-    onPick(b.dataset.pick!);
-  }));
-}

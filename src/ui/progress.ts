@@ -1,9 +1,9 @@
 import { store } from '../store.js';
 import { dateStr, daysBetween, addDays, parseDate, niceDate } from '../dates.js';
 import { itemById } from '../practice.js';
-import { pips, levelLabel } from './shell.js';
+import { levelLabel } from './shell.js';
 import { customElement, state } from 'lit/decorators.js';
-import { View, mount, html, nothing, raw } from './lit.js';
+import { View, mount, html, nothing, pips } from './lit.js';
 import { keyFamiliarity, keySessions } from '../keystats.js';
 import { writtenToConcert } from '../keys.js';
 import { rootName } from './exercise.js';
@@ -111,7 +111,7 @@ export class ProgressView extends View {
       <section class="panel">
         <h3 class="section-label">Repertoire</h3>
         <ul class="levels">${levelCounts.map((c) => html`
-          <li><span class="lv-name">${raw(pips(c.l))}${levelLabel(c.l)}</span>
+          <li><span class="lv-name">${pips(c.l)}${levelLabel(c.l)}</span>
           <span class="lv-bar"><span style="width:${(c.n / maxCount) * 100}%"></span></span>
           <b>${c.n}</b></li>`)}</ul>
       </section>

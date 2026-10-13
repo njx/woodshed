@@ -1,12 +1,12 @@
 import { store } from '../store.js';
 import { ago } from '../dates.js';
 import { itemStats, isDue } from '../practice.js';
-import { ICON, ui, saveUi, pips, priBadge, keysText, switchView } from './shell.js';
+import { ICON, ui, saveUi, keysText, switchView } from './shell.js';
 import { openItem } from './item.js';
 import { openExercise, exerciseRow } from './exercise.js';
 import { CATEGORIES, TRANSPOSITIONS } from '../constants.js';
 import { customElement } from 'lit/decorators.js';
-import { View, mount, html, nothing, live, raw, type TemplateResult } from './lit.js';
+import { View, mount, html, nothing, live, raw, pips, priBadge, type TemplateResult } from './lit.js';
 import type { Exercise, Id, Item, ItemStats, Tune } from '../types.js';
 
 type Stats = Map<Id, ItemStats>;
@@ -23,8 +23,8 @@ export function tuneRow(t: Tune, stats: Stats): TemplateResult {
       <b>${t.focus ? html`<span class="focus-mark" title="Focus">${raw(ICON.focus)}</span>` : nothing}${t.name}${t.mine ? html` <span class="mine">mine</span>` : nothing}${t.off ? html` <span class="off-mark">off</span>` : nothing}</b>
       <span class="row-sub">${keys ? html`<span class="row-key">${keys}</span> · ` : nothing}${t.style} · ${ago(s?.last)}${s?.count ? ` · ${s.count}×` : ''}</span>
     </div>
-    ${raw(pips(t.level))}
-    ${raw(priBadge(t.priority))}
+    ${pips(t.level)}
+    ${priBadge(t.priority)}
   </li>`;
 }
 export const FILTERS: Filter<Tune>[] = [

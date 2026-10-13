@@ -1,9 +1,9 @@
-import { html } from './lit.js';
+import { customElement, state } from 'lit/decorators.js';
+import { View, html, nothing } from './lit.js';
 import { buildAbc, barPerLine } from '../abc.js';
 import { SOUNDS, SWING, nearestSample, swingTime, loadSamples } from '../sounds.js';
 import type { Samples } from '../sounds.js';
 import { store, save } from '../store.js';
-import { esc } from '../util.js';
 import { holdAudio } from '../audiosession.js';
 import type { AudioTracks, TuneObject } from 'abcjs';
 import type { Key, Settings, SoundId, SwingId } from '../types.js';
@@ -36,54 +36,63 @@ export async function renderNotation(el: HTMLElement, body: string, { shift = 0,
 // Notation full screen, sideways: on a phone held upright the page is turned for you (turn the
 // phone to read it); held sideways it just fills the screen. draw(el) renders into the page
 // (wide); play() starts playback and returns a stop function, or null.
-export function openFullNotation({ title, draw, play }: {
+interface FullOpts {
   title: string;
   draw: (el: HTMLElement) => unknown;
   play?: ((onEnded: () => void) => Promise<(() => void) | null>) | null;
-}): () => void {
-  const el = document.createElement('div');
-  el.className = 'notation-full';
-  el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-modal', 'true');
-  el.setAttribute('aria-label', title);
-  el.innerHTML = `
-    <div class="nf-page">
-      <div class="nf-head"><b>${esc(title)}</b>
-        <span class="nf-btns">${play ? '<button class="nf-play" aria-label="Play">▶</button>' : ''}<button class="nf-close" aria-label="Close">✕</button></span></div>
-      <div class="notation nf-notation"></div>
-    </div>`;
+}
+export function openFullNotation(opts: FullOpts): () => void {
+  const el = document.createElement('ws-full-notation') as FullNotation;
+  el.opts = opts;
   document.body.appendChild(el);
-  const page = el.querySelector<HTMLElement>('.nf-page')!; // (just added)
-  const box = el.querySelector<HTMLElement>('.nf-notation')!;
-  let stop: (() => void) | null = null;
-  const layout = () => {
-    const w = window.innerWidth, h = window.innerHeight;
-    const upright = h > w;
-    el.classList.toggle('turned', upright);
-    page.style.width = `${upright ? h : w}px`;
-    page.style.height = `${upright ? w : h}px`;
-    draw(box);
-  };
-  const close = () => {
-    stop?.();
-    window.removeEventListener('resize', layout);
-    document.removeEventListener('keydown', onKey);
-    el.remove();
-  };
-  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
-  window.addEventListener('resize', layout);
-  document.addEventListener('keydown', onKey);
-  el.querySelector<HTMLElement>('.nf-close')!.onclick = close;
-  const playBtn = el.querySelector<HTMLElement>('.nf-play');
-  if (playBtn) playBtn.onclick = async () => {
-    if (stop) { stop(); stop = null; playBtn.textContent = '▶'; return; }
-    playBtn.textContent = '■';
+  return () => el.close();
+}
+
+@customElement('ws-full-notation')
+export class FullNotation extends View {
+  opts!: FullOpts;
+  @state() playing = false;
+  @state() size = { w: window.innerWidth, h: window.innerHeight };
+  private stop: (() => void) | null = null;
+  private onResize = () => { this.size = { w: window.innerWidth, h: window.innerHeight }; };
+  private onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.close(); };
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('resize', this.onResize);
+    document.addEventListener('keydown', this.onKey);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('keydown', this.onKey);
+  }
+  close() {
+    this.stop?.();
+    this.remove();
+  }
+  async play() {
+    if (this.stop) { this.stop(); this.stop = null; this.playing = false; return; }
+    this.playing = true;
     // (the button is there only with play)
-    stop = await play!(() => { stop = null; playBtn.textContent = '▶'; });
-    if (!stop) playBtn.textContent = '▶';
-  };
-  layout();
-  return close;
+    this.stop = await this.opts.play!(() => { this.stop = null; this.playing = false; });
+    if (!this.stop) this.playing = false;
+  }
+  // Laid out again (and drawn again, to fit) whenever the screen's size changes.
+  updated(changed: Map<string, unknown>) {
+    if (changed.has('size')) this.opts.draw(this.querySelector<HTMLElement>('.nf-notation')!);
+  }
+  render() {
+    const { w, h } = this.size;
+    const upright = h > w;
+    return html`
+      <div class="notation-full ${upright ? 'turned' : ''}" role="dialog" aria-modal="true" aria-label=${this.opts.title}>
+        <div class="nf-page" style="width:${upright ? h : w}px;height:${upright ? w : h}px">
+          <div class="nf-head"><b>${this.opts.title}</b>
+            <span class="nf-btns">${this.opts.play ? html`<button class="nf-play" aria-label="Play" @click=${() => this.play()}>${this.playing ? '■' : '▶'}</button>` : nothing}<button class="nf-close" aria-label="Close" @click=${() => this.close()}>✕</button></span></div>
+          <div class="notation nf-notation"></div>
+        </div>
+      </div>`;
+  }
 }
 
 // One thing plays at a time.

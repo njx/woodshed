@@ -1,10 +1,11 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { openSheet, ICON, STATUS_HINTS } from './shell.js';
-import { LEVELS } from '../constants.js';
+import { openSheet, ICON, STATUS_HINTS, hintDone, levelLabel } from './shell.js';
+import { store } from '../store.js';
+import { LEVELS, PRIORITIES } from '../constants.js';
 import type { levelSuggestion } from '../practice.js';
 import type { itemStatus } from '../plan.js';
-import type { Item, Level } from '../types.js';
+import type { Item, Level, Priority } from '../types.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
 // Screens and sheets as Lit components (https://lit.dev), moving over from template strings one
@@ -126,4 +127,27 @@ export function levelSuggestionPart(sug: ReturnType<typeof levelSuggestion>, pic
   if (!sug) return nothing;
   return html`<div class="suggest ${sug.up ? 'up' : 'down'}"><span>${sug.text}</span>
     <button class="pill-btn" data-level=${sug.to} @click=${(e: Event) => { e.stopPropagation(); pick(sug.to as Level); }}>${sug.up ? '↑' : '↓'} ${LEVELS[sug.to].label}</button></div>`;
+}
+
+// How well you know it, as three dots.
+export function pips(level: Level | null | undefined) {
+  const n = level ?? 0;
+  return html`<span class="pips" aria-label=${levelLabel(level)}>${[1, 2, 3].map((i) => html`<i class=${i <= n ? 'on' : ''}></i>`)}</span>`;
+}
+// Only for the priorities that stand out (critical, high); medium and low show nothing.
+export function priBadge(p: Priority) {
+  return p <= 2 ? html`<span class="pri p${p}" title="${PRIORITIES[p - 1].label} priority">P${p}</span>` : nothing;
+}
+
+// A line of help with an ×, shown until it's dismissed or the thing it explains has been done
+// (hintDone, in shell.ts). hint: its id; text: our own markup; cls: its class (default "hint").
+@customElement('ws-hint')
+export class Hint extends View {
+  @property({ reflect: true }) hint = '';
+  @property() text = '';
+  @property() cls = 'hint';
+  render() {
+    if ((store.state.hintsSeen || []).includes(this.hint)) return nothing;
+    return html`<p class="${this.cls} once-hint" data-hint=${this.hint}><span>${raw(this.text)}</span><button class="hint-x" aria-label="Got it" @click=${(e: Event) => { e.stopPropagation(); hintDone(this.hint); }}>×</button></p>`;
+  }
 }

@@ -4,7 +4,7 @@ import { todayItem } from '../plan.js';
 import { chartChords } from '../bass.js';
 import { metronome, takeAwayStop } from '../metronome.js';
 import { setTempo, clampBpm, tapBpm, MIN_BPM, MAX_BPM } from '../tempo.js';
-import { ICON, render, toast, hintHtml } from './shell.js';
+import { ICON, render, toast } from './shell.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, live, raw, openSheetView, segButtons } from './lit.js';
 import type { Click } from '../metronome.js';
@@ -126,7 +126,7 @@ export class MetronomeSheet extends View {
             @change=${(e: Event) => { const g = Number((e.target as HTMLInputElement).value); item.goalTempo = g ? clampBpm(g) : null; save(); this.requestUpdate(); }}>
         </div>
         <p class="fine">${item.name}’s working tempo, saved with the session when you log it.</p>`
-        : raw(hintHtml('metro-tip', 'Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice.', 'fine'))}
+        : html`<ws-hint hint="metro-tip" cls="fine" text="Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice."></ws-hint>`}
     `;
   }
   // The walking bass, for a tune with a chart (or while it's playing): on or off, and while it

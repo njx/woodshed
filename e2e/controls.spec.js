@@ -221,3 +221,21 @@ test('add a tune: its name, then its settings all at once; Add tune adds it @nar
     .toMatchObject({ type: 'tune', level: 1, style: 'Hard bop', mine: true, focus: false });
   expect((await ui.saved()).state.items.find((t) => t.name === 'A Tune Of My Own').keys).toHaveLength(1);
 });
+
+test('a hint goes once it’s dismissed, or once the thing it explains is done @narrow', async ({ page, ui }) => {
+  await ui.start();
+  const hint = page.locator('[data-hint="swipe"]');
+  await expect(hint).toBeVisible();
+  await ui.swipe(page.locator('.card').first(), 160); // swiping a card: the swipe hint has done its job
+  await expect(hint).toHaveCount(0);
+  await expect.poll(async () => (await ui.saved()).state.hintsSeen).toContain('swipe');
+  // In the metronome sheet: dismissed with ×, and not shown again.
+  await page.click('#today-metro');
+  const tip = page.locator('[data-hint="metro-tip"]');
+  await tip.locator('.hint-x').click();
+  await expect(tip).toHaveCount(0);
+  await ui.backdrop();
+  await page.click('#today-metro');
+  await expect(page.locator('#m-go')).toBeVisible();
+  await expect(tip).toHaveCount(0);
+});
