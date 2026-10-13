@@ -34,7 +34,7 @@ interface Tones { third: number; fifth: number; seventh: number; dominant: boole
 function degrees(family: string): Tones {
   const third = family === 'dom7sus' ? 5 : MINOR.includes(family) ? 3 : 4;
   const fifth = ['m7b5', 'dim7'].includes(family) ? 6 : ['dom7s5', 'maj7s5'].includes(family) ? 8 : 7;
-  const seventh = family === 'dim7' ? 9 : ['maj7', 'maj6', 'maj7s5', 'mMaj7'].includes(family) ? 11 : family === 'm6' ? 9 : 10;
+  const seventh = family === 'dim7' ? 9 : ['maj7', 'maj7s5', 'mMaj7'].includes(family) ? 11 : ['maj6', 'm6'].includes(family) ? 9 : 10; // (the 6th, on a 6 chord)
   return { third, fifth, seventh, dominant: family.startsWith('dom7') };
 }
 
@@ -59,7 +59,7 @@ const SHAPES: Record<number, Record<string, Make>> = {
     '1 1 2 3': (r, c, t) => (leads(r + c.third, t) ? [r, r, r + 2, r + c.third] : null),
     '1 ♭7 6 5': (r, c, t) => (c.dominant && leads(r - 5, t) ? [r, r - 2, r - 3, r - 5] : null),
     '1 3 5 7': (r, c, t) => (leads(r + c.seventh, t) ? [r, r + c.third, r + c.fifth, r + c.seventh] : null), // on up to the octave
-    '1 5 6 7': (r, c, t) => (leads(r + c.seventh, t) && c.fifth === 7 ? [r, r + 7, r + 9, r + c.seventh] : null),
+    '1 5 6 7': (r, c, t) => (leads(r + c.seventh, t) && c.fifth === 7 && c.seventh > 9 ? [r, r + 7, r + 9, r + c.seventh] : null),
     '8 5 3 2': (r, c, t) => (leads(r - 10, t) ? [r, r + c.fifth - 12, r + c.third - 12, r - 10] : null), // down to the octave below
     // Round and back to the same root (a chord held on): 1 2 3 2, 1 5 3 2, 1 3 2 ♭2.
     '1 2 3 2': (r, c, t) => (t === r ? [r, r + 2, r + c.third, r + 2] : null),

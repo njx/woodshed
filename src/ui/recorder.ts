@@ -2,6 +2,7 @@ import { store, save, flush } from '../store.js';
 import { itemById } from '../practice.js';
 import { addEntry, entryById, findItemByName, linkableItems } from '../diary.js';
 import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving } from '../media.js';
+import { mediaDelete } from '../db.js';
 import { ICON, render, toast, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
 import { keepAwake } from '../keepawake.js';
@@ -40,7 +41,9 @@ export class RecorderSheet extends View {
   private recorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private startedAt = 0;
-  take: { blob: Blob; url: string; ms: number } | null = null; // once a recording has stopped
+  // Once a recording has stopped: it, and it stored (straight away, so a take isn't lost if the
+  // app is closed before it's kept: one in no note is offered back in Settings; null if it couldn't be).
+  take: { blob: Blob; url: string; ms: number; stored: Promise<Clip | null> } | null = null;
   private isClosed = false;
   private handled = false; // take kept or discarded
   private tick: ReturnType<typeof setInterval> | null = null;
@@ -300,7 +303,8 @@ export class RecorderSheet extends View {
     recorder.onstop = () => {
       clearInterval(this.tick ?? undefined);
       const blob = new Blob(this.chunks, { type: recorder.mimeType || mimeType || `${kind}/webm` });
-      this.take = { blob, url: URL.createObjectURL(blob), ms: Date.now() - this.startedAt };
+      const ms = Date.now() - this.startedAt;
+      this.take = { blob, url: URL.createObjectURL(blob), ms, stored: whileSaving(() => saveClip(blob, kind, ms)).catch(() => null) };
       this.stopStream();
       this.micSession(false); // (so the take plays on the loudspeaker)
       if (this.isClosed) return this.keep().then(() => this.afterStop?.());
@@ -368,11 +372,12 @@ export class RecorderSheet extends View {
     const tuneInput = this.querySelector<HTMLInputElement>('#rec-tune')?.value;
     const tune = tuneInput?.trim() ? findItemByName(tuneInput) : opts.itemId ? { id: opts.itemId } : null;
     try {
-      const clip = await saveClip(t.blob, this.kind, t.ms);
+      const clip = (await t.stored) ?? await saveClip(t.blob, this.kind, t.ms);
       const entry = this.existing && entryById(this.existing.id);
       if (entry) (entry.media ||= []).push(clip);
       else addEntry({ text, itemId: tune?.id || null, flag: opts.flag || null, media: [clip], take: true });
-      await flush(); // saved now, not in a moment: the note is what keeps the recording
+      // Saved now, not in a moment: the note is what keeps the recording.
+      if (!(await flush())) throw new Error('The note wasn’t saved');
       render();
       toast(entry ? 'Recording added' : 'Recording saved to your diary');
       URL.revokeObjectURL(t.url);
@@ -394,7 +399,10 @@ export class RecorderSheet extends View {
   }
 
   dropTake() {
-    if (this.take) URL.revokeObjectURL(this.take.url);
+    if (this.take) {
+      URL.revokeObjectURL(this.take.url);
+      this.take.stored.then((clip) => clip && mediaDelete(clip.id)).catch(() => {});
+    }
     this.take = null;
     this.elapsed = 0;
   }

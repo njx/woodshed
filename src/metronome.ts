@@ -52,8 +52,8 @@ export const metronome = {
     if (beats) state.beats = beats;
     if (itemId !== undefined) state.itemId = itemId; // null: not for an item
     if (click) state.click = click;
-    // A bass starting (not just changing key or loop) comes in after a bar of clicks.
-    countIn = bass && !(state.running && state.bass) ? state.beats : 0;
+    // A bass starting (not just the same one changing key or loop) comes in after a bar of clicks.
+    countIn = bass && !(state.running && state.bass?.owner === bass.owner) ? state.beats : 0;
     state.bass = bass;
     line = bass ? walkingLine(bass.chords) : [];
     lineAt = 0;
@@ -150,9 +150,15 @@ function emit() {
 
 function schedule() {
   if (!ctx) return;
-  // After the timer was throttled (screen off, app in background), skip the missed clicks
-  // rather than playing them all at once.
-  if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05;
+  // After the timer was throttled (screen off, app in background, a busy moment), skip the missed
+  // clicks rather than playing them all at once: by whole beats, so the beat (and the bass line,
+  // and where it is in the bar) carries on where it would have been.
+  while (nextTime < ctx.currentTime) {
+    if (countIn > 0) countIn--;
+    else if (line.length) advanceLine();
+    nextTime += 60 / state.bpm;
+    nextBeat = (nextBeat + 1) % state.beats;
+  }
   while (nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
     const accent = nextBeat === 0 && state.beats > 1;
     let at = null;
@@ -162,9 +168,7 @@ function schedule() {
     } else if (line.length) {
       at = lineAt;
       pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm, line[at].vel);
-      lineAt = (lineAt + 1) % line.length;
-      // Round again: a new line, carrying on from this one (so it doesn't repeat).
-      if (lineAt === 0 && state.bass && 'next' in line) line = walkingLine(state.bass.chords, { after: line });
+      advanceLine();
       if (state.click === 'all') click(nextTime, accent);
       else if (state.click === 'twofour' && nextBeat % 2 === 1) click(nextTime, false);
     } else click(nextTime, accent);
@@ -172,6 +176,13 @@ function schedule() {
     nextTime += 60 / state.bpm;
     nextBeat = (nextBeat + 1) % state.beats;
   }
+}
+
+// On to the bass line's next beat; round again, a new line, carrying on from this one (so it
+// doesn't repeat).
+function advanceLine() {
+  lineAt = (lineAt + 1) % line.length;
+  if (lineAt === 0 && state.bass && 'next' in line) line = walkingLine(state.bass.chords, { after: line });
 }
 
 // A short woodblock-ish click; higher and louder on the downbeat.
