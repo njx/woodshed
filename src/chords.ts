@@ -38,10 +38,14 @@ function noteNum(s: string): number | null {
 
 // "Bbm7b5/E" → { root: 10, q: 'm7b5', bass: 4 }; null if it isn't a chord.
 export function parseChord(s: string): Chord | null {
-  const m = /^([A-G][b#♭♯]?)([^/]*)(?:\/([A-G][b#♭♯]?))?$/.exec(String(s).trim());
+  // (The quality can have a / in it, as in Cm/maj7 or C6/9: only a note after the last / is a bass.)
+  const m = /^([A-G][b#♭♯]?)(.*?)(?:\/([A-G][b#♭♯]?))?$/.exec(String(s).trim());
   if (!m) return null;
-  // As written in charts and by hand: Δ or ^ (maj), M7, - (minor), ø or h (half-diminished), ° or o.
+  // As written in charts and by hand: Δ or ^ (maj), M7, - (minor), ø or h (half-diminished), ° or o;
+  // minor-major as m/maj7, m^7, mM7, m(maj7)…; 6/9 as 69.
   const q = m[2].replace(/♭/g, 'b').replace(/♯/g, '#').replace(/^(maj|Δ|\^)$/, 'maj7').replace(/^(Δ|\^|M)(?=\d)/, 'maj').replace(/^-/, 'm')
+    .replace(/^min(?!or)|^mi(?=\d|$)/, 'm').replace(/^M$/, '')
+    .replace(/^m\(?\/?(?:maj|Maj|M|\^|Δ)7?\)?$/, 'm/maj7').replace(/^(m?)6\/9/, '$169')
     .replace(/^[øØh]7?$/, 'm7b5').replace(/^[øØh](?=\d)/, 'm7b5').replace(/^[°o]7$/, '07').replace(/^[°o]$/, '0').replace(/Δ/g, 'maj');
   if (!/^[\w#()+/]*$/.test(q)) return null;
   return { root: noteNum(m[1])!, q, ...(m[3] ? { bass: noteNum(m[3])! } : {}) };
@@ -81,9 +85,19 @@ export function chartFromStandard(x: Standard): Chart {
 // Sharps in sharp keys (G D A E B F♯ major and their minors), flats otherwise.
 export function usesSharps(key: Key): boolean {
   const major = isMinor(key) ? (key + 3) % 12 : key % 12;
-  return [7, 2, 9, 4, 11, 6].includes(major);
+  return [7, 2, 9, 4, 11].includes(major); // (G♭ and E♭m: flats, as keyName names them)
 }
 export const noteName = (pc: number, sharps: boolean): string => (sharps ? SHARPS : FLATS)[((pc % 12) + 12) % 12];
+
+// What a warm-up is played over (see warmups.ts), for an instrument: roman numerals as they are;
+// a chord (kept in concert pitch) named in written pitch, like the keys shown next to it.
+export function overName(over: string, view: Transposition = 'c'): string {
+  const c = parseChord(over);
+  if (!c) return over;
+  const shift = TRANSPOSITIONS[view].offset;
+  const minor = /^m(?!aj)/.test(c.q);
+  return chordName(c, { shift, sharps: usesSharps(((c.root + shift) % 12) + (minor ? 12 : 0)) });
+}
 
 // How a quality reads: 07 → °7, m7b5 → ø7, m/maj7 → m(maj7), 69 → 6/9.
 export function qualityName(q: string): string {
@@ -108,7 +122,7 @@ export function chartShift(chart: Chart, toKey: Key | null, view: Transposition 
 
 // ---------- Editing as text ----------
 // One section per line: "A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %" (chords in a bar separated by spaces;
-// % = the previous chord continues), endings as "A 1.: …", "A 2.: …".
+// % = the previous chord continues), endings as "A 1.: …", "A 2.: …", played twice as "A ×2: …".
 
 export function chartToText(chart: Chart, { shift = 0, sharps = false } = {}): string {
   // Plain text, as typed: "Bbm7b5", not "B♭ø7".
@@ -117,7 +131,7 @@ export function chartToText(chart: Chart, { shift = 0, sharps = false } = {}): s
   const bar = (b: Bar) => (b.chords.length ? b.chords.map(name).join(' ') : '%');
   const lines: string[] = [];
   for (const s of chart.sections) {
-    lines.push(`${s.label || '-'}: ${s.bars.map(bar).join(' | ')}`);
+    lines.push(`${s.label || '-'}${s.repeats ? ` ×${s.repeats + 1}` : ''}: ${s.bars.map(bar).join(' | ')}`);
     s.endings.forEach((e, i) => lines.push(`${s.label || '-'} ${i + 1}.: ${e.map(bar).join(' | ')}`));
   }
   return lines.join('\n');
@@ -130,9 +144,10 @@ export function chartFromText(text: string, { key = null, meter = '4/4', shift =
   const sections: Section[] = [];
   const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
   for (const [i, line] of lines.entries()) {
-    const m = /^([^:]*?)(?:\s+(\d+)\.)?\s*:\s*(.*)$/.exec(line);
+    const m = /^([^:]*?)(?:\s*[×x](\d+))?(?:\s+(\d+)\.)?\s*:\s*(.*)$/.exec(line);
     const label = m ? m[1].trim().replace(/^-$/, '') : '';
-    const body = m ? m[3] : line;
+    const body = m ? m[4] : line;
+    const times = Math.min(8, Math.max(1, Number(m?.[2]) || 1));
     const bars: Bar[] = [];
     for (const raw of body.split('|')) {
       const t = raw.trim();
@@ -147,8 +162,8 @@ export function chartFromText(text: string, { key = null, meter = '4/4', shift =
       bars.push({ chords, alts: [] });
     }
     while (bars.length && !bars.at(-1)!.chords.length && body.trim().endsWith('|')) bars.pop();
-    if (m?.[2] && sections.length) sections.at(-1)!.endings.push(bars);
-    else sections.push({ label, repeats: 0, bars, endings: [] });
+    if (m?.[3] && sections.length) sections.at(-1)!.endings.push(bars);
+    else sections.push({ label, repeats: times - 1, bars, endings: [] });
   }
   if (!sections.length) return { error: 'Type at least one line of chords.' };
   return { chart: { key, meter, sections } };
@@ -166,7 +181,7 @@ export function chordFamily(q: string): ChordType {
   if (/^m(?!aj)/.test(q)) return 'm7'; // (maj7 starts with m too)
   if (/^maj7#5|^\+maj|^augmaj/.test(q)) return 'maj7s5';
   if (/^(maj|add9)/.test(q)) return 'maj7';
-  if (/^(6|69)?$/.test(q)) return 'maj6';
+  if (/^(6|69|2|add\d+)?$/.test(q)) return 'maj6'; // (and plain triads)
   if (/sus/.test(q)) return 'dom7sus';
   if (/^(aug|\+)$|^7#5$|^9#5$/.test(q)) return 'dom7s5';
   // Colours: ♭9 (dominants in minor keys), ♯9 and altered.
@@ -228,20 +243,30 @@ export function scaleFor(c: Chord): ScaleType | undefined {
   } as Partial<Record<ChordType, ScaleType>>)[f];
 }
 
-// The chords in playing order, with how long each lasts (in beats): sections in order, each
-// section's endings after it. Alternate chords are left out.
+// The bars in playing order, through the form: a section with endings is played once through each
+// (A then its 1st ending, A then its 2nd), one with repeats that many more times. Each bar with
+// its place as the chart shows it (`at`: each section's bars, then its endings, numbered in order).
+export function formBars(chart: Chart): { bar: Bar; at: number }[] {
+  const out: { bar: Bar; at: number }[] = [];
+  let n = 0;
+  for (const s of chart.sections) {
+    const main = s.bars.map((bar) => ({ bar, at: n++ }));
+    const ends = s.endings.map((e) => e.map((bar) => ({ bar, at: n++ })));
+    const passes = Math.max(ends.length, (s.repeats || 0) + 1);
+    // (endings go with the last times through: A, A + its one ending)
+    for (let p = 0; p < passes; p++) out.push(...main, ...(ends[p - (passes - ends.length)] || []));
+  }
+  return out;
+}
+
+// The chords in playing order (through the form, see formBars), with how long each lasts (in
+// beats). Alternate chords are left out.
 export function chordTimeline(chart: Chart): Timed[] {
   const beats = Number(String(chart.meter || '4/4').split('/')[0]) || 4;
   const out: Timed[] = [];
-  const addBars = (bars: Bar[]) => {
-    for (const b of bars) {
-      if (!b.chords.length) { if (out.length) out.at(-1)!.beats += beats; continue; }
-      for (const c of b.chords) out.push({ ...c, beats: beats / b.chords.length });
-    }
-  };
-  for (const s of chart.sections) {
-    addBars(s.bars);
-    for (const e of s.endings) addBars(e);
+  for (const { bar: b } of formBars(chart)) {
+    if (!b.chords.length) { if (out.length) out.at(-1)!.beats += beats; continue; }
+    for (const c of b.chords) out.push({ ...c, beats: beats / b.chords.length });
   }
   return out;
 }

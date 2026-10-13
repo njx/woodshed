@@ -2,7 +2,7 @@ import { store } from '../store.js';
 import { itemById } from '../practice.js';
 import { warmupChoices } from '../warmups.js';
 import { todayItem, addWarmup, addWarmups, tryWithTune, tunesToTry } from '../plan.js';
-import { ICON, render, toast, closeSheet, kn } from './shell.js';
+import { ICON, render, toast, closeSheet, kn, overLabel } from './shell.js';
 import { exerciseKeysText, rootName } from './exercise.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, raw, openSheetView, type TemplateResult } from './lit.js';
@@ -25,7 +25,7 @@ function groups(list: { label: string; rows: Row[] }[], { labels = true } = {}):
 function how(it: PlanItem, x: Exercise) {
   if (it.form) return 'Through the form';
   if (it.prog) return `${it.prog.name} in ${rootName(it.keys![0])}`;
-  if (it.over) return `Over ${it.over}${it.overKey != null ? ` in ${kn(it.overKey)}` : ''}${it.keys!.length > 1 ? ` — in ${it.keys!.map(rootName).join(', then ')}` : ''}`;
+  if (it.over) return `Over ${overLabel(it.over)}${it.overKey != null ? ` in ${kn(it.overKey)}` : ''}${it.keys!.length > 1 ? ` — in ${it.keys!.map(rootName).join(', then ')}` : ''}`;
   return exerciseKeysText(it.keys!, x, it.types);
 }
 

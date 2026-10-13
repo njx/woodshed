@@ -213,7 +213,7 @@ describe('chords and warm-ups', () => {
     store.state.settings.view = 'c';
     const t = store.state.items.find((x) => x.name === 'Autumn Leaves');
     const item = runTool('get_item', { item_id: t.id });
-    expect(item.chords).toMatch(/^In Gm, 4\/4:\nA: Cm7 \| F7 \| Bbmaj7/);
+    expect(item.chords).toMatch(/^In Gm, 4\/4:\nA ×2: Cm7 \| F7 \| Bbmaj7/);
     takeChanges();
     const r = runTool('add_warmups', { tune_id: t.id, count: 2 });
     expect(r.added).toContain('Seventh-chord arpeggios');

@@ -16,7 +16,7 @@ test('a tune shows its chords, written for the instrument, in any key @narrow', 
   await page.selectOption('#chart-key', '19');
   await expect(chart.locator('.bar').first()).toHaveText('Dm7');
   await expect(chart.locator('.bar').nth(2)).toHaveText('Cmaj7');
-  await expect(chart.locator('.chart-label').first()).toHaveText('A');
+  await expect(chart.locator('.chart-label').first()).toHaveText('A×2'); // (played twice)
   // Another key: E minor concert, written F♯ minor.
   await page.selectOption('#chart-key', '16');
   await expect(chart.locator('.bar').first()).toHaveText('Bm7');
@@ -36,8 +36,8 @@ test('charts can be edited, and put back', async ({ page, ui }) => {
   await page.selectOption('#chart-key', '19');
   await page.click('#chart-edit');
   const text = page.locator('#ce-text');
-  await expect(text).toHaveValue(/^A: Cm7 \| F7 \| Bbmaj7/);
-  await text.fill((await text.inputValue()).replace(/^A: Cm7/, 'A: Cm9'));
+  await expect(text).toHaveValue(/^A ×2: Cm7 \| F7 \| Bbmaj7/);
+  await text.fill((await text.inputValue()).replace(/^A ×2: Cm7/, 'A ×2: Cm9'));
   await page.click('#ce-save');
   await expect(page.locator('#f-name')).toHaveValue('Autumn Leaves');
   await expect(page.locator('.chart .bar').first()).toHaveText('Cm9');
@@ -211,7 +211,7 @@ test('chart edits save as you type; Undo changes puts it back', async ({ page, u
   await openTune(page, ui, 'Autumn Leaves');
   await page.click('#chart-edit');
   const text = page.locator('#ce-text');
-  await text.fill((await text.inputValue()).replace(/^A: (\w+)/, 'A: Cm9'));
+  await text.fill((await text.inputValue()).replace(/^A ×2: (\w+)/, 'A ×2: Cm9'));
   await expect.poll(async () => (await ui.saved()).state.items.find((t) => t.name === 'Autumn Leaves').chartEdited).toBe(true);
   await ui.backdrop(); // closing keeps it
   await expect(page.locator('.chart .bar').first()).toHaveText(/m9/);

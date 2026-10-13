@@ -3,7 +3,7 @@ import { TRANSPOSITIONS } from '../constants.js';
 import { dateStr } from '../dates.js';
 import { isMinor } from '../keys.js';
 import { chartFor, chartSource, seedChart, loadSeedCharts } from '../charts.js';
-import { chordName, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
+import { chordName, formBars, chartShift, usesSharps, chartToText, chartFromText, progressions, noteName } from '../chords.js';
 import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { pickWarmup } from './pickers.js';
@@ -92,6 +92,8 @@ export class ChartView extends View {
     if (this.following) return;
     this.following = true;
     let lit: Element | null = null;
+    const chart = chartFor(this.tune);
+    const form = chart ? formBars(chart) : [];
     const step = () => {
       if (!this.isConnected || !this.bassMine()) {
         lit?.classList.remove('now');
@@ -99,8 +101,12 @@ export class ChartView extends View {
         return;
       }
       const i = metronome.bassBeat();
-      const from = metronome.state.bass!.loop?.from ?? 0; // (bassMine, above)
-      const bar = i < 0 ? null : this.querySelector(`[data-b="${from + Math.floor(i / metronome.state.beats)}"]`);
+      const loop = metronome.state.bass!.loop; // (bassMine, above)
+      // Looping bars, it goes through them as shown; the whole chart, through its form (repeats
+      // and endings: see formBars).
+      const n = Math.floor(i / metronome.state.beats);
+      const at = loop ? (loop.from ?? 0) + n : form[n % form.length]?.at;
+      const bar = i < 0 ? null : this.querySelector(`[data-b="${at}"]`);
       if (bar !== lit) { lit?.classList.remove('now'); bar?.classList.add('now'); lit = bar; }
       requestAnimationFrame(step);
     };
@@ -153,7 +159,7 @@ export class ChartView extends View {
     };
     return chart.sections.map((s) => html`
       <div class="chart-section">
-        <span class="chart-label">${s.label || ''}</span>
+        <span class="chart-label">${s.label || ''}${s.repeats ? html`<small>×${s.repeats + 1}</small>` : nothing}</span>
         <div class="bars">${s.bars.map(bar)}</div>
         ${s.endings.map((e, i) => html`
           <span class="chart-label ending">${i + 1}.</span>
@@ -237,7 +243,7 @@ export class ChartEditor extends View {
         <textarea id="ce-text" rows="10" spellcheck="false" autocapitalize="off" autocomplete="off" class="mono" .value=${this.text}
           @input=${() => { this.changed = true; clearTimeout(this.timer); this.timer = setTimeout(() => this.keep(), 400); }}></textarea>
       </label>
-      <p class="fine ${this.pending ? 'error' : ''}" id="ce-msg">${this.pending ?? html`One section per line, like <code>A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %</code>. Bars are separated by <code>|</code>, chords in a bar by spaces; <code>%</code> means the chord carries on. Endings: <code>A 1.:</code> and <code>A 2.:</code>.`}</p>
+      <p class="fine ${this.pending ? 'error' : ''}" id="ce-msg">${this.pending ?? html`One section per line, like <code>A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %</code>. Bars are separated by <code>|</code>, chords in a bar by spaces; <code>%</code> means the chord carries on. Endings: <code>A 1.:</code> and <code>A 2.:</code>; a section played twice: <code>A ×2:</code>.`}</p>
       <button class="primary-btn" id="ce-save" @click=${() => { this.keep(); if (!this.pending) closeSheet(); }}>Done</button>
       <button class="link-btn" id="ce-revert" ?hidden=${!this.changed} @click=${() => this.restore(this.original.chart ? structuredClone(this.original.chart) : null, this.original.edited, 'Chart back to how it was')}>Undo changes</button>
       ${t.chartEdited && seedChart(t) ? html`<button class="ghost-btn" id="ce-reset" @click=${() => this.restore(seedChart(t), false, 'Back to the original chart')}>Go back to the original chart</button>` : nothing}

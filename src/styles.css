@@ -912,6 +912,7 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .chart-section { display: grid; grid-template-columns: 22px 1fr; column-gap: 6px; margin-bottom: 8px; }
 .chart-label { font: 700 13px var(--sans); color: var(--ink-3); padding-top: 9px; }
 .chart-label.ending { font-weight: 600; }
+.chart-label small { display: block; font-weight: 600; font-size: 11px; }
 .bars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-left: 2px solid var(--line); }
 .bar {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-height: 36px; padding: 6px 6px 4px;

@@ -33,7 +33,7 @@ import type { State, Exercise, Tune } from './types.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 const STATE_KEY = 'state';
 const LEGACY_KEY = 'woodshed.v1'; // version 1 lived in localStorage
 
@@ -172,6 +172,14 @@ export function migrate(s: Raw): State {
     for (const t of s.items || []) if (t.type === 'exercise' && ['Long tones', 'Chromatic scale'].includes(t.name)) t.solo = true;
     s.version = 11;
   }
+  if (s.version < 12) {
+    // v12: minor-major chords (Cm/maj7) and 6/9s were missing from the starting charts: a tune's
+    // chart that hasn't been edited is the starting one again, with them in.
+    for (const t of s.items || []) {
+      if ((t.type || 'tune') === 'tune' && t.chart && !t.chartEdited) t.chart = seedChart(t) ?? t.chart;
+    }
+    s.version = 12;
+  }
   return normalize(s);
 }
 
@@ -213,14 +221,17 @@ export function save() {
   saveTimer = setTimeout(flush, 250);
 }
 
-export async function flush() {
+// Whether it was saved (if not, the error handler has said so).
+export async function flush(): Promise<boolean> {
   clearTimeout(saveTimer);
   saveTimer = undefined;
-  if (!store.state) return; // still loading: nothing to save, and never write over saved data
+  if (!store.state) return true; // still loading: nothing to save, and never write over saved data
   store.state.savedAt = Date.now();
   try {
     await kvSet(STATE_KEY, store.state);
+    return true;
   } catch (e) {
     onSaveError(e);
+    return false;
   }
 }

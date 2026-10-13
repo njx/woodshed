@@ -245,7 +245,7 @@ from [mikeoliphant/JazzStandards](https://github.com/mikeoliphant/JazzStandards)
 playlists) — 293 of the 301 tunes match — pinned as a git submodule (`vendor/JazzStandards`) and
 built into the app; they seed each tune once (first run, or the upgrade that added charts). After
 that a chart is the tune's own: **Edit** it as text (`A: Cm7 | F7 | Bbmaj7 Ebmaj7 | %`, endings as
-`A 1.:`), add one for a tune that has none, or put an edited one back to the original. Charts are in
+`A 1.:`, a section played twice as `A ×2:`), add one for a tune that has none, or put an edited one back to the original. Charts are in
 backups.
 
 Under the chart are its main **progressions**, named by Roman numeral and the key they lead to:

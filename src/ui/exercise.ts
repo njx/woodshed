@@ -32,7 +32,7 @@ import {
 import type { TuneObject } from 'abcjs';
 import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, PlanItem, Priority, Progression, Shape, Tune, Vary } from '../types.js';
 import {
-  ICON, render, toast, withUndo, haptic, closeSheet, kn, openMenu, } from './shell.js';
+  ICON, render, toast, withUndo, haptic, closeSheet, kn, openMenu, overLabel } from './shell.js';
 
 const view = () => store.state.settings.view;
 // Exercise keys are roots (0–11), named as major keys for the instrument shown.
@@ -354,7 +354,7 @@ export class ExerciseSheet extends View {
     const todayKeys = this.todayKeys, root = this.previewRoot;
     const bass = this.bassMine();
     const today = planItem?.form ? `Today: through ${this.tempoFrom.name}’s form, in ${kn(planItem.overKey)} — bend it to the changes, or take off from it.`
-      : planItem?.over ? `Today: over ${planItem.over}${planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : ''} — play it in ${todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`).join(', then ')}`
+      : planItem?.over ? `Today: over ${overLabel(planItem.over)}${planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : ''} — play it in ${todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`).join(', then ')}`
       : prog ? `Today: ${prog.name} in ${rootName(root)} — ${progressionChords(prog, root)}`
       : t.vary && this.todayTypes().length ? `Today: ${exerciseKeysText(todayKeys, t, this.todayTypes())}`
       : todayKeys.length && this.asWritten() ? `Today: ${todayKeys.map((k) => keyLabel(k, t)).join(', ')}`

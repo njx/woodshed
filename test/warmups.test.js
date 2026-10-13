@@ -32,6 +32,7 @@ describe('charts for tunes', () => {
     old.version = 4;
     const solar = old.items.find((t) => t.name === 'Solar');
     solar.chart = { key: 0, meter: '4/4', sections: [{ label: 'A', repeats: 0, bars: [{ chords: [{ root: 0, q: 'maj7' }], alts: [] }], endings: [] }] };
+    solar.chartEdited = true;
     for (const t of old.items) if (t.name !== 'Solar') delete t.chart;
     const s = migrate(old);
     expect(s.version).toBe(SCHEMA_VERSION);
@@ -370,8 +371,8 @@ describe('the bass over part of a chart', () => {
     const { chartChords, chartBars } = await import('../src/bass.js');
     const t = byName('Autumn Leaves');
     const whole = chartChords(t);
-    const { bars, sections } = chartBars(chartFor(t));
-    expect(whole.chords.reduce((n, c) => n + c.beats, 0)).toBe(bars.length * 4);
+    const { sections } = chartBars(chartFor(t));
+    expect(whole.chords.reduce((n, c) => n + c.beats, 0)).toBe(32 * 4); // (the whole form: A twice, B, C)
     const s = sections[1];
     const part = chartChords(t, null, { from: s.from, to: s.to });
     expect(part.chords.reduce((n, c) => n + c.beats, 0)).toBe((s.to - s.from + 1) * 4);

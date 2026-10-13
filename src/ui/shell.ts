@@ -1,6 +1,7 @@
 import { store, save } from '../store.js';
 import { LEVELS } from '../constants.js';
 import { keyName } from '../keys.js';
+import { overName } from '../chords.js';
 import { esc, clone } from '../util.js';
 import type { Key, Level, State } from '../types.js';
 
@@ -122,6 +123,8 @@ export const ICON = {
 // A concert key named for the transposition currently shown.
 export const kn = (k: Key | null | undefined): string => keyName(k, store.state.settings.view);
 export const keysText = (t: { keys: Key[] }): string => t.keys.map(kn).join(' / ');
+// What a warm-up is played over, for the transposition shown (see overName).
+export const overLabel = (over: string): string => overName(over, store.state.settings.view);
 export const levelLabel = (l: Level | null | undefined): string => LEVELS[l ?? 0].label;
 
 // The keys' instrument (the Keys in … button): the next one you play, or Settings to pick more.

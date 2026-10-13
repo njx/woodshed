@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import standards from './fixtures/standards.json';
 import {
   parseChord, parseBar, chartFromStandard, chordName, qualityName, usesSharps, chartShift,
-  chartToText, chartFromText, chordFamily, scaleFor, chordTimeline, mainChords, twoFives,
+  chartToText, chartFromText, chordFamily, scaleFor, chordTimeline, mainChords, twoFives, formBars, overName,
 } from '../src/chords.js';
 import { CHORDS, SCALES } from '../src/theory.js';
 
@@ -16,6 +16,19 @@ describe('reading chords', () => {
     expect(parseChord('B♭ø7')).toEqual({ root: 10, q: 'm7b5' });
     expect(parseChord('Cmaj')).toEqual({ root: 0, q: 'maj7' });
     expect(parseChord('H7')).toBe(null);
+  });
+  it('reads a / in the quality (minor-major, 6/9) apart from a bass note', () => {
+    for (const s of ['Cm/maj7', 'C-^7', 'CmM7', 'Cm(maj7)']) expect(parseChord(s)).toEqual({ root: 0, q: 'm/maj7' });
+    expect(parseChord('Am/maj7/G#')).toEqual({ root: 9, q: 'm/maj7', bass: 8 });
+    expect(parseChord('C6/9')).toEqual({ root: 0, q: '69' });
+    expect(parseChord('C/E')).toEqual({ root: 0, q: '', bass: 4 });
+    expect(chordFamily(parseChord('Dbm/maj7').q)).toBe('mMaj7');
+    expect(chordFamily('69')).toBe('maj6');
+    expect(parseChord('Cmin6')).toEqual({ root: 0, q: 'm6' });
+    expect(parseChord('CM')).toEqual({ root: 0, q: '' });
+    expect(chordFamily('2')).toBe('maj6');
+    // All The Things You Are's last A (D♭ minor-major in bar 6) keeps it.
+    expect(chart('All The Things You Are').sections[3].bars.flatMap((b) => b.chords).some((c) => c.q === 'm/maj7')).toBe(true);
   });
   it('reads bars with alternates in parentheses', () => {
     const b = parseBar('Dmaj7(Em7b5)');
@@ -31,6 +44,19 @@ describe('reading chords', () => {
     expect(c.sections[0].bars[0].chords[0]).toEqual({ root: 0, q: 'm7' });
     const a = chart('Alone Together');
     expect(a.sections[0].endings).toHaveLength(2);
+  });
+  it('plays through the form: repeats, and a section once through each of its endings', () => {
+    const al = chart('Autumn Leaves'); // A (twice), B, C: 8 bars each
+    expect(formBars(al)).toHaveLength(32);
+    expect(formBars(al).map((x) => x.at).slice(0, 10)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 0, 1]);
+    const bar = (q) => ({ chords: [{ root: 0, q }], alts: [] });
+    const c = { key: 0, meter: '4/4', sections: [
+      { label: 'A', repeats: 0, bars: [bar('a1'), bar('a2')], endings: [[bar('e1')], [bar('e2')]] },
+      { label: 'B', repeats: 0, bars: [bar('b')], endings: [] },
+    ] };
+    // Shown as A: a1 a2 | 1. e1 | 2. e2 | B: b (numbered 0–4); played a1 a2 e1 a1 a2 e2 b.
+    expect(formBars(c).map((x) => x.at)).toEqual([0, 1, 2, 0, 1, 3, 4]);
+    expect(chordTimeline(c).map((x) => x.q)).toEqual(['a1', 'a2', 'e1', 'a1', 'a2', 'e2', 'b']);
   });
 });
 
@@ -61,6 +87,12 @@ describe('editing as text', () => {
     const back = chartFromText(text, { key: c.key, shift: 2 }).chart;
     expect(chordTimeline(back).map((x) => [x.root, x.q])).toEqual(chordTimeline(c).map((x) => [x.root, x.q]));
     expect(back.sections[0].endings).toHaveLength(2);
+  });
+  it('keeps a section’s repeats (A ×2)', () => {
+    const text = chartToText(chart('Autumn Leaves'));
+    expect(text.split('\n')[0]).toMatch(/^A ×2: Cm7 \| F7/);
+    expect(chartFromText(text).chart.sections.map((s) => s.repeats)).toEqual([1, 0, 0]);
+    expect(chartFromText('A x3: C7').chart.sections[0]).toMatchObject({ label: 'A', repeats: 2 });
   });
   it('reads typed charts, with % for a continuing chord', () => {
     const { chart: c } = chartFromText('A: Cmaj7 | % | Dm7 G7 | Cmaj7\nB: Fm7 | Bb7');
@@ -132,5 +164,14 @@ describe('progressions', async () => {
   it('a held chord counts once', () => {
     const { chart: c } = chartFromText('A: Dm7 | % | G7 | G7 | Cmaj7');
     expect(progressions(c)[0]).toMatchObject({ name: 'ii–V7–I', target: 0, count: 1 });
+  });
+});
+
+describe('a warm-up’s chord, for the instrument shown', () => {
+  it('is named in written pitch, like the keys beside it; roman numerals stay as they are', () => {
+    expect(overName('Fmaj7', 'bb')).toBe('Gmaj7');
+    expect(overName('ii–V–I', 'bb')).toBe('ii–V–I');
+    expect(overName('Cm7', 'eb')).toBe('Am7');
+    expect(overName('Gbmaj7')).toBe('G♭maj7'); // (G♭: flats, as the key is named)
   });
 });

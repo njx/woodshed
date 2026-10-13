@@ -9,7 +9,7 @@ import {
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
 import {
   $, ICON, render, toast, withUndo, haptic, attachSwipe, closeSwipes, kn, keysText,
-  switchView, hintDone,
+  switchView, hintDone, overLabel,
 } from './shell.js';
 import { tuneRow } from './tunes.js';
 import { openItem } from './item.js';
@@ -332,9 +332,9 @@ function keyChip(it: PlanItem, t: Item): TemplateResult | typeof nothing {
     // A lick or pattern over part of a progression (in a key, or a sequence of keys), or over one chord.
     if (it.over && it.overKey != null) {
       const seq = it.keys!.length > 1 ? `played in ${it.keys!.map(rootName).join(', then ')}` : 'tap for notation';
-      return chip('multi', html`Over <b>${it.over}</b> in <b>${kn(it.overKey)}</b>`, seq);
+      return chip('multi', html`Over <b>${overLabel(it.over)}</b> in <b>${kn(it.overKey)}</b>`, seq);
     }
-    if (it.over) return chip('multi', html`Over <b>${it.over}</b>`, `in ${rootName(it.keys![0])}`);
+    if (it.over) return chip('multi', html`Over <b>${overLabel(it.over)}</b>`, `in ${rootName(it.keys![0])}`);
     // The whole list matters here, so it wraps (between keys) rather than being cut off.
     const what = exerciseKeysText(it.keys!, t, it.types).split(' · ');
     return chip('multi', html`${it.keys?.length ? 'In ' : ''}${what.map((w, i) => html`${i ? ' · ' : ''}<b>${w}</b>`)}`, t.abc || t.vary ? 'tap for notation' : '');
