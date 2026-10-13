@@ -88,23 +88,24 @@ export function chartChords(t: Tune, key: Key | null = null, { from = null, to =
   return { chords: out, beats };
 }
 
-// A recorded bass note (electric bass, see scripts/make-samples.sh): the nearest sample, shifted
-// to the pitch, held most of the beat and then damped. samples: { midi: AudioBuffer }.
+// A recorded bass note (an upright, plucked: see scripts/make-samples.sh): the nearest sample,
+// shifted to the pitch, held right into the next beat (a walking line is legato) and then damped
+// as the next note starts. samples: { midi: AudioBuffer }.
 export function pluckSample(ctx: BaseAudioContext, samples: Samples | null, midi: number, time: number, beat: number): void {
   const m = nearestSample('bass', midi);
   const buf = m == null ? undefined : samples?.[m]; // (no sample note: none loaded either)
   if (m == null || !buf) return pluck(ctx, midi, time, beat);
-  const len = beat * 0.92;
+  const end = time + beat; // the next note
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.playbackRate.value = 2 ** ((midi - m) / 12);
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.9, time);
-  gain.gain.setValueAtTime(0.9, time + len - 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.0008, time + len);
+  gain.gain.setValueAtTime(0.9, end);
+  gain.gain.exponentialRampToValueAtTime(0.0008, end + 0.07);
   src.connect(gain).connect(ctx.destination);
   src.start(time);
-  src.stop(time + len + 0.02);
+  src.stop(end + 0.09);
 }
 
 // The synth, until the samples are loaded (or offline before they ever were). A plucked bass note: a sawtooth (whose overtones carry the pitch on a phone's small speaker,

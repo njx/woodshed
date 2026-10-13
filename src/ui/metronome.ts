@@ -55,6 +55,8 @@ export class MetronomeSheet extends View {
   // Running for this (its item, or none).
   mine() { return metronome.state.running && metronome.state.itemId === (this.item?.id ?? null); }
   bassOn() { return this.mine() && !!metronome.state.bass; }
+  // The bass, as it is while it's running for this; otherwise as set (for a tune with a chart).
+  bassWanted() { return this.mine() ? this.bassOn() : !!store.state.settings.metroBass && !!this.chartBass(); }
   // A walking bass with the click (bass.js), for a tune with a chart: through its chart in the key
   // it's played in today.
   chartBass() {
@@ -95,7 +97,7 @@ export class MetronomeSheet extends View {
   go() {
     if (this.mine()) return metronome.stop();
     metronome.stop();
-    this.startWith(false);
+    this.startWith(this.bassWanted());
   }
 
   render() {
@@ -111,7 +113,7 @@ export class MetronomeSheet extends View {
       </div>
       <input type="range" id="m-slider" min=${MIN_BPM} max=${MAX_BPM} .value=${live(String(this.bpm))} aria-label="Tempo" @input=${(e: Event) => this.setBpm(Number((e.target as HTMLInputElement).value))}>
       <div id="m-bass">${this.bass()}</div>
-      <div class="metro-beats" id="m-beats" ?hidden=${this.bassOn()}>
+      <div class="metro-beats" id="m-beats" ?hidden=${this.bassWanted()}>
         <span class="field-label">Beats per bar</span>
         <div class="chips wrap">${[1, 2, 3, 4, 5, 6, 7].map((n) => html`<button class="chip ${n === this.beats ? 'on' : ''}" data-beats=${n} aria-label=${n === 1 ? '1, no accent' : nothing} @click=${() => this.setBeats(n)}>${n}</button>`)}</div>
       </div>
@@ -129,19 +131,21 @@ export class MetronomeSheet extends View {
         : html`<ws-hint hint="metro-tip" cls="fine" text="Opened from a tune or exercise (the tempo button on its card), its tempo is saved with your practice."></ws-hint>`}
     `;
   }
-  // The walking bass, for a tune with a chart (or while it's playing): on or off, and while it
-  // plays, the click on every beat, on 2 and 4, or off.
+  // The walking bass, for a tune with a chart (or while it's playing): on or off — set for Start
+  // (after a bar of clicks to count in), or while it's running, there and then — and with it, the
+  // click on every beat, on 2 and 4, or off.
   bass() {
-    const on = this.bassOn();
-    if (!this.chartBass() && !on) return nothing;
+    const on = this.bassWanted();
+    if (!this.chartBass() && !this.bassOn()) return nothing;
     const settings = store.state.settings;
     const click = metronome.state.bass ? metronome.state.click : settings.bassClick || 'twofour';
     return html`
-      <div class="setting"><div><b>Walking bass</b><span>${on ? `Through ${metronome.state.bass!.label}, round and round` : 'Through its chart, with the click'}</span></div>
+      <div class="setting"><div><b>Walking bass</b><span>${this.bassOn() ? `Through ${metronome.state.bass!.label}, round and round` : 'Through its chart, after a bar to count in'}</span></div>
         <div class="seg" id="m-bass-seg">${segButtons([['off', 'Off'], ['on', 'On']] as const, on ? 'on' : 'off', (v) => {
-          if ((v === 'on') === this.bassOn()) return;
-          if (v === 'on') this.startWith(true);
-          else if (this.mine()) this.startWith(false); // the click carries on
+          settings.metroBass = v === 'on';
+          save();
+          if (this.mine() && (v === 'on') !== this.bassOn()) this.startWith(v === 'on'); // (running: the click carries on)
+          this.requestUpdate();
         })}</div></div>
       ${on ? html`<div class="setting"><div><b>Click</b><span>With the bass</span></div>
         <div class="seg" id="m-click">${segButtons([['all', 'Every beat'], ['twofour', '2 & 4'], ['off', 'Off']] as const, click, (v: Click) => {

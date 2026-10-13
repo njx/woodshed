@@ -125,16 +125,19 @@ The walking bass is a mode of the metronome, on the same clock, so the click lin
 Start it with **Bass** under a tune's chart (in the key shown, lighting up the bar it's on), with
 **Bass** next to Play on any exercise with chords — chord symbols in its notation (each lasting as
 long as the notes under it), the chords typed for it (a bar each), or a Through the changes
-progression (a bar a chord) — in the key shown, or with **Walking bass** in a tune's metronome
-(through its chart, in today's key). It plays round and round at the tune's (or exercise's) tempo:
+progression (a bar a chord) — in the key shown, or by turning on **Walking bass** in a tune's
+metronome (a setting: Start then plays through its chart, in today's key; turned on or off while
+it's running, there and then). It comes in after a bar of clicks to count in, then plays round and round at the tune's (or exercise's) tempo:
 1-2-3-5 on each chord (with the chord's own 3rd and 5th), back down from the octave on a chord held
 for two bars, 1-5 on a two-beat chord. Under a chart, **Loop** picks part of it to go round: a section (A, B,
 A2…), or tap a bar and then another to loop just those bars (the ii–V you keep fumbling, the
 bridge's turnaround); the rest of the chart dims. While it plays the click is on 2 and 4, every beat, or off
 (remembered), and it keeps going on other screens, with the metronome's pill. Starting the
 metronome for something else stops it, and like the metronome it stops when the app goes into the
-background. It's a recorded electric bass (from tonejs-instruments, about 180 KB, downloaded the first time and
-then kept for offline use; a synth until then if it can't be fetched).
+background. It's a recorded upright bass, plucked (the acoustic bass of the [Fluid R3 GM
+soundfont](https://github.com/gleitz/midi-js-soundfonts), CC BY 3.0; about 270 KB, downloaded the
+first time and then kept for offline use; a synth until then if it can't be fetched), each note
+held right up to the next.
 
 ### Notation
 

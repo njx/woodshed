@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds the playback samples in public/samples/ from the tonejs-instruments recordings
-# (https://github.com/nbrosowsky/tonejs-instruments, MIT): one note every 3 semitones or so,
+# (https://github.com/nbrosowsky/tonejs-instruments, MIT) — and the walking bass's from the Fluid R3
+# General MIDI soundfont's acoustic bass, as rendered by midi-js-soundfonts
+# (https://github.com/gleitz/midi-js-soundfonts, CC BY 3.0): one note every 3 semitones or so,
 # leading silence removed, trimmed to a few seconds with a fade, loudness-matched, mono 64 kbps.
 # Also writes src/data/sounds.json listing the notes. Needs npm and ffmpeg.
 # With instrument ids as arguments (e.g. `scripts/make-samples.sh bass`), builds just those.
@@ -9,19 +11,21 @@ cd "$(dirname "$0")/.."
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# id  npm package                        seconds  lowest–highest MIDI note kept
-# (C2–C7 is plenty for exercises and covers the horns; the bass, for the walking bass, E1–C4.)
+# id  npm package (or fluid/<instrument>)  seconds  lowest–highest MIDI note kept
+# (C2–C7 is plenty for exercises and covers the horns; the bass, for the walking bass, E1–C4: an
+# upright, plucked, ringing on into the next note.)
 INSTRUMENTS="piano:tonejs-instrument-piano-mp3:2.5:36:96
 sax:tonejs-instrument-saxophone-mp3:3:36:96
 trumpet:tonejs-instrument-trumpet-mp3:3:36:96
 flute:tonejs-instrument-flute-mp3:3:36:96
 clarinet:tonejs-instrument-clarinet-mp3:3:36:96
 guitar:tonejs-instrument-guitar-electric-mp3:2.5:36:96
-bass:tonejs-instrument-bass-electric-mp3:1.8:28:60"
+bass:fluid/acoustic_bass:2.5:28:60"
 
-midi() { # note name like Cs4 / A2 → MIDI number
+midi() { # note name like Cs4 / Bb1 / A2 → MIDI number
   local n=$1 letter=${1:0:1} sharp=0 oct
   [[ ${n:1:1} == s ]] && sharp=1
+  [[ ${n:1:1} == b ]] && sharp=-1
   oct=${n: -1}
   declare -A base=([C]=0 [D]=2 [E]=4 [F]=5 [G]=7 [A]=9 [B]=11)
   echo $(( (oct + 1) * 12 + ${base[$letter]} + sharp ))
@@ -31,7 +35,17 @@ mkdir -p public/samples
 while IFS=: read -r id pkg secs lo hi; do
   [[ $# -gt 0 && " $* " != *" $id "* ]] && continue
   rm -rf "public/samples/$id"
-  (cd "$work" && npm pack "$pkg" --silent >/dev/null </dev/null && mkdir -p "$id" && tar xzf "$pkg"-*.tgz -C "$id")
+  if [[ $pkg == fluid/* ]]; then
+    # Every note from E0 to C6, from the soundfont's rendering (flats in the names: Db, Eb…).
+    mkdir -p "$work/$id/package"
+    for o in 0 1 2 3 4 5; do for l in C Db D Eb E F Gb G Ab A Bb B; do
+      m=$(midi "$l$o"); (( m >= lo && m <= hi )) || continue
+      curl -sSf -o "$work/$id/package/$l$o.mp3" \
+        "https://raw.githubusercontent.com/gleitz/midi-js-soundfonts/gh-pages/FluidR3_GM/${pkg#fluid/}-mp3/$l$o.mp3"
+    done; done
+  else
+    (cd "$work" && npm pack "$pkg" --silent >/dev/null </dev/null && mkdir -p "$id" && tar xzf "$pkg"-*.tgz -C "$id")
+  fi
   mkdir -p "public/samples/$id"
   # Sort the available notes by pitch; keep one at least 3 semitones above the last kept.
   picked=()

@@ -235,6 +235,8 @@ export interface Settings {
   metroBpm?: number;
   metroBeats?: number;
   bassClick?: 'all' | 'twofour' | 'off';
+  /** The metronome for a tune with a chart plays a walking bass through it. */
+  metroBass?: boolean;
 }
 
 export interface State {

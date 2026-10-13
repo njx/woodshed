@@ -29,6 +29,7 @@ const listeners = new Set<(s: MetronomeState) => void>();
 const state: MetronomeState = { running: false, bpm: 100, beats: 4, beat: 0, itemId: null, bass: null, click: 'twofour' };
 let line: BassNote[] = [];
 let lineAt = 0;
+let countIn = 0; // beats of clicks still to come before the bass comes in
 let bassSamples: Samples | null = null; // the recorded bass, once loaded (the synth until then)
 let ctx: AudioContext | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -50,6 +51,8 @@ export const metronome = {
     if (beats) state.beats = beats;
     if (itemId !== undefined) state.itemId = itemId; // null: not for an item
     if (click) state.click = click;
+    // A bass starting (not just changing key or loop) comes in after a bar of clicks.
+    countIn = bass && !(state.running && state.bass) ? state.beats : 0;
     state.bass = bass;
     line = bass ? walkingLine(bass.chords) : [];
     lineAt = 0;
@@ -152,7 +155,10 @@ function schedule() {
   while (nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
     const accent = nextBeat === 0 && state.beats > 1;
     let at = null;
-    if (line.length) {
+    if (countIn > 0) {
+      countIn--;
+      click(nextTime, accent); // (every beat, whatever the click's set to with the bass)
+    } else if (line.length) {
       at = lineAt;
       pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm);
       lineAt = (lineAt + 1) % line.length;

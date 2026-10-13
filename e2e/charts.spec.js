@@ -221,3 +221,30 @@ test('chart edits save as you type; Undo changes puts it back', async ({ page, u
   await page.click('#ce-revert');
   await expect(page.locator('.chart .bar').first()).toHaveText(/m9/); // as it was when opened
 });
+
+test('Walking bass in the metronome is a setting for Start; the bass comes in after a bar to count in', async ({ page, ui }) => {
+  await ui.start();
+  await openTune(page, ui, 'Autumn Leaves');
+  // From the chart: a bar of clicks first, then the bass (and the bar it's on lights up).
+  await page.click('#chart-bass');
+  await expect(page.locator('.chart .bar.now')).toHaveCount(0);
+  await expect(page.locator('.chart .bar.now')).toHaveCount(1, { timeout: 10000 });
+  await page.click('#chart-bass'); // (stops it)
+  // In the metronome: On only sets it.
+  await page.click('.tempo-row');
+  await expect(page.locator('#m-bass-seg .on')).toHaveText('Off');
+  await page.click('#m-bass-seg [data-v="on"]');
+  await expect(page.locator('#m-go')).not.toHaveClass(/\bon\b/);
+  await expect(page.locator('.metro-pill')).toBeHidden();
+  await expect.poll(async () => (await ui.saved()).state.settings.metroBass).toBe(true);
+  await expect(page.locator('#m-beats')).toBeHidden(); // (the chart's own beats)
+  // Start: with the bass.
+  await page.click('#m-go');
+  await expect(page.locator('.metro-pill')).toContainText('Bass · Autumn Leaves');
+  await page.click('#m-go');
+  // Off again: Start is just the click.
+  await page.click('#m-bass-seg [data-v="off"]');
+  await page.click('#m-go');
+  await expect(page.locator('.metro-pill')).toBeVisible();
+  await expect(page.locator('.metro-pill')).not.toContainText('Bass');
+});
