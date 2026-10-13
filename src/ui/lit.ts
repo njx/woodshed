@@ -14,7 +14,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 // (shell.js). A component reads what it needs from it in render(); render() asks the screen's
 // component to update, and Lit changes only the parts of the page whose values changed.
 
-export { html, nothing, type TemplateResult } from 'lit';
+export { html, svg, nothing, type TemplateResult } from 'lit';
 export { live } from 'lit/directives/live.js';
 
 export class View extends LitElement {

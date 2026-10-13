@@ -1,11 +1,12 @@
 import { store, flush } from '../store.js';
 import { dateStr, addDays, niceDate } from '../dates.js';
-import { esc } from '../util.js';
 import { ensurePlan } from '../plan.js';
 import { itemById } from '../practice.js';
 import { openTodos } from '../diary.js';
 import { timedToday, startPractice } from '../practicetime.js';
-import { $, ICON, goTo } from './shell.js';
+import { ICON, goTo } from './shell.js';
+import { customElement } from 'lit/decorators.js';
+import { View, html, nothing, raw, type TemplateResult } from './lit.js';
 import type { Item, PlanItem } from '../types.js';
 
 // The first time the app opens on a practice day (and the timer hasn't run yet), a welcome with
@@ -14,7 +15,7 @@ import type { Item, PlanItem } from '../types.js';
 export function maybeGreet(): void {
   const s = store.state;
   if (!s?.settings.instrumentsChosen || s.greetedOn === dateStr() || timedToday()) return;
-  if (document.querySelector('.greet')) return;
+  if (document.querySelector('ws-greet')) return;
   openGreet();
 }
 
@@ -44,11 +45,11 @@ function planLines() {
   const items = plan.items.map((it) => ({ it, t: itemById(it.itemId) })).filter((x): x is { it: PlanItem; t: Item } => !!x.t);
   const ex = items.filter((x) => x.t.type === 'exercise' && !x.it.warmup).length;
   const tunes = items.filter((x) => x.t.type === 'tune').length;
-  const lines: string[] = [];
+  const lines: (string | TemplateResult)[] = [];
   const parts = [ex && `${ex} exercise${ex > 1 ? 's' : ''}`, tunes && `${tunes} tune${tunes > 1 ? 's' : ''}`].filter(Boolean);
   if (parts.length) lines.push(`Today’s set: ${parts.join(' and ')}`);
   const focus = items.filter((x) => x.it.bucket === 'focus').map((x) => x.t.name);
-  if (focus.length) lines.push(`Focus on <b>${focus.map(esc).join('</b>, <b>')}</b>`);
+  if (focus.length) lines.push(html`Focus on ${focus.map((f, i) => html`${i ? ', ' : ''}<b>${f}</b>`)}`);
   const prepped = new Set(items.filter((x) => x.it.warmup && itemById(x.it.warmup)).map((x) => x.it.warmup)).size;
   if (prepped) lines.push(`Warm-ups from the chords before ${prepped === 1 ? 'one of them' : `${prepped} of them`}`);
   const remember = openTodos('remember').length;
@@ -57,34 +58,39 @@ function planLines() {
 }
 
 function openGreet() {
-  const n = streak();
-  const el = document.createElement('div');
-  el.className = 'greet';
-  el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-modal', 'true');
-  el.setAttribute('aria-labelledby', 'greet-title');
-  el.innerHTML = `
-    <div class="greet-body">
-      <p class="eyebrow">${esc(niceDate(dateStr()))}</p>
-      <h1 id="greet-title">${hello()}</h1>
-      ${n ? `<p class="greet-streak">${n} day${n > 1 ? 's' : ''} in a row — keep it going</p>` : ''}
-      <ul class="greet-plan">${planLines().map((l) => `<li>${l}</li>`).join('')}</ul>
-      <button class="primary-btn" id="greet-start">${ICON.play}<span>Start practice</span></button>
-      <button class="link-btn" id="greet-skip">Not now</button>
-    </div>`;
-  document.body.appendChild(el);
-  const close = () => {
-    document.removeEventListener('keydown', onKey);
-    el.remove();
-  };
-  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') skip(); };
-  const skip = () => { greeted(); close(); };
-  document.addEventListener('keydown', onKey);
-  $('#greet-skip', el).onclick = skip;
-  $('#greet-start', el).onclick = () => {
+  document.body.appendChild(document.createElement('ws-greet'));
+}
+
+@customElement('ws-greet')
+export class Greet extends View {
+  private onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') this.skip(); };
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('keydown', this.onKey);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('keydown', this.onKey);
+  }
+  skip() { greeted(); this.remove(); }
+  start() {
     startPractice();
     greeted();
-    close();
+    this.remove();
     goTo('today');
-  };
+  }
+  render() {
+    const n = streak();
+    return html`
+      <div class="greet" role="dialog" aria-modal="true" aria-labelledby="greet-title">
+        <div class="greet-body">
+          <p class="eyebrow">${niceDate(dateStr())}</p>
+          <h1 id="greet-title">${hello()}</h1>
+          ${n ? html`<p class="greet-streak">${n} day${n > 1 ? 's' : ''} in a row — keep it going</p>` : nothing}
+          <ul class="greet-plan">${planLines().map((l) => html`<li>${l}</li>`)}</ul>
+          <button class="primary-btn" id="greet-start" @click=${() => this.start()}>${raw(ICON.play)}<span>Start practice</span></button>
+          <button class="link-btn" id="greet-skip" @click=${() => this.skip()}>Not now</button>
+        </div>
+      </div>`;
+  }
 }

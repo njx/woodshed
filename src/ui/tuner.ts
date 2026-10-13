@@ -2,7 +2,9 @@ import { store, save } from '../store.js';
 import { TRANSPOSITIONS } from '../constants.js';
 import { concertName, writtenName } from '../pitch.js';
 import { tuner, TRACE_SECONDS } from '../tuning.js';
-import { $, ICON, openSheet, closeSheet } from './shell.js';
+import { ICON, closeSheet } from './shell.js';
+import { customElement, state } from 'lit/decorators.js';
+import { View, html, svg, raw, openSheetView, type TemplateResult } from './lit.js';
 import type { TracePoint } from '../tuning.js';
 
 // Tuner: a dial for the note you're playing now, and a trace of the last few seconds underneath
@@ -13,121 +15,126 @@ const IN_TUNE = 5; // cents either side that count as in tune
 const HOLD_MS = 600; // keep showing the last note this long after the sound stops
 
 export function openTuner(opts: { back?: () => void } = {}) {
-  const settings = store.state.settings;
-  const view = settings.view;
-  let a4 = settings.a4 || 440;
-  let mini = false; // closing to the mini tuner keeps it listening
-
-  const sheet = openSheet(`
-    <div class="row-label tuner-head"><p class="eyebrow">Tuner${view !== 'c' ? ` · ${TRANSPOSITIONS[view].label} instrument` : ''}</p>
-      <button class="link-btn" id="t-mini">${ICON.tuner}Mini tuner</button></div>
-    <div class="tuner-dial" id="t-dial">
-      <svg viewBox="-100 -100 200 200" aria-hidden="true">
-        <circle class="t-ring" r="88"/>
-        ${ticks()}
-        <g id="t-needle" class="t-needle"><line x1="0" y1="-60" x2="0" y2="-96"/><circle cy="-88" r="7"/></g>
-      </svg>
-      <div class="t-readout">
-        <b id="t-note">–</b>
-        <span id="t-cents">Play a note</span>
-      </div>
-    </div>
-    <canvas class="tuner-trace" id="t-trace" aria-label="Pitch over the last ${TRACE_SECONDS} seconds"></canvas>
-    <div class="tuner-foot">
-      <span id="t-hz" class="fine"></span>
-      <div class="t-a4">
-        <button class="pill-btn" data-a4="-1" aria-label="Lower reference">−</button>
-        <span>A = <b id="t-a4">${a4}</b> Hz</span>
-        <button class="pill-btn" data-a4="1" aria-label="Raise reference">+</button>
-      </div>
-    </div>
-    <p class="fine" id="t-msg">${view !== 'c' ? `Notes are shown as written for ${TRANSPOSITIONS[view].label}, with concert pitch underneath.` : ''}</p>
-  `, () => {
-    closed = true;
-    cancelAnimationFrame(raf ?? 0);
-    unsub();
-    if (!mini) tuner.stop();
+  const el = document.createElement('ws-tuner') as TunerSheet;
+  openSheetView(el, () => {
+    if (!el.mini) tuner.stop(); // (closing to the mini tuner keeps it listening)
     opts.back?.();
   });
+}
 
-  const needle = $('#t-needle', sheet);
-  const dial = $('#t-dial', sheet);
-  const noteEl = $('#t-note', sheet);
-  const centsEl = $('#t-cents', sheet);
-  const hzEl = $('#t-hz', sheet);
-  const canvas = $<HTMLCanvasElement>('#t-trace', sheet);
-  const g = canvas.getContext('2d')!; // (a 2d context is always there for a canvas)
+interface Reading { note: TemplateResult; cents: string; hz: string; good: boolean; near: boolean }
 
-  let closed = false;
-  let raf: number | null = null;
-  let shown = 0; // needle angle, eased
-  let lastText = 0;
+@customElement('ws-tuner')
+export class TunerSheet extends View {
+  @state() a4 = 440;
+  @state() reading: Reading | null = null; // the note being played (held a moment after it stops)
+  @state() heard = false; // anything yet
+  @state() error = false; // no microphone
+  mini = false;
+  private raf: number | null = null;
+  private unsub: (() => void) | null = null;
+  private shown = 0; // needle angle, eased
+  private lastText = 0;
 
-  sheet.querySelectorAll<HTMLElement>('[data-a4]').forEach((b) => (b.onclick = () => {
-    a4 = Math.max(430, Math.min(450, a4 + Number(b.dataset.a4)));
-    settings.a4 = a4;
+  connectedCallback() {
+    super.connectedCallback();
+    this.a4 = store.state.settings.a4 || 440;
+    this.unsub = tuner.subscribe((st) => { this.error = !!st.error; });
+    tuner.setMini(false); // the full tuner instead, while it's open
+    tuner.start();
+    const loop = (now: number) => {
+      this.raf = requestAnimationFrame(loop);
+      if (now - this.lastText >= 30) {
+        this.lastText = now;
+        if (!this.error) this.read(now);
+      }
+      this.drawNeedle();
+      this.drawTrace(now);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    cancelAnimationFrame(this.raf ?? 0);
+    this.unsub?.();
+  }
+  setA4(d: number) {
+    this.a4 = Math.max(430, Math.min(450, this.a4 + d));
+    store.state.settings.a4 = this.a4;
     save();
-    $('#t-a4', sheet).textContent = String(a4);
-  }));
+  }
   // Keep listening in a small tuner on top of everything, and go back to the set.
-  $('#t-mini', sheet).onclick = () => {
+  toMini() {
     if (!tuner.state.running) return;
-    mini = true;
+    this.mini = true;
     tuner.setMini(true);
     closeSheet();
-  };
-
-  const unsub = tuner.subscribe((st) => {
-    if (st.error) {
-      $('#t-msg', sheet).textContent = 'The tuner needs the microphone. Allow it in your browser’s settings and try again.';
-      centsEl.textContent = 'No microphone';
-    }
-  });
-  tuner.setMini(false); // the full tuner instead, while it's open
-  tuner.start();
-  loop();
-
-  function loop(now = performance.now()) {
-    if (closed) return;
-    raf = requestAnimationFrame(loop);
-    if (now - lastText >= 30) {
-      lastText = now;
-      if (!tuner.state.error) showReading(now);
-    }
-    drawNeedle();
-    drawTrace(now);
   }
 
-  function showReading(now: number) {
+  render() {
+    const view = store.state.settings.view;
+    const r = this.reading;
+    return html`
+      <div class="row-label tuner-head"><p class="eyebrow">Tuner${view !== 'c' ? ` · ${TRANSPOSITIONS[view].label} instrument` : ''}</p>
+        <button class="link-btn" id="t-mini" @click=${() => this.toMini()}>${raw(ICON.tuner)}Mini tuner</button></div>
+      <div class="tuner-dial ${r ? 'live' : ''} ${r?.good ? 'good' : ''} ${r?.near ? 'near' : ''}" id="t-dial">
+        <svg viewBox="-100 -100 200 200" aria-hidden="true">
+          <circle class="t-ring" r="88"/>
+          ${ticks()}
+          <g id="t-needle" class="t-needle"><line x1="0" y1="-60" x2="0" y2="-96"/><circle cy="-88" r="7"/></g>
+        </svg>
+        <div class="t-readout">
+          <b id="t-note">${r ? r.note : '–'}</b>
+          <span id="t-cents">${this.error ? 'No microphone' : r ? r.cents : this.heard ? '' : 'Play a note'}</span>
+        </div>
+      </div>
+      <canvas class="tuner-trace" id="t-trace" aria-label="Pitch over the last ${TRACE_SECONDS} seconds"></canvas>
+      <div class="tuner-foot">
+        <span id="t-hz" class="fine">${r ? r.hz : ''}</span>
+        <div class="t-a4">
+          <button class="pill-btn" data-a4="-1" aria-label="Lower reference" @click=${() => this.setA4(-1)}>−</button>
+          <span>A = <b id="t-a4">${this.a4}</b> Hz</span>
+          <button class="pill-btn" data-a4="1" aria-label="Raise reference" @click=${() => this.setA4(1)}>+</button>
+        </div>
+      </div>
+      <p class="fine" id="t-msg">${this.error ? 'The tuner needs the microphone. Allow it in your browser’s settings and try again.'
+        : view !== 'c' ? `Notes are shown as written for ${TRANSPOSITIONS[view].label}, with concert pitch underneath.` : ''}</p>
+    `;
+  }
+
+  read(now: number) {
     const last = tuner.last;
-    const live = last && now - last.at < HOLD_MS;
-    dial.classList.toggle('live', !!live);
-    if (!live) {
-      dial.classList.remove('good', 'near');
-      centsEl.textContent = last ? '' : 'Play a note';
-      hzEl.textContent = '';
-      return;
-    }
+    if (last) this.heard = true;
+    if (!last || now - last.at >= HOLD_MS) { this.reading = null; return; }
+    const view = store.state.settings.view;
     const c = Math.round(last.cents);
-    noteEl.innerHTML = view === 'c'
-      ? `${writtenName(last.midi)}<sub>${Math.floor(last.midi / 12) - 1}</sub>`
-      : `${writtenName(last.midi, view)}<small>concert ${concertName(last.midi)}</small>`;
-    centsEl.textContent = Math.abs(c) <= IN_TUNE ? 'In tune' : `${c > 0 ? '+' : '−'}${Math.abs(c)} cents ${c > 0 ? 'sharp' : 'flat'}`;
-    dial.classList.toggle('good', Math.abs(last.cents) <= IN_TUNE);
-    dial.classList.toggle('near', Math.abs(last.cents) > IN_TUNE && Math.abs(last.cents) <= 15);
-    hzEl.textContent = `${last.hz.toFixed(1)} Hz`;
+    this.reading = {
+      note: view === 'c'
+        ? html`${writtenName(last.midi)}<sub>${Math.floor(last.midi / 12) - 1}</sub>`
+        : html`${writtenName(last.midi, view)}<small>concert ${concertName(last.midi)}</small>`,
+      cents: Math.abs(c) <= IN_TUNE ? 'In tune' : `${c > 0 ? '+' : '−'}${Math.abs(c)} cents ${c > 0 ? 'sharp' : 'flat'}`,
+      hz: `${last.hz.toFixed(1)} Hz`,
+      good: Math.abs(last.cents) <= IN_TUNE,
+      near: Math.abs(last.cents) > IN_TUNE && Math.abs(last.cents) <= 15,
+    };
   }
 
-  function drawNeedle() {
+  drawNeedle() {
+    const needle = this.querySelector('#t-needle');
+    if (!needle) return;
     const last = tuner.last;
     const live = last && performance.now() - last.at < HOLD_MS;
     const target = live ? Math.max(-50, Math.min(50, last.cents)) * 1.2 : 0; // ±50 cents = ±60°
-    shown += (target - shown) * 0.25;
-    needle.setAttribute('transform', `rotate(${shown.toFixed(2)})`);
+    this.shown += (target - this.shown) * 0.25;
+    needle.setAttribute('transform', `rotate(${this.shown.toFixed(2)})`);
   }
 
   // The trace: newest on the right, in tune along the middle, ±50 cents top to bottom.
-  function drawTrace(now: number) {
+  drawTrace(now: number) {
+    const canvas = this.querySelector<HTMLCanvasElement>('#t-trace');
+    if (!canvas) return;
+    const g = canvas.getContext('2d')!; // (a 2d context is always there for a canvas)
+    const view = store.state.settings.view;
     const dpr = devicePixelRatio || 1;
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
@@ -167,48 +174,51 @@ export function openTuner(opts: { back?: () => void } = {}) {
 // The mini tuner: while it's on, a small pill on every screen with the note and how far off it is.
 // Tap it for the full tuner; × stops listening.
 export function mountTunerPill() {
-  const pill = document.createElement('div');
-  pill.className = 'tuner-pill';
-  pill.hidden = true;
-  pill.innerHTML = `
-    <button class="tp-open" aria-label="Open the tuner"><b class="tp-note">–</b>
-      <span class="tp-meter" aria-hidden="true"><i class="tp-zero"></i><i class="tp-dot"></i></span></button>
-    <button class="tp-stop" aria-label="Stop the tuner">${ICON.skip}</button>`;
-  document.body.appendChild(pill);
-  const note = $('.tp-note', pill);
-  const dot = $('.tp-dot', pill);
-  let raf: number | null = null;
-  let shown = 0;
-  $('.tp-open', pill).onclick = () => openTuner();
-  $('.tp-stop', pill).onclick = () => tuner.stop();
-  const tick = () => {
+  document.body.appendChild(document.createElement('ws-tuner-pill'));
+}
+
+@customElement('ws-tuner-pill')
+export class TunerPill extends View {
+  @state() on = false;
+  private raf: number | null = null;
+  private shown = 0;
+  connectedCallback() {
+    super.connectedCallback();
+    tuner.subscribe((st) => {
+      this.on = st.running && st.mini;
+      document.body.classList.toggle('has-tuner-pill', this.on);
+      cancelAnimationFrame(this.raf ?? 0);
+      if (this.on) this.raf = requestAnimationFrame(() => this.tick());
+    });
+  }
+  // The note and the dot that shows how far off it is (from an animation frame).
+  tick() {
+    const pill = this.querySelector<HTMLElement>('.tuner-pill');
+    if (!pill) return;
     const last = tuner.last;
-    const now = performance.now();
-    const live = last && now - last.at < HOLD_MS;
-    const view = store.state.settings.view;
-    note.textContent = live ? writtenName(last.midi, view) : '–';
+    const live = last && performance.now() - last.at < HOLD_MS;
+    pill.querySelector('.tp-note')!.textContent = live ? writtenName(last.midi, store.state.settings.view) : '–';
     const target = live ? Math.max(-50, Math.min(50, last.cents)) : 0;
-    shown += (target - shown) * 0.3;
-    dot.style.left = `${50 + shown}%`;
+    this.shown += (target - this.shown) * 0.3;
+    pill.querySelector<HTMLElement>('.tp-dot')!.style.left = `${50 + this.shown}%`;
     pill.classList.toggle('live', !!live);
     pill.classList.toggle('good', !!live && Math.abs(last.cents) <= IN_TUNE);
     pill.classList.toggle('near', !!live && Math.abs(last.cents) > IN_TUNE && Math.abs(last.cents) <= 15);
-    raf = requestAnimationFrame(tick);
-  };
-  tuner.subscribe((st) => {
-    const on = st.running && st.mini;
-    pill.hidden = !on;
-    document.body.classList.toggle('has-tuner-pill', on);
-    cancelAnimationFrame(raf ?? 0);
-    if (on) raf = requestAnimationFrame(tick);
-  });
+    this.raf = requestAnimationFrame(() => this.tick());
+  }
+  render() {
+    return html`<div class="tuner-pill" ?hidden=${!this.on}>
+      <button class="tp-open" aria-label="Open the tuner" @click=${() => openTuner()}><b class="tp-note">–</b>
+        <span class="tp-meter" aria-hidden="true"><i class="tp-zero"></i><i class="tp-dot"></i></span></button>
+      <button class="tp-stop" aria-label="Stop the tuner" @click=${() => tuner.stop()}>${raw(ICON.skip)}</button></div>`;
+  }
 }
 
 function ticks() {
-  let s = '';
+  const lines = [];
   for (let c = -50; c <= 50; c += 10) {
     const big = c % 50 === 0 || c === 0;
-    s += `<line class="t-tick ${c === 0 ? 'zero' : ''}" x1="0" y1="${big ? -74 : -78}" x2="0" y2="-84" transform="rotate(${c * 1.2})"/>`;
+    lines.push(svg`<line class="t-tick ${c === 0 ? 'zero' : ''}" x1="0" y1=${big ? -74 : -78} x2="0" y2="-84" transform="rotate(${c * 1.2})"/>`);
   }
-  return `${s}<text class="t-lbl" x="-58" y="-22">♭</text><text class="t-lbl" x="50" y="-22">♯</text>`;
+  return svg`${lines}<text class="t-lbl" x="-58" y="-22">♭</text><text class="t-lbl" x="50" y="-22">♯</text>`;
 }
