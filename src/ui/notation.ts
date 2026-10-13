@@ -1,3 +1,4 @@
+import { html } from './lit.js';
 import { buildAbc, barPerLine } from '../abc.js';
 import { SOUNDS, SWING, nearestSample, swingTime, loadSamples } from '../sounds.js';
 import type { Samples } from '../sounds.js';
@@ -208,6 +209,19 @@ export function playbackOptionsHtml() {
   const opt = (map: Record<string, { label: string }>, cur: string) => Object.entries(map).map(([id, x]) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(x.label)}</option>`).join('');
   return `<select class="pb-select" data-pb="sound" aria-label="Sound">${opt(SOUNDS, s.sound)}</select>
     <select class="pb-select" data-pb="swing" aria-label="Feel">${opt(SWING, s.swing)}</select>`;
+}
+
+// The same, in Lit: onChange runs after a choice is made (e.g. to stop what's playing).
+export function playbackOptions(onChange?: () => void) {
+  const s = store.state.settings;
+  const pick = (k: 'sound' | 'swing') => (e: Event) => {
+    (s as Record<'sound' | 'swing', string>)[k] = (e.target as HTMLSelectElement).value; // (one of its options)
+    save();
+    onChange?.();
+  };
+  const opt = (map: Record<string, { label: string }>, cur: string) => Object.entries(map).map(([id, x]) => html`<option value=${id} ?selected=${id === cur}>${x.label}</option>`);
+  return html`<select class="pb-select" data-pb="sound" aria-label="Sound" @change=${pick('sound')}>${opt(SOUNDS, s.sound)}</select>
+    <select class="pb-select" data-pb="swing" aria-label="Feel" @change=${pick('swing')}>${opt(SWING, s.swing)}</select>`;
 }
 
 // onChange runs after a choice is made (e.g. to stop what's playing).

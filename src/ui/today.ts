@@ -33,7 +33,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { View, mount, html, nothing, raw, levelSuggestionPart, type TemplateResult } from './lit.js';
 import type { SwipeCard } from './shell.js';
-import type { Id, Item, ItemStats, Level, PlanItem, Rating, Transposition, Tune } from '../types.js';
+import type { Id, Item, ItemStats, Level, PlanItem, Rating, Transposition } from '../types.js';
 
 export function renderToday(root: HTMLElement): void {
   mount(root, 'ws-today');

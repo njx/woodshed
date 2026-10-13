@@ -66,7 +66,7 @@ export function stepperButtons(value: number, change: (v: number) => void, min: 
 }
 
 // A section's heading, with what it's about behind an ⓘ: tapped, the text shows under it.
-// (Its ⓘ toggles itself — data-own — rather than through shell.ts's info().)
+// (Its ⓘ toggles itself — data-own — rather than through shell.ts's page-wide handler.)
 let headingN = 0;
 @customElement('ws-heading')
 export class Heading extends View {
@@ -80,14 +80,26 @@ export class Heading extends View {
   }
 }
 
-// A list of settings, each row showing what it's set to; tapping one calls open(key) (see
-// settingRowsHtml in shell.js).
-export interface SettingRow { key: string; label: string; value?: string }
-export function settingRows(rows: SettingRow[], open: (key: string) => void) {
-  return html`<div class="set-list">${rows.map((r) => html`
+// A list of settings, each row showing what it's set to; tapping one calls open(key) (and its
+// panel, see subPanel). A row can instead hold a control of its own (content).
+export type SettingRow = { key: string; label: string; value?: string } | { content: unknown };
+export function settingRows(rows: (SettingRow | false | null | undefined)[], open: (key: string) => void) {
+  return html`<div class="set-list">${rows.filter((r): r is SettingRow => !!r).map((r) => ('content' in r
+    ? html`<div class="set-row">${r.content}</div>`
+    : html`
     <button class="set-row" data-open=${r.key} @click=${() => open(r.key)}>
       <span class="set-label">${r.label}</span><span class="set-value">${r.value || ''}</span><span class="set-go" aria-hidden="true">›</span>
-    </button>`)}</div>`;
+    </button>`))}</div>`;
+}
+
+// An ⓘ to put by a label, and the text it shows and hides (put under it) — for labels that
+// aren't a section's heading (those are <ws-heading>). id names the text: unique on the page.
+// (shell.ts's page-wide handler toggles it; Lit leaves its hidden as it is across updates.)
+export function helpParts(id: string, help: string) {
+  return {
+    btn: html`<button type="button" class="info-btn" aria-controls=${id} aria-expanded="false" aria-label="What’s this?">i</button>`,
+    text: html`<p class="fine info-text" id=${id} hidden>${raw(help)}</p>`,
+  };
 }
 
 // A setting's panel, over the sheet it's in (a row in the sheet opens it, see settingRows): its

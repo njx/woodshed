@@ -8,7 +8,7 @@ import { chordName, chartShift, usesSharps, chartToText, chartFromText, progress
 import { chartChords, chartBars } from '../bass.js';
 import { metronome } from '../metronome.js';
 import { pickWarmup } from './pickers.js';
-import { $, $$, ICON, render, toast, openSheet, closeSheet, kn, hintHtml, hintDone } from './shell.js';
+import { $, $$, ICON, toast, openSheet, closeSheet, kn, hintHtml, hintDone } from './shell.js';
 import type { BarSection } from '../bass.js';
 import type { BassLoop } from '../metronome.js';
 import type { Bar, Chart, Key, Tune } from '../types.js';

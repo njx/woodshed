@@ -1,10 +1,8 @@
 import { store, save } from '../store.js';
-import { LEVELS, PRIORITIES, TRANSPOSITIONS } from '../constants.js';
+import { LEVELS, PRIORITIES } from '../constants.js';
 import { keyName } from '../keys.js';
 import { esc, clone } from '../util.js';
-import type { itemStatus } from '../plan.js';
-import type { levelSuggestion } from '../practice.js';
-import type { Item, Key, Level, Priority, State } from '../types.js';
+import type { Key, Level, Priority, State } from '../types.js';
 
 // The element a selector finds (taken to be there: check the result where it may not be), and
 // all of them.
@@ -377,12 +375,6 @@ export function attachSwipe(card: SwipeCard, opts: () => SwipeOpts): void {
 }
 
 // Banner suggesting a level change, shown on played cards and in the detail sheet.
-export function suggestionHtml(t: Item, sug: ReturnType<typeof levelSuggestion>): string {
-  if (!sug) return '';
-  return `<div class="suggest ${sug.up ? 'up' : 'down'}"><span>${esc(sug.text)}</span>
-    <button class="pill-btn" data-level="${sug.to}">${sug.up ? '↑' : '↓'} ${esc(LEVELS[sug.to].label)}</button></div>`;
-}
-
 Object.assign(ICON, {
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3.5L7 20z"/></svg>',
   teacher: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
@@ -404,15 +396,6 @@ export const STATUS_HINTS = {
   on: { tune: 'Picked for your set when it’s due.', exercise: 'Picked for your set now and then, and offered as a warm-up.' },
   off: { tune: 'Left out for now: not picked for your set.', exercise: 'Left out for now: not picked, and not offered as a warm-up.' },
 };
-// At the top of a tune's or exercise's details: Focus / On / Off, and a ⋯ menu (#item-menu) for
-// the rest. What Focus or Off means shows under it (On is the usual, and says nothing).
-export function statusHtml(t: Item, status: ReturnType<typeof itemStatus>): string {
-  const hint = STATUS_HINTS[status];
-  return `<div class="item-top"><div class="seg item-status" id="item-status" role="group" aria-label="In the pool">${[['focus', 'Focus'], ['on', 'On'], ['off', 'Off']].map(([v, l]) => `<button class="${status === v ? 'on' : ''}" data-v="${v}">${v === 'focus' ? ICON.focus : ''}${l}</button>`).join('')}</div>
-    <button class="icon-btn small item-menu" id="item-menu" aria-label="More">⋯</button></div>
-    ${status === 'on' ? '' : `<p class="fine" id="item-status-hint">${esc(typeof hint === 'string' ? hint : hint[t.type])}</p>`}`;
-}
-
 // ---------- Hints shown until dismissed (or done) ----------
 // A line of help with an ×; once dismissed, or once the thing it explains has been done
 // (hintDone), it isn't shown again.
@@ -474,16 +457,8 @@ export function closeMenu(): void {
 
 
 // ---------- Help behind an ⓘ ----------
-// An explanation that isn't needed every time: info(html) gives the ⓘ button (to put by a heading
-// or label) and the text it shows and hides (to put under it). Wired once, globally.
-let infoN = 0;
-export function info(html: string): { btn: string; text: string } {
-  const id = `info-${++infoN}`;
-  return {
-    btn: `<button type="button" class="info-btn" aria-controls="${id}" aria-expanded="false" aria-label="What’s this?">i</button>`,
-    text: `<p class="fine info-text" id="${id}" hidden>${html}</p>`,
-  };
-}
+// An explanation that isn't needed every time: an ⓘ button whose aria-controls names the text it
+// shows and hides (see helpParts in lit.ts). Wired once, globally.
 document.addEventListener('click', (e) => {
   const b = (e.target as Element).closest?.('.info-btn');
   if (!b || b.hasAttribute('data-own')) return; // (<ws-heading>'s: its own)
@@ -495,32 +470,6 @@ document.addEventListener('click', (e) => {
   b.setAttribute('aria-expanded', String(!el.hidden));
 }, true);
 
-// ---------- Settings as rows, each edited in a panel ----------
-// A list of a sheet's settings: each row shows what it's set to; tapping it opens a panel over the
-// sheet with the controls for that one (see settingPanel). rows: [{ key, label, value, html? }]
-// (html: a control in the row itself, like a switch, instead of a panel).
-export interface SettingRow { key?: string; label?: string; value?: string | null; html?: string }
-export function settingRowsHtml(rows: (SettingRow | Falsy)[]): string {
-  return `<div class="set-list">${(rows.filter(Boolean) as SettingRow[]).map((r) => (r.html
-    ? `<div class="set-row">${r.html}</div>`
-    : `<button class="set-row" data-open="${r.key}"><span class="set-label">${esc(r.label)}</span><span class="set-value">${esc(r.value || '')}</span><span class="set-go" aria-hidden="true">›</span></button>`)).join('')}</div>`;
-}
-// The panel for one setting, over the sheet (it stays there through the sheet's redraws: the
-// caller fills .sub-body). Returns the panel element; Done (or closePanel) removes it.
-export function settingPanel(sheet: HTMLElement, title: string, onDone?: () => void): HTMLDivElement {
-  closePanel(sheet);
-  const p = document.createElement('div');
-  p.className = 'sub-panel';
-  p.setAttribute('role', 'dialog');
-  p.setAttribute('aria-label', title);
-  p.innerHTML = `<div class="sub-head"><b>${esc(title)}</b><button class="pill-btn sub-done">Done</button></div><div class="sub-body"></div>`;
-  sheet.appendChild(p);
-  p.querySelector<HTMLElement>('.sub-done')!.onclick = () => { closePanel(sheet); onDone?.(); };
-  return p;
-}
-export function closePanel(sheet: Element): void {
-  sheet.querySelector('.sub-panel')?.remove();
-}
 
 // A sheet to pick one option, with what the setting does: { title, help, options: [[value,
 // label, hint?]], value, onPick(value) }. Picking closes it.

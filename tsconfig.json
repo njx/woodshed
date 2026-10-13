@@ -11,6 +11,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
     // Lit's decorators (@customElement, @property, @state): TypeScript's own, which Lit needs
     // class fields not to be defined over its reactive properties.
     "experimentalDecorators": true,
