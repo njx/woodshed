@@ -3,13 +3,15 @@ import { esc, clone } from '../util.js';
 import { itemById } from '../practice.js';
 import { send, newConversation, getApiKey, setApiKey, describeError } from '../assistant/agent.js';
 import { fmtCost } from '../assistant/cost.js';
-import { $, ICON, render, toast, openSheet } from './shell.js';
+import { ICON, render, toast } from './shell.js';
+import { customElement, state } from 'lit/decorators.js';
+import { View, html, nothing, raw, openSheetView } from './lit.js';
 import type { AssistantError, Stop, TurnChanges } from '../assistant/agent.js';
 import type { State } from '../types.js';
 
 // Chat with the practice assistant. The conversation lasts while the app is open.
 let conv = newConversation();
-// A message or a reply in the chat (see entryHtml).
+// A message or a reply in the chat (see AssistantSheet.entry).
 interface Entry {
   role: 'user' | 'bot';
   text: string;
@@ -44,7 +46,8 @@ const TOOL_LABELS: Record<string, (input: any) => string> = {
   report_unsupported: () => 'Noted a request for later',
 };
 
-// Minimal, safe formatting for replies: paragraphs, "- " lists, **bold**, *italic*.
+// Minimal, safe formatting for replies: paragraphs, "- " lists, **bold**, *italic*. (The text is
+// escaped first: the only markup is what's added here.)
 function formatReply(text: string) {
   const inline = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
   const blocks: string[] = [];
@@ -62,95 +65,112 @@ function formatReply(text: string) {
   return blocks.join('');
 }
 
-function entryHtml(e: Entry, i: number) {
-  if (e.role === 'user') return `<div class="msg user"><p>${esc(e.text)}</p></div>`;
-  // Undo is offered for the latest changes only, and only while nothing else has changed since.
-  const latestUndoable = transcript.findLastIndex((x) => x.changes?.length && !x.undone) === i && e.rev === store.rev;
-  return `
-    <div class="msg bot">
-      ${e.tools?.length ? `<div class="tool-lines">${e.tools.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
-      ${e.text ? `<div class="bot-text">${formatReply(e.text)}</div>` : e.pending ? '<div class="typing"><i></i><i></i><i></i></div>' : ''}
-      ${e.changes?.length ? `
-        <div class="changes ${e.undone ? 'undone' : ''}">
-          <ul>${e.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
-          ${e.undone ? '<span class="fine">Undone</span>' : latestUndoable ? `<button class="pill-btn" data-undo="${i}">Undo</button>` : ''}
-        </div>` : ''}
-      ${e.error ? `<p class="chat-error">${esc(e.error)}</p>` : ''}
-      ${e.stop === 'refusal' ? '<p class="chat-error">The assistant couldn’t help with that one.</p>' : ''}
-      ${e.stop === 'too_many_steps' ? '<p class="fine">That took a lot of steps, so I stopped. Ask me to carry on if needed.</p>' : ''}
-      ${e.cost ? `<p class="msg-cost">${fmtCost(e.cost)}</p>` : ''}
-    </div>`;
-}
-
 export async function openAssistant() {
   const key = await getApiKey();
   if (!key) return openKeySetup(() => openAssistant());
+  const el = document.createElement('ws-assistant') as AssistantSheet;
+  openSheetView(el, () => el.closed());
+}
 
-  const busy: { on: boolean; controller: AbortController | null } = { on: false, controller: null };
-  const sheet = openSheet(`
-    <div class="chat">
-      <div class="chat-head">
-        <p class="eyebrow">Assistant <span class="chat-cost" id="chat-cost"></span></p>
-        <button class="link-btn" id="chat-new">New chat</button>
-      </div>
-      <div class="chat-log" id="chat-log"></div>
-      <form class="chat-input" id="chat-form">
-        <textarea id="chat-text" rows="1" placeholder="Ask about your practice…" enterkeyhint="send"></textarea>
-        ${Recognition ? `<button type="button" class="icon-btn small" id="chat-mic" aria-label="Dictate">${ICON.mic}</button>` : ''}
-        <button type="submit" class="chat-send" id="chat-send" aria-label="Send">${ICON.send}</button>
-      </form>
-    </div>`, () => { busy.controller?.abort(); stopListening(); render(); });
+const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 
-  const log = $('#chat-log', sheet);
-  const input = $<HTMLTextAreaElement>('#chat-text', sheet);
-  const sendBtn = $('#chat-send', sheet);
-  const body = $('.sheet-body', sheet);
+@customElement('ws-assistant')
+export class AssistantSheet extends View {
+  @state() busy = false;
+  @state() listening = false;
+  private controller: AbortController | null = null;
+  private rec: SpeechRecognition | null = null;
 
-  const draw = () => {
-    $('#chat-cost', sheet).textContent = conv.cost ? `· ${fmtCost(conv.cost)} this chat` : '';
-    log.innerHTML = transcript.length
-      ? transcript.map(entryHtml).join('')
-      : `<div class="chat-empty">
-          <p>Ask me to plan or change today’s practice, find tunes, look at your progress, or answer music questions.</p>
-          <div class="chips wrap">${SUGGESTIONS.map((s) => `<button class="chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join('')}</div>
-        </div>`;
-    log.querySelectorAll<HTMLElement>('[data-suggest]').forEach((b) => (b.onclick = () => submit(b.dataset.suggest!)));
-    log.querySelectorAll<HTMLElement>('[data-undo]').forEach((b) => (b.onclick = () => undo(Number(b.dataset.undo))));
-    body.scrollTop = body.scrollHeight;
-  };
-  const fit = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 140)}px`; };
-  const setBusy = (on: boolean) => {
-    busy.on = on;
-    sendBtn.innerHTML = on ? ICON.stop : ICON.send;
-    sendBtn.setAttribute('aria-label', on ? 'Stop' : 'Send');
-  };
+  get input() { return this.querySelector<HTMLTextAreaElement>('#chat-text')!; }
+  closed() {
+    this.controller?.abort();
+    this.stopListening();
+    render();
+  }
+  // The newest at the bottom, in view.
+  updated() {
+    const body = this.closest('.sheet-body');
+    if (body) body.scrollTop = body.scrollHeight;
+  }
 
-  function undo(i: number) {
+  render() {
+    return html`
+      <div class="chat">
+        <div class="chat-head">
+          <p class="eyebrow">Assistant <span class="chat-cost" id="chat-cost">${conv.cost ? `· ${fmtCost(conv.cost)} this chat` : ''}</span></p>
+          <button class="link-btn" id="chat-new" @click=${() => this.newChat()}>New chat</button>
+        </div>
+        <div class="chat-log" id="chat-log">${transcript.length
+          ? transcript.map((e, i) => this.entry(e, i))
+          : html`<div class="chat-empty">
+              <p>Ask me to plan or change today’s practice, find tunes, look at your progress, or answer music questions.</p>
+              <div class="chips wrap">${SUGGESTIONS.map((x) => html`<button class="chip" data-suggest=${x} @click=${() => this.submit(x)}>${x}</button>`)}</div>
+            </div>`}</div>
+        <form class="chat-input" id="chat-form" @submit=${(e: Event) => { e.preventDefault(); if (this.busy) this.controller?.abort(); else this.submit(this.input.value); }}>
+          <textarea id="chat-text" rows="1" placeholder="Ask about your practice…" enterkeyhint="send" @input=${() => this.fit()}
+            @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.querySelector<HTMLFormElement>('#chat-form')!.requestSubmit(); } }}></textarea>
+          ${Recognition ? html`<button type="button" class="icon-btn small ${this.listening ? 'on' : ''}" id="chat-mic" aria-label="Dictate" @click=${() => this.dictate()}>${raw(ICON.mic)}</button>` : nothing}
+          <button type="submit" class="chat-send" id="chat-send" aria-label=${this.busy ? 'Stop' : 'Send'}>${raw(this.busy ? ICON.stop : ICON.send)}</button>
+        </form>
+      </div>`;
+  }
+  entry(e: Entry, i: number) {
+    if (e.role === 'user') return html`<div class="msg user"><p>${e.text}</p></div>`;
+    // Undo is offered for the latest changes only, and only while nothing else has changed since.
+    const latestUndoable = transcript.findLastIndex((x) => x.changes?.length && !x.undone) === i && e.rev === store.rev;
+    return html`
+      <div class="msg bot">
+        ${e.tools?.length ? html`<div class="tool-lines">${e.tools.map((t) => html`<span>${t}</span>`)}</div>` : nothing}
+        ${e.text ? html`<div class="bot-text">${raw(formatReply(e.text))}</div>` : e.pending ? html`<div class="typing"><i></i><i></i><i></i></div>` : nothing}
+        ${e.changes?.length ? html`
+          <div class="changes ${e.undone ? 'undone' : ''}">
+            <ul>${e.changes.map((c) => html`<li>${c}</li>`)}</ul>
+            ${e.undone ? html`<span class="fine">Undone</span>` : latestUndoable ? html`<button class="pill-btn" data-undo=${i} @click=${() => this.undo(i)}>Undo</button>` : nothing}
+          </div>` : nothing}
+        ${e.error ? html`<p class="chat-error">${e.error}</p>` : nothing}
+        ${e.stop === 'refusal' ? html`<p class="chat-error">The assistant couldn’t help with that one.</p>` : nothing}
+        ${e.stop === 'too_many_steps' ? html`<p class="fine">That took a lot of steps, so I stopped. Ask me to carry on if needed.</p>` : nothing}
+        ${e.cost ? html`<p class="msg-cost">${fmtCost(e.cost)}</p>` : nothing}
+      </div>`;
+  }
+  fit() {
+    const input = this.input;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+  }
+  newChat() {
+    if (this.busy) return;
+    conv = newConversation();
+    transcript = [];
+    pendingNote = null;
+    this.requestUpdate();
+  }
+
+  undo(i: number) {
     const e = transcript[i];
     if (!e?.undo) return;
-    if (e.rev !== store.rev) { draw(); return toast('Can’t undo — other things have changed since'); }
+    if (e.rev !== store.rev) { this.requestUpdate(); return toast('Can’t undo — other things have changed since'); }
     store.state = e.undo;
     save();
     e.undone = true;
     pendingNote = 'I undid the changes you just made.';
     render();
-    draw();
+    this.requestUpdate();
     toast('Changes undone');
   }
 
-  async function submit(text: string) {
+  async submit(text: string) {
     text = text.trim();
-    if (!text || busy.on) return;
-    stopListening();
-    input.value = '';
-    fit();
+    if (!text || this.busy) return;
+    this.stopListening();
+    this.input.value = '';
+    this.fit();
     const snapshot = clone(store.state);
     transcript.push({ role: 'user', text });
     const reply: Entry & { tools: string[] } = { role: 'bot', text: '', tools: [], pending: true };
     transcript.push(reply);
-    draw();
-    setBusy(true);
-    busy.controller = new AbortController();
+    this.busy = true;
+    this.controller = new AbortController();
     const finishTurn = (r: TurnChanges | undefined) => {
       reply.changes = r?.changes || [];
       reply.cost = r?.cost || 0;
@@ -164,14 +184,14 @@ export async function openAssistant() {
     pendingNote = null;
     try {
       const result = await send(conv, message, {
-        signal: busy.controller.signal,
-        onText: (d) => { reply.text += d; draw(); },
+        signal: this.controller.signal,
+        onText: (d) => { reply.text += d; this.requestUpdate(); },
         onStep: () => { if (reply.text && !reply.text.endsWith('\n')) reply.text += '\n\n'; },
         onTool: ({ name, input: args, write }) => {
           if (!write && TOOL_LABELS[name]) {
             const label = TOOL_LABELS[name](args);
             if (!reply.tools.includes(label)) reply.tools.push(label);
-            draw();
+            this.requestUpdate();
           }
         },
       });
@@ -183,79 +203,67 @@ export async function openAssistant() {
       if ((err as AssistantError)?.code === 'no_key') return openKeySetup(() => openAssistant());
     } finally {
       reply.pending = false;
-      setBusy(false);
-      busy.controller = null;
-      draw();
+      this.busy = false;
+      this.controller = null;
+      this.requestUpdate();
     }
   }
 
-  $<HTMLFormElement>('#chat-form', sheet).onsubmit = (e) => {
-    e.preventDefault();
-    if (busy.on) busy.controller?.abort();
-    else submit(input.value);
-  };
-  input.oninput = fit;
-  input.onkeydown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $<HTMLFormElement>('#chat-form', sheet).requestSubmit(); }
-  };
-  $('#chat-new', sheet).onclick = () => {
-    if (busy.on) return;
-    conv = newConversation();
-    transcript = [];
-    pendingNote = null;
-    draw();
-  };
-
   // Dictation, where the browser supports it.
-  let rec: SpeechRecognition | null = null;
-  function stopListening() {
-    rec?.stop();
-    rec = null;
-    $('#chat-mic', sheet)?.classList.remove('on');
+  stopListening() {
+    this.rec?.stop();
+    this.rec = null;
+    this.listening = false;
   }
-  const mic = $('#chat-mic', sheet);
-  if (mic) mic.onclick = () => {
-    if (rec) return stopListening();
-    rec = new Recognition!(); // (there's a mic button only with it)
+  dictate() {
+    if (this.rec) return this.stopListening();
+    const rec = (this.rec = new Recognition!()); // (there's a mic button only with it)
     rec.continuous = true;
     rec.lang = navigator.language || 'en-US';
     rec.onresult = (ev) => {
+      const input = this.input;
       const said = [...ev.results].slice(ev.resultIndex).filter((r) => r.isFinal).map((r) => r[0].transcript.trim()).join(' ');
-      if (said) { input.value = `${input.value.trimEnd()}${input.value.trim() ? ' ' : ''}${said}`; fit(); }
+      if (said) { input.value = `${input.value.trimEnd()}${input.value.trim() ? ' ' : ''}${said}`; this.fit(); }
     };
-    rec.onerror = () => stopListening();
-    rec.onend = () => { if (rec) stopListening(); };
-    try { rec.start(); mic.classList.add('on'); } catch { stopListening(); }
-  };
-
-  draw();
+    rec.onerror = () => this.stopListening();
+    rec.onend = () => { if (this.rec) this.stopListening(); };
+    try { rec.start(); this.listening = true; } catch { this.stopListening(); }
+  }
 }
-
-const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 
 // First-run setup: the assistant uses the user's own Anthropic API key.
 export function openKeySetup(then?: () => void): void {
-  const sheet = openSheet(`
-    <p class="eyebrow">Assistant</p>
-    <h2 class="sheet-title">Connect your Anthropic API key</h2>
-    <p>The assistant is Claude, running with your own API key. You pay Anthropic directly for what you use — usually a few cents per conversation. This is separate from any Claude Pro or Max subscription, which doesn’t cover API use. The app shows what each reply costs.</p>
-    <ol class="steps">
-      <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, sign in, and add some credit under Billing.</li>
-      <li>Create an API key and copy it.</li>
-      <li>Paste it here.</li>
-    </ol>
-    <label class="field">
-      <span class="field-label">API key</span>
-      <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-    </label>
-    <p class="fine">The key is stored only on this device (not in backups). When you use the assistant, your question and the relevant practice data are sent to Anthropic.</p>
-    <button class="primary-btn" id="key-save">Save key</button>
-  `);
-  $('#key-save', sheet).onclick = async () => {
-    const v = $<HTMLInputElement>('#key-input', sheet).value.trim();
+  const el = document.createElement('ws-key-setup') as KeySetup;
+  el.then = then;
+  openSheetView(el);
+}
+
+@customElement('ws-key-setup')
+export class KeySetup extends View {
+  then: (() => void) | undefined;
+  async saveKey() {
+    const v = this.querySelector<HTMLInputElement>('#key-input')!.value.trim();
     if (!v.startsWith('sk-')) return toast('That doesn’t look like an Anthropic API key');
     await setApiKey(v);
     toast('Key saved');
-    then?.();
-  };
+    this.then?.();
+  }
+  render() {
+    return html`
+      <p class="eyebrow">Assistant</p>
+      <h2 class="sheet-title">Connect your Anthropic API key</h2>
+      <p>The assistant is Claude, running with your own API key. You pay Anthropic directly for what you use — usually a few cents per conversation. This is separate from any Claude Pro or Max subscription, which doesn’t cover API use. The app shows what each reply costs.</p>
+      <ol class="steps">
+        <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, sign in, and add some credit under Billing.</li>
+        <li>Create an API key and copy it.</li>
+        <li>Paste it here.</li>
+      </ol>
+      <label class="field">
+        <span class="field-label">API key</span>
+        <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+      </label>
+      <p class="fine">The key is stored only on this device (not in backups). When you use the assistant, your question and the relevant practice data are sent to Anthropic.</p>
+      <button class="primary-btn" id="key-save" @click=${() => this.saveKey()}>Save key</button>
+    `;
+  }
 }
