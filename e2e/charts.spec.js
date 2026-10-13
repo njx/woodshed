@@ -112,7 +112,7 @@ test('warm up for a tune from its chart, or with + Warm-up on its card', async (
 test('a walking bass is a mode of the metronome: from the chart, lighting up the bar it’s on, or from the metronome', async ({ page, ui }) => {
   await ui.start();
   await openTune(page, ui, 'Autumn Leaves');
-  const samples = page.waitForResponse((r) => /samples\/bass\/\d+\.mp3$/.test(r.url()) && r.ok()); // a recorded bass
+  const samples = page.waitForResponse((r) => /samples\/bass\/\d+\.mp3(\?v=\d+)?$/.test(r.url()) && r.ok()); // a recorded bass
   await page.click('#chart-bass');
   await samples;
   await expect(page.locator('#chart-bass')).toHaveClass(/\bon\b/);

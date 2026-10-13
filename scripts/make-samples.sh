@@ -6,6 +6,8 @@
 # leading silence removed, trimmed to a few seconds with a fade, loudness-matched, mono 64 kbps.
 # Also writes src/data/sounds.json listing the notes. Needs npm and ffmpeg.
 # With instrument ids as arguments (e.g. `scripts/make-samples.sh bass`), builds just those.
+# Remade recordings need a new address for phones that already have the old ones: bump the
+# sound's REVISION in src/sounds.ts.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 work=$(mktemp -d)

@@ -57,6 +57,9 @@ export function swingTime(t: number, ratio = 0.5): number {
 // Decoded on a context of their own that's never closed (a player's is closed when it stops, and
 // a decode left on a closed one may never finish); the buffers play in any context.
 const loaded = new Map<SampleSet, Promise<Samples>>();
+// A sound's recordings are kept by their address (the service worker's cache), so when they're
+// made again (scripts/make-samples.sh) they get a new one: bump its revision here.
+const REVISION: Partial<Record<SampleSet, number>> = { bass: 2 }; // (2: the upright, was electric)
 let decoder: BaseAudioContext | null = null;
 export function loadSamples(ctx: BaseAudioContext, id: SampleSet): Promise<Samples> {
   if (!loaded.has(id)) {
@@ -64,7 +67,7 @@ export function loadSamples(ctx: BaseAudioContext, id: SampleSet): Promise<Sampl
     decoder ||= Offline ? new Offline(1, 1, 44100) : ctx;
     const p = Promise.race([
       Promise.all(sampleNotes(id).map(async (m): Promise<[number, AudioBuffer]> => {
-        const res = await fetch(`samples/${id}/${m}.mp3`);
+        const res = await fetch(`samples/${id}/${m}.mp3${REVISION[id] ? `?v=${REVISION[id]}` : ''}`);
         if (!res.ok) throw new Error(`sample ${id}/${m}: ${res.status}`);
         const data = await res.arrayBuffer();
         return [m, await new Promise<AudioBuffer>((resolve, reject) => decoder!.decodeAudioData(data, resolve, reject))]; // (decoder: set above)
