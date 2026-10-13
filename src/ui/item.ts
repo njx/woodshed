@@ -14,7 +14,7 @@ import { openRecorder } from './recorder.js';
 import { openExercise } from './exercise.js';
 import { openMetronome, tempoRow, tempoSuggestionPart } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
-import { mountChart } from './chart.js';
+import './chart.js'; // (<ws-chart>)
 import { swapInToday, removeFromToday } from './today.js';
 import { canRecord } from '../media.js';
 import { autoStart } from '../practicetime.js';
@@ -60,7 +60,6 @@ export class TuneSheet extends View {
   @property({ attribute: false }) pid: Id | undefined; // opened from its card in today's set
   @state() panel: PanelKey | null = null; // the setting open over the sheet
   @state() adding = false; // adding a recording
-  private chartKey: Key | null | undefined; // the key the chart was drawn for (it's drawn again for another)
 
   // A change: saved (a new tune is saved when it's added), and shown.
   commit() {
@@ -80,7 +79,7 @@ export class TuneSheet extends View {
       ${isNew ? nothing : this.todayKey()}
       ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => { setLevel(t, l); this.commit(); })}
       ${isNew ? nothing : html`<div data-item-id=${t.id}>${tempoRow(t, () => openMetronome({ itemId: t.id, back: this.back }))}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
-      ${isNew ? nothing : html`<div id="chart-box" class="chart-box"></div>`}
+      ${isNew ? nothing : html`<div id="chart-box" class="chart-box"><ws-chart .tune=${t} .back=${this.back}></ws-chart></div>`}
       <label class="field">
         <span class="field-label">Notes</span>
         <textarea id="f-notes" rows="2" placeholder="Tricky bars, ideas…" .value=${live(t.notes)} @input=${(e: Event) => { t.notes = (e.target as HTMLTextAreaElement).value; if (!isNew) save(); }}></textarea>
@@ -98,13 +97,6 @@ export class TuneSheet extends View {
     const name = this.querySelector<HTMLTextAreaElement>('#f-name')!;
     name.style.height = 'auto';
     name.style.height = `${name.scrollHeight}px`;
-    if (this.isNew) return;
-    // The chart (drawn by chart.ts), in today's key.
-    const key = todayItem(this.tune)?.key ?? null;
-    if (this.chartKey !== key) {
-      this.chartKey = key;
-      mountChart(this.querySelector<HTMLElement>('#chart-box')!, this.tune, { back: this.back });
-    }
   }
 
   rename(el: HTMLTextAreaElement) {

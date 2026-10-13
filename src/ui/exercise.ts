@@ -7,7 +7,7 @@ import { esc, uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
 import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
-import { mountChart } from './chart.js';
+import './chart.js'; // (<ws-chart>)
 import { swapInToday, removeFromToday } from './today.js';
 import { pickTune } from './pickers.js';
 import { harmonyOf } from '../warmups.js';
@@ -119,7 +119,6 @@ export class ExerciseSheet extends View {
   private stopFn: (() => void) | null = null;
   private tune: TuneObject | null = null; // the notation drawn, to play
   private drawn = ''; // what the notation was drawn for (it's drawn again when that changes)
-  private chartMounted = false;
   private leaving = false; // to another sheet (note, recorder, editor), coming back after
   private added = false;
 
@@ -305,7 +304,8 @@ export class ExerciseSheet extends View {
         : t.abc ? html`<button class="link-btn" id="x-edit-abc" @click=${() => this.editNotation()}>Edit</button>` : nothing}</div>
       ${t.fromTune && !prog ? html`<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: tap <b>+ Warm-up</b> on a tune’s card in Today, or <b>Add a warm-up</b> under its chart.</p>` : nothing}
       ${t.vary || t.abc || prog ? this.notationCard() : html`<button class="ghost-btn" id="x-add-abc" @click=${() => this.editNotation()}>${raw(ICON.plus)}<span>Add notation</span></button>`}
-      ${planItem?.warmup && !prog && chartFor(this.tempoFrom) ? html`<div class="x-tune-chart" id="x-tune-chart"></div>` : nothing}
+      ${planItem?.warmup && !prog && chartFor(this.tempoFrom) // (it has a chart, so it's the tune it's a warm-up for) — in the tune's key
+        ? html`<div class="x-tune-chart" id="x-tune-chart"><ws-chart .tune=${this.tempoFrom as Tune} .compact=${true} .startKey=${todayItem(this.tempoFrom)?.key ?? (planItem.form ? planItem.overKey ?? null : null)}></ws-chart></div>` : nothing}
       ${this.todayKeysPart()}
       <label class="field">
         <span class="field-label">How to practice it</span>
@@ -328,12 +328,6 @@ export class ExerciseSheet extends View {
     name.style.height = 'auto';
     name.style.height = `${name.scrollHeight}px`;
     this.drawNotation();
-    // The tune's chart, for a warm-up, in the tune's key. (It has a chart, so it's a tune.)
-    const chart = this.querySelector<HTMLElement>('#x-tune-chart');
-    if (chart && !this.chartMounted) {
-      this.chartMounted = true;
-      mountChart(chart, this.tempoFrom as Tune, { key: todayItem(this.tempoFrom)?.key ?? (this.planItem!.form ? this.planItem!.overKey : null), compact: true });
-    }
   }
   // Opening the metronome leaves this sheet; it comes back afterwards.
   openMetronome() {
