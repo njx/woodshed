@@ -9,7 +9,7 @@ import {
 import { ensurePlan, buildPlan, pickItem, makePlanItem, excludedIds, swapWarmup, dropOrphanWarmups, pickFocus } from '../plan.js';
 import {
   $, ICON, render, toast, withUndo, haptic, attachSwipe, closeSwipes, priBadge, kn, keysText,
-  switchView, suggestionHtml, hintHtml, hintDone,
+  switchView, hintHtml, hintDone,
 } from './shell.js';
 import { tuneRow } from './tunes.js';
 import { openItem } from './item.js';
@@ -31,7 +31,7 @@ import { greeted } from './greet.js';
 import { running, startPractice, endPractice, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { View, mount, html, nothing, raw, type TemplateResult } from './lit.js';
+import { View, mount, html, nothing, raw, levelSuggestionPart, type TemplateResult } from './lit.js';
 import type { SwipeCard } from './shell.js';
 import type { Id, Item, ItemStats, Level, PlanItem, Rating, Transposition, Tune } from '../types.js';
 
@@ -243,7 +243,7 @@ export class Card extends View {
           <button class="check ${played ? 'on' : ''}" aria-label=${played ? 'Unmark played' : 'Mark played'} aria-pressed=${String(played)} @click=${(e: Event) => { e.stopPropagation(); this.toggle(); }}>${raw(ICON.check)}</button>
         </div>
         ${t.type === 'tune' && !it.warmup && !played && chartFor(t) ? html`<button class="link-btn add-warm" data-add-warm @click=${(e: Event) => { e.stopPropagation(); pickWarmup(t); }}>${raw(ICON.plus)}Warm-up</button>` : nothing}
-        ${played ? raw(suggestionHtml(t, levelSuggestion(t))) : nothing}
+        ${played ? levelSuggestionPart(levelSuggestion(t), (l) => this.levelUp(t, l)) : nothing}
         ${played && !it.warmup ? raw(tempoSuggestionHtml(tempoSuggestion(t))) : nothing}
       </article>
     </li>`;
@@ -261,17 +261,14 @@ export class Card extends View {
         actions: isPlanItemPlayed(this.item) ? [] : this.actions().map(([, fn]) => swiped(fn)),
       }));
     }
-    // (The suggestions are still HTML, shared with the details sheets.)
+    // (The tempo suggestion is still HTML, shared with the details sheets.)
     bindTempo(card, { onChange: render });
-    const sug = card.querySelector<HTMLElement>('.suggest [data-level]');
-    if (sug) sug.onclick = (e) => {
-      e.stopPropagation();
-      const t = itemById(this.item.itemId)!;
-      setLevel(t, Number(sug.dataset.level) as Level);
-      save();
-      render();
-      toast(`${t.name} is now ${LEVELS[t.level].label}`);
-    };
+  }
+  levelUp(t: Item, l: Level) {
+    setLevel(t, l);
+    save();
+    render();
+    toast(`${t.name} is now ${LEVELS[t.level].label}`);
   }
 
   // What a left swipe offers, the same on every card: Swap, and Remove (for today) at the edge,

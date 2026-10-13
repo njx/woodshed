@@ -1,6 +1,10 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { openSheet } from './shell.js';
+import { openSheet, ICON, STATUS_HINTS } from './shell.js';
+import { LEVELS } from '../constants.js';
+import type { levelSuggestion } from '../practice.js';
+import type { itemStatus } from '../plan.js';
+import type { Item, Level } from '../types.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
 // Screens and sheets as Lit components (https://lit.dev), moving over from template strings one
@@ -84,4 +88,30 @@ export function settingRows(rows: SettingRow[], open: (key: string) => void) {
     <button class="set-row" data-open=${r.key} @click=${() => open(r.key)}>
       <span class="set-label">${r.label}</span><span class="set-value">${r.value || ''}</span><span class="set-go" aria-hidden="true">›</span>
     </button>`)}</div>`;
+}
+
+// A setting's panel, over the sheet it's in (a row in the sheet opens it, see settingRows): its
+// title, its controls, and Done.
+export function subPanel(title: string, body: unknown, done: () => void) {
+  return html`<div class="sub-panel" role="dialog" aria-label=${title}>
+    <div class="sub-head"><b>${title}</b><button class="pill-btn sub-done" @click=${done}>Done</button></div>
+    <div class="sub-body">${body}</div></div>`;
+}
+
+// At the top of a tune's or exercise's details: Focus / On / Off, and a ⋯ menu for the rest. What
+// Focus or Off means shows under it (On is the usual, and says nothing).
+type Status = ReturnType<typeof itemStatus>;
+export function statusControl(t: Item, status: Status, set: (s: Status) => void, menu: (anchor: HTMLElement) => void) {
+  const hint = STATUS_HINTS[status];
+  return html`<div class="item-top"><div class="seg item-status" id="item-status" role="group" aria-label="In the pool">${segButtons(
+    [['focus', html`${raw(ICON.focus)}Focus`], ['on', 'On'], ['off', 'Off']] as const, status, set)}</div>
+    <button class="icon-btn small item-menu" id="item-menu" aria-label="More" @click=${(e: Event) => menu(e.currentTarget as HTMLElement)}>⋯</button></div>
+    ${status === 'on' ? nothing : html`<p class="fine" id="item-status-hint">${typeof hint === 'string' ? hint : hint[t.type]}</p>`}`;
+}
+
+// A suggestion to move it up or down a level, after a run of solid (or rough) sessions.
+export function levelSuggestionPart(sug: ReturnType<typeof levelSuggestion>, pick: (l: Level) => void) {
+  if (!sug) return nothing;
+  return html`<div class="suggest ${sug.up ? 'up' : 'down'}"><span>${sug.text}</span>
+    <button class="pill-btn" data-level=${sug.to} @click=${(e: Event) => { e.stopPropagation(); pick(sug.to as Level); }}>${sug.up ? '↑' : '↓'} ${LEVELS[sug.to].label}</button></div>`;
 }

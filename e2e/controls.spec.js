@@ -203,3 +203,21 @@ test('a note: saving needs some text; delete it, and undo @narrow', async ({ pag
   await page.click('#toast button');
   await expect(note).toHaveCount(1);
 });
+
+test('add a tune: its name, then its settings all at once; Add tune adds it @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('#add');
+  await page.click('#save-new'); // no name yet: stays open
+  await expect(page.locator('#toast')).toContainText('Give the tune a name');
+  await page.fill('#f-name', 'A Tune Of My Own');
+  await page.locator('[data-field="level"] button').nth(1).click();
+  await page.locator('#keygrids [data-k]').nth(3).click();
+  await page.fill('#f-style', 'Hard bop');
+  await page.locator('#f-style').blur();
+  await page.click('#save-new');
+  await expect(page.locator('#toast')).toContainText('Added A Tune Of My Own');
+  await expect.poll(async () => (await ui.saved()).state.items.find((t) => t.name === 'A Tune Of My Own'))
+    .toMatchObject({ type: 'tune', level: 1, style: 'Hard bop', mine: true, focus: false });
+  expect((await ui.saved()).state.items.find((t) => t.name === 'A Tune Of My Own').keys).toHaveLength(1);
+});
