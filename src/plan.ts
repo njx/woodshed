@@ -108,13 +108,19 @@ export function applyExerciseFocus(plan: Plan = store.state.plan!): void {
     if (!plan.dayKeys?.length) plan.dayKeys = chooseExerciseKeys({ keyMode: 'weak', keysPerSession: 2 }, { familiarity: keyFamiliarity() });
     for (const it of plan.items) {
       const t = itemById(it.itemId);
-      if (t?.type !== 'exercise' || it.warmup || isPlayedToday(t.id) || !['weak', 'random'].includes(t.keyMode || 'weak')) continue;
-      it.keys = plan.dayKeys.slice(0, Math.max(1, Math.min(t.keysPerSession || 1, plan.dayKeys.length)));
-      if (t.vary) it.types = chooseTypes(t.vary, it.keys.length, itemStats().get(t.id)?.types || [], Math.random, typeCounts());
+      if (t?.type === 'exercise' && !it.warmup && !isPlayedToday(t.id)) useDayKeys(t, it, plan);
     }
   }
   plan.mode = mode;
   orderPlan(plan);
+}
+
+// An exercise that picks keys by weak keys or at random takes the keys of the day (and types to go
+// with them), when there are some.
+function useDayKeys(t: Exercise, it: PlanItem, plan: Plan): void {
+  if (!plan.dayKeys?.length || !['weak', 'random'].includes(t.keyMode || 'weak')) return;
+  it.keys = plan.dayKeys.slice(0, Math.max(1, Math.min(t.keysPerSession || 1, plan.dayKeys.length)));
+  if (t.vary) it.types = chooseTypes(t.vary, it.keys.length, itemStats().get(t.id)?.types || [], Math.random, typeCounts());
 }
 
 // Puts a tune or exercise into today's set (from its details). False if it's already there.
@@ -423,6 +429,19 @@ export function ensurePlan(): void {
   const mode = store.state.settings.exerciseFocus || 'own';
   if (plan.mode == null) { applyExerciseFocus(plan); save(); }
   else if (plan.mode !== mode) repickExercises(plan);
+}
+
+// Picks today's keys (and types) for an exercise again, after how it picks its keys changes (unless
+// it's already been played today). With no key, there are none.
+export function refreshKeys(t: Exercise): void {
+  const item = todayItem(t);
+  if (!item || isPlanItemPlayed(item)) return;
+  const fresh = makePlanItem(t, itemStats(), item.bucket);
+  item.keys = fresh.keys;
+  if (fresh.types) item.types = fresh.types;
+  else delete item.types;
+  const plan = store.state.plan!; // (it's in today's set)
+  if (plan.mode === 'day') useDayKeys(t, item, plan);
 }
 
 // Picks today's scale or chord types for an exercise again, after its settings change (unless

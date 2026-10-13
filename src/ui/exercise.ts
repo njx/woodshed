@@ -5,7 +5,7 @@ import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { uid } from '../util.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, markPlayed, unmarkPlayed, setLevel, levelSuggestion, deleteItem } from '../practice.js';
-import { setItemStatus, itemStatus, refreshTypes, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
+import { setItemStatus, itemStatus, refreshTypes, refreshKeys, addToToday, inToday, setTodayKeys, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
 import './chart.js'; // (<ws-chart>)
 import { swapInToday, removeFromToday } from './today.js';
@@ -128,7 +128,7 @@ export class ExerciseSheet extends View {
     this.prog = this.planItem?.prog || opts.prog || null;
     this.tempoFrom = (this.planItem?.warmup && itemById(this.planItem.warmup)) || t;
     this.todayKeys = opts.keys || this.planItem?.keys || [];
-    this.previewRoot = this.asWritten() ? this.writtenC() : this.todayKeys[0] ?? 0;
+    this.previewRoot = this.asWritten() || t.keyMode === 'none' ? this.writtenC() : this.todayKeys[0] ?? 0;
     this.previewType = this.typeFor(this.previewRoot);
     this.harmonyText = t.harmony ?? this.guessed();
   }
@@ -354,7 +354,7 @@ export class ExerciseSheet extends View {
       : todayKeys.length ? 'Underlined: today’s keys.' : '';
     return html`
       <div class="notation-card">
-        ${this.asWritten() ? nothing : html`<div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
+        ${this.asWritten() || t.keyMode === 'none' ? nothing : html`<div class="key-strip" role="group" aria-label="Show in key">${[...Array(12).keys()].map((w) => {
           const r = writtenToConcert(w, view());
           return html`<button class="${r === root ? 'on' : ''} ${todayKeys.includes(r) ? 'today' : ''}" data-root=${r}
             @click=${() => this.show(r, t.vary && todayKeys.includes(r) ? this.typeFor(r) : this.previewType)}>${keyLabel(r, t)}</button>`; // (today's keys show with today's type)
@@ -435,7 +435,8 @@ export class ExerciseSheet extends View {
   shown(k: PanelKey) {
     const t = this.t;
     if (k === 'harmony') return !this.isNew && !t.vary && !t.fromTune;
-    if (k === 'vary' || k === 'keys') return !t.fromTune;
+    if (k === 'vary') return !t.fromTune;
+    if (k === 'keys') return !t.fromTune && t.keyMode !== 'none'; // (No key is a choice in Each session)
     return true;
   }
   panelValue(k: PanelKey) {
@@ -443,8 +444,8 @@ export class ExerciseSheet extends View {
     switch (k) {
       case 'harmony': return (t.harmony ?? this.guessed()) || 'None yet';
       case 'kind': return CATEGORIES[t.category] || 'Other';
-      case 'vary': return !t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary!.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`;
-      case 'keys': return t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} · ${KEY_MODES[t.keyMode].label.toLowerCase()}${t.keyMode === 'fixed' && t.keys.length ? `: ${t.keys.map((k) => rootName(k)).join(' ')}` : ''}`;
+      case 'vary': return t.keyMode === 'none' ? 'No key' : !t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary!.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`;
+      case 'keys': return `${t.keysPerSession} · ${KEY_MODES[t.keyMode].label.toLowerCase()}${t.keyMode === 'fixed' && t.keys.length ? `: ${t.keys.map((k) => rootName(k)).join(' ')}` : ''}`;
       case 'level': return LEVELS[t.level ?? 0].label;
       case 'priority': return PRIORITIES[(t.priority || 3) - 1].label;
     }
@@ -475,6 +476,19 @@ export class ExerciseSheet extends View {
       refreshTypes(this.t);
       this.previewType = this.typeFor(this.previewRoot);
     }
+    this.commit();
+  }
+  // After how it picks its keys changes, today's keys are picked again too (unless it's already
+  // been played today): with no key, none, and the notation is shown as written.
+  keysChanged() {
+    const t = this.t;
+    if (this.planItem) {
+      refreshKeys(t);
+      this.todayKeys = this.planItem.keys || [];
+    }
+    this.previewRoot = this.asWritten() || t.keyMode === 'none' ? this.writtenC() : this.todayKeys[0] ?? this.previewRoot;
+    this.previewType = this.typeFor(this.previewRoot);
+    this.stopPlaying();
     this.commit();
   }
   panelBody(k: PanelKey) {
@@ -514,17 +528,26 @@ export class ExerciseSheet extends View {
   }
   varyBody() {
     const t = this.t, vary = t.vary;
-    const setKind = (kind: Vary['kind'] | '') => {
-      if ((vary?.kind || '') === kind) return;
-      t.vary = kind ? { kind, types: [...VARY[kind].defaults], shape: 'updown', pattern: '' } : null;
+    const noKey = t.keyMode === 'none';
+    const current = noKey ? 'none' : vary?.kind || '';
+    // No key (as written, like long tones); or a key each time, with a scale or chord type too.
+    const setKind = (kind: Vary['kind'] | '' | 'none') => {
+      if (current === kind) return;
+      t.vary = kind && kind !== 'none' ? { kind, types: [...VARY[kind].defaults], shape: 'updown', pattern: '' } : null;
       this.previewType = t.vary?.types[0];
-      this.varyChanged();
+      const keysToo = (kind === 'none') !== noKey;
+      if (kind === 'none') t.keyMode = 'none';
+      else if (noKey) t.keyMode = 'weak'; // (keys again: weak keys first, as a new exercise does)
+      if (keysToo) this.keysChanged();
+      else this.varyChanged();
     };
     return html`
-      <div class="seg" id="x-vary">${([['', 'Key only'], ['scale', 'Scale type'], ['chord', 'Chord type']] as const).map(([v, l]) => html`
-        <button class=${(vary?.kind || '') === v ? 'on' : ''} data-vary=${v} @click=${() => setKind(v)}>${l}</button>`)}
+      <div class="seg four" id="x-vary">${([['none', 'No key'], ['', 'Key only'], ['scale', 'Scale type'], ['chord', 'Chord type']] as const).map(([v, l]) => html`
+        <button class=${current === v ? 'on' : ''} data-vary=${v} @click=${() => setKind(v)}>${l}</button>`)}
       </div>
-      <p class="fine">${vary ? `Each key comes with one of the ${vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.` : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'}</p>
+      <p class="fine">${noKey ? `${KEY_MODES.none.hint}: played as written, with no key to pick.`
+        : vary ? `Each key comes with one of the ${vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.`
+        : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'}</p>
       ${vary ? html`
         <div class="chips wrap" id="x-types">${Object.entries(typesOf(vary.kind)).map(([id, x]) => html`
           <button class="chip ${vary.types.includes(id) ? 'on' : ''}" data-vtype=${id} aria-pressed=${String(vary.types.includes(id))} @click=${() => this.toggleType(id)}>${x.label}</button>`)}</div>
@@ -577,17 +600,16 @@ export class ExerciseSheet extends View {
   keysBody() {
     const t = this.t;
     return html`
-      <div class="chips wrap" id="x-mode">${(Object.entries(KEY_MODES) as [KeyMode, (typeof KEY_MODES)[KeyMode]][]).map(([k, m]) => html`<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode=${k} @click=${() => { t.keyMode = k; this.commit(); }}>${m.label}</button>`)}</div>
+      <div class="chips wrap" id="x-mode">${(Object.entries(KEY_MODES) as [KeyMode, (typeof KEY_MODES)[KeyMode]][]).filter(([k]) => k !== 'none').map(([k, m]) => html`<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode=${k} @click=${() => { t.keyMode = k; this.keysChanged(); }}>${m.label}</button>`)}</div>
       <p class="fine">${KEY_MODES[t.keyMode].hint}</p>
       ${t.keyMode === 'fixed' ? html`<div class="keygrid" id="x-fixed">${[...Array(12).keys()].map((w) => {
         const r = writtenToConcert(w, view());
-        return html`<button class=${t.keys.includes(r) ? 'on' : ''} data-fixed=${r} @click=${() => { t.keys = t.keys.includes(r) ? t.keys.filter((x) => x !== r) : [...t.keys, r]; this.commit(); }}>${rootName(r)}</button>`;
+        return html`<button class=${t.keys.includes(r) ? 'on' : ''} data-fixed=${r} @click=${() => { t.keys = t.keys.includes(r) ? t.keys.filter((x) => x !== r) : [...t.keys, r]; this.keysChanged(); }}>${rootName(r)}</button>`;
       })}</div>` : nothing}
-      ${t.keyMode !== 'none' ? html`
-        <div class="setting">
-          <div><b>Keys per session</b><span>How many keys to play it in each time</span></div>
-          <div class="stepper" id="x-kps">${stepperButtons(t.keysPerSession, (v) => { t.keysPerSession = v; this.commit(); }, 1, 12)}</div>
-        </div>` : nothing}`;
+      <div class="setting">
+        <div><b>Keys per session</b><span>How many keys to play it in each time</span></div>
+        <div class="stepper" id="x-kps">${stepperButtons(t.keysPerSession, (v) => { t.keysPerSession = v; this.keysChanged(); }, 1, 12)}</div>
+      </div>`;
   }
 
   // ---------- Below the settings ----------

@@ -239,3 +239,35 @@ test('a hint goes once it’s dismissed, or once the thing it explains is done @
   await expect(page.locator('#m-go')).toBeVisible();
   await expect(tip).toHaveCount(0);
 });
+
+test('an exercise in today’s set changed to No key: its card and notation lose their keys; Key only picks keys again @narrow', async ({ page, ui }) => {
+  await ui.start();
+  const card = page.locator('.card.b-exercise:has(.keychip)').first();
+  const name = await card.locator('h2').textContent();
+  await card.locator('h2').click();
+  await expect(page.locator('.key-strip')).toHaveCount(1);
+  await ui.setting('vary');
+  await page.click('#x-vary [data-vary="none"]');
+  await expect(page.locator('#x-vary [data-vary="none"]')).toHaveClass(/\bon\b/);
+  await ui.panelDone();
+  await expect(page.locator('.sheet [data-open="vary"] .set-value')).toHaveText('No key');
+  await expect(page.locator('.sheet [data-open="keys"]')).toHaveCount(0); // (no keys to pick)
+  await expect(page.locator('.key-strip')).toHaveCount(0); // shown as written
+  await ui.backdrop();
+  const again = page.locator('.card', { has: page.locator('h2', { hasText: name }) });
+  await expect(again.locator('.keychip')).toHaveCount(0);
+  const planKeys = async () => {
+    const { state } = await ui.saved();
+    const x = state.items.find((t) => t.name === name);
+    return { mode: x.keyMode, keys: state.plan.items.find((i) => i.itemId === x.id && !i.warmup).keys };
+  };
+  await expect.poll(planKeys).toEqual({ mode: 'none', keys: [] });
+  // Back to keys: today gets some again.
+  await again.locator('h2').click();
+  await ui.setting('vary');
+  await page.click('#x-vary [data-vary=""]');
+  await ui.panelDone();
+  await ui.backdrop();
+  await expect(again.locator('.keychip')).toHaveCount(1);
+  await expect.poll(async () => (await planKeys()).keys.length).toBeGreaterThan(0);
+});
