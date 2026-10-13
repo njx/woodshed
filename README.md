@@ -395,10 +395,10 @@ It's a small Vite project in TypeScript (strict; `npm run typecheck`, which runs
 deploy), with Vitest for unit tests and Playwright for end-to-end tests. `src/types.ts` has the
 app's data model (what `store.state` holds).
 The screens are moving over to [Lit](https://lit.dev) components, one at a time: Today (with
-its cards and the practice timer), the library, Progress, Settings, the pickers and the tune and
-exercise details so far; `src/ui/lit.ts` has the shared pieces. Diary, the notation editor and
-the tools (metronome, tuner, recorder, chord chart, assistant) still build HTML from template
-strings.
+its cards and the practice timer), the library, Diary and the note editor, Progress, Settings,
+the pickers and the tune and exercise details so far; `src/ui/lit.ts` has the shared pieces. The
+notation editor and the tools (metronome, tuner, recorder, chord chart, assistant) still build
+HTML from template strings.
 
 ```sh
 git submodule update --init   # chord charts (vendor/JazzStandards)

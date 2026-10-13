@@ -9,7 +9,7 @@ import {
 import { setItemStatus, itemStatus, addToToday, inToday, todayItem, setTodayKey } from '../plan.js';
 import { recordingsFor, recordingUrl, searchUrl, searchName } from '../listen.js';
 import { entriesFor } from '../diary.js';
-import { noteHtml, bindNotes, openNote } from './diary.js';
+import { noteRows, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { openExercise } from './exercise.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo } from './metronome.js';
@@ -99,14 +99,13 @@ export class TuneSheet extends View {
     name.style.height = 'auto';
     name.style.height = `${name.scrollHeight}px`;
     if (this.isNew) return;
-    // The chart (drawn by chart.ts), in today's key; the tempo row and the notes are still HTML.
+    // The chart (drawn by chart.ts), in today's key; the tempo row is still HTML.
     const key = todayItem(this.tune)?.key ?? null;
     if (this.chartKey !== key) {
       this.chartKey = key;
       mountChart(this.querySelector<HTMLElement>('#chart-box')!, this.tune, { back: this.back });
     }
     bindTempo(this, { back: this.back, onChange: () => this.requestUpdate() });
-    bindNotes(this, this.back, () => this.requestUpdate());
   }
 
   rename(el: HTMLTextAreaElement) {
@@ -253,7 +252,7 @@ export class TuneSheet extends View {
         ${canRecord() ? html`<button class="link-btn" id="rec-tune" @click=${() => openRecorder({ itemId: t.id, back: this.back })}>${raw(ICON.rec)}Record</button>` : nothing}
         <button class="link-btn" id="add-tune-note" @click=${() => openNote(null, { itemId: t.id, back: this.back })}>${raw(ICON.plus)}Add a note</button></span></div>
       ${notes.length
-        ? html`<ul class="notes panel-list">${raw(notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join(''))}</ul>`
+        ? html`<ul class="notes panel-list">${noteRows(notes.slice(0, 5), { showDate: true, back: this.back, onChange: () => this.requestUpdate() })}</ul>`
         : html`<p class="fine">Notes you write about this tune show up here.</p>`}`;
   }
   logToday() {

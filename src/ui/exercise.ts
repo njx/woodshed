@@ -18,7 +18,7 @@ import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords, p
 import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, stopPlayback, playbackOptionsHtml, playbackOptions, bindPlaybackOptions, playbackFor, openFullNotation } from './notation.js';
-import { noteHtml, bindNotes, openNote } from './diary.js';
+import { noteRows, openNote } from './diary.js';
 import { openRecorder } from './recorder.js';
 import { tempoRowHtml, tempoSuggestionHtml, bindTempo, openMetronome } from './metronome.js';
 import { tempoSuggestion } from '../tempo.js';
@@ -335,12 +335,11 @@ export class ExerciseSheet extends View {
       mountChart(chart, this.tempoFrom as Tune, { key: todayItem(this.tempoFrom)?.key ?? (this.planItem!.form ? this.planItem!.overKey : null), compact: true });
     }
     if (this.isNew) return;
-    // (The tempo row and the notes are still HTML.) Opening the metronome leaves this sheet; it
-    // comes back afterwards.
+    // (The tempo row is still HTML.) Opening the metronome leaves this sheet; it comes back
+    // afterwards.
     const tempo = this.querySelector<HTMLElement>('[data-item-id]')!;
     bindTempo(tempo, { onChange: () => this.requestUpdate() });
     tempo.querySelectorAll<HTMLElement>('[data-metro]').forEach((b) => (b.onclick = () => this.goTo(() => openMetronome({ itemId: this.t.id, back: this.back }))));
-    bindNotes(this, this.back, () => this.requestUpdate());
   }
   // The notation in the key and type shown, drawn again when that changes.
   async drawNotation() {
@@ -608,7 +607,7 @@ export class ExerciseSheet extends View {
     return html`
       <div class="field-label row-label"><span>Recordings</span><span class="row-links">
         <button class="link-btn" id="x-rec" @click=${() => this.goTo(() => openRecorder({ itemId: this.t.id, back: this.back, text: this.label() }))}>${raw(ICON.rec)}Record</button></span></div>
-      ${takes.length ? html`<ul class="notes panel-list" id="x-takes" @click=${{ handleEvent: () => this.stopPlaying(), capture: true }}>${raw(takes.slice(0, 3).map((e) => noteHtml(e, { showDate: true })).join(''))}</ul>
+      ${takes.length ? html`<ul class="notes panel-list" id="x-takes" @click=${{ handleEvent: () => this.stopPlaying(), capture: true }}>${noteRows(takes.slice(0, 3), { showDate: true, back: this.back, onChange: () => this.requestUpdate() })}</ul>
         ${takes.length > 3 ? html`<p class="fine">${takes.length - 3} more in the Diary.</p>` : nothing}`
         : raw(hintHtml('takes', 'Record yourself playing it to hear how it’s coming along. Takes are kept here and in the Diary.', 'fine'))}`;
   }
@@ -632,7 +631,7 @@ export class ExerciseSheet extends View {
       <div class="field-label row-label"><span>Diary</span><span class="row-links">
         <button class="link-btn" id="x-note" @click=${() => this.goTo(() => openNote(null, { itemId: t.id, back: this.back }))}>${raw(ICON.plus)}Add a note</button></span></div>
       ${notes.length
-        ? html`<ul class="notes panel-list" @click=${{ handleEvent: () => this.stopPlaying(), capture: true }}>${raw(notes.slice(0, 5).map((e) => noteHtml(e, { showDate: true })).join(''))}</ul>`
+        ? html`<ul class="notes panel-list" @click=${{ handleEvent: () => this.stopPlaying(), capture: true }}>${noteRows(notes.slice(0, 5), { showDate: true, back: this.back, onChange: () => this.requestUpdate() })}</ul>`
         : html`<p class="fine">Notes about this exercise show up here.</p>`}`;
   }
   logToday() {

@@ -13,7 +13,7 @@ import {
 } from './shell.js';
 import { tuneRow } from './tunes.js';
 import { openItem } from './item.js';
-import { rememberPanel, bindNotes, openNote } from './diary.js';
+import { rememberPanel, openNote } from './diary.js';
 import { pickWarmup } from './pickers.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText, exerciseRow, rootName, takeLabel } from './exercise.js';
@@ -70,7 +70,7 @@ export class TodayView extends View {
       </header>
       <ws-timer></ws-timer>
       ${state.settings.instrumentsChosen ? nothing : welcome()}
-      ${raw(rememberPanel())}
+      ${rememberPanel()}
       ${items.length ? nothing : html`<p class="empty">No tunes yet. Add some on the Tunes tab.</p>`}
       <ul class="cards">${repeat(plan.items.filter((it) => itemById(it.itemId)), (it) => it.pid, (it) => html`<ws-card .item=${it} .stats=${stats}></ws-card>`)}</ul>
       <button class="ghost-btn" id="more" @click=${() => this.oneMore()}>${raw(ICON.plus)}<span>One more tune</span></button>
@@ -84,8 +84,6 @@ export class TodayView extends View {
     `;
   }
   updated() {
-    // (The To remember notes are still HTML: see diary.ts.)
-    bindNotes(this);
     liveTools();
   }
   oneMore() {
