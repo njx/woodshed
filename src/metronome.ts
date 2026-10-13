@@ -2,6 +2,7 @@ import { clampBpm } from './tempo.js';
 import { holdAudio } from './audiosession.js';
 import { keepAwake } from './keepawake.js';
 import { walkingLine, pluckSample } from './bass.js';
+import type { WalkingLine } from './bass.js';
 import { loadSamples } from './sounds.js';
 import type { BassChord, BassNote } from './bass.js';
 import type { Samples } from './sounds.js';
@@ -27,7 +28,7 @@ const listeners = new Set<(s: MetronomeState) => void>();
 // bass: a walking bass with the click (see bass.js): { chords, owner (who started it), label },
 // played round and round; click: with the bass, 'all' beats, 'twofour' (2 and 4) or 'off'.
 const state: MetronomeState = { running: false, bpm: 100, beats: 4, beat: 0, itemId: null, bass: null, click: 'twofour' };
-let line: BassNote[] = [];
+let line: WalkingLine | BassNote[] = [];
 let lineAt = 0;
 let countIn = 0; // beats of clicks still to come before the bass comes in
 let bassSamples: Samples | null = null; // the recorded bass, once loaded (the synth until then)
@@ -160,8 +161,10 @@ function schedule() {
       click(nextTime, accent); // (every beat, whatever the click's set to with the bass)
     } else if (line.length) {
       at = lineAt;
-      pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm);
+      pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm, line[at].vel);
       lineAt = (lineAt + 1) % line.length;
+      // Round again: a new line, carrying on from this one (so it doesn't repeat).
+      if (lineAt === 0 && state.bass && 'next' in line) line = walkingLine(state.bass.chords, { after: line });
       if (state.click === 'all') click(nextTime, accent);
       else if (state.click === 'twofour' && nextBeat % 2 === 1) click(nextTime, false);
     } else click(nextTime, accent);
