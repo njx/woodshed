@@ -423,4 +423,11 @@ test('a warm-up opened from today says what it’s for, and has full screen', as
   await expect(page.locator('.menu-pop button', { hasText: 'Add to today’s set' })).toHaveCount(0);
   await page.mouse.click(5, 5);
   await expect(page.locator('#x-full')).toBeVisible();
+  // Off to the metronome and back: still the warm-up (at the tune's tempo), and still today's.
+  await page.click('.tempo-row');
+  await expect(page.locator('#m-bpm')).toBeVisible();
+  await ui.backdrop();
+  await expect(page.locator('.in-today')).toHaveText(`In today’s set, as a warm-up for ${forTune}`);
+  await page.click('#item-menu');
+  await expect(page.locator('.menu-pop button', { hasText: 'Take out of today’s set' })).toHaveCount(1);
 });

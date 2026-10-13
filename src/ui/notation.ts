@@ -67,14 +67,19 @@ export class FullNotation extends View {
     document.removeEventListener('keydown', this.onKey);
   }
   close() {
+    this.plays++;
     this.stop?.();
     this.remove();
   }
+  private plays = 0; // each Play, so one that's still loading when it's stopped or closed can tell
   async play() {
-    if (this.stop) { this.stop(); this.stop = null; this.playing = false; return; }
+    if (this.stop || this.playing) { this.plays++; this.stop?.(); this.stop = null; this.playing = false; return; }
+    const play = ++this.plays;
     this.playing = true;
     // (the button is there only with play)
-    this.stop = await this.opts.play!(() => { this.stop = null; this.playing = false; });
+    const stop = await this.opts.play!(() => { this.stop = null; this.playing = false; });
+    if (play !== this.plays) return stop?.(); // stopped or closed while it loaded
+    this.stop = stop;
     if (!this.stop) this.playing = false;
   }
   // Laid out again (and drawn again, to fit) whenever the screen's size changes.

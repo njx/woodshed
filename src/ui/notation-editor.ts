@@ -171,23 +171,29 @@ export class NotationEditor extends View {
   }
 
   stop() {
+    this.plays++; // (one still loading is stopped as soon as it starts)
     this.stopFn?.();
     this.stopFn = null;
     this.playing = 'no';
   }
+  private plays = 0; // each Play, so one stopped while its sound loads can tell
   async play() {
     if (this.stopFn) return this.stop();
-    if (!this.tune) return;
+    if (!this.tune || this.playing === 'loading') return;
+    const play = ++this.plays;
     this.playing = 'loading';
     try {
-      this.stopFn = await playNotation(this.tune, {
+      const stop = await playNotation(this.tune, {
         transpose: soundingShift(store.state.settings.view),
         ...playbackFor(this.meter),
         onEnded: () => { this.stopFn = null; this.playing = 'no'; },
         onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
       });
+      if (play !== this.plays) return stop(); // stopped (or the editor closed) while it loaded
+      this.stopFn = stop;
       this.playing = 'yes';
     } catch {
+      if (play !== this.plays) return;
       this.stopFn = null;
       this.playing = 'no';
       toast('Couldn’t play audio on this device');

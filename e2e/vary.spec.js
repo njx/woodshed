@@ -142,6 +142,20 @@ test('change the key a tune is played in today', async ({ page, ui }) => {
   const name = (await option.textContent()).split(' · ')[0];
   await sel.selectOption(other);
   await expect.poll(async () => String((await ui.saved()).state.plan.items.find((i) => i.itemId === id && !i.warmup).key)).toBe(other);
+  await expect(page.locator('#chart-key')).toHaveValue(other); // its chart follows
   await ui.backdrop();
   await expect(card.locator('.keychip')).toContainText(name);
+});
+
+test('a new exercise’s notation is drawn again when its card comes back @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.click('#add');
+  await page.click('#x-vary [data-vary="scale"]');
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
+  await page.click('#x-vary [data-vary=""]'); // (no notation to show)
+  await expect(page.locator('#x-notation')).toHaveCount(0);
+  await page.click('#x-vary [data-vary="scale"]');
+  await expect(page.locator('#x-notation svg').first()).toBeVisible();
 });

@@ -90,6 +90,10 @@ test('focus tunes lead the set; recordings and listening links', async ({ page, 
   await page.fill('#rec-form input[name=album]', 'Giant Steps');
   await page.click('#rec-form button');
   await expect(page.locator('.recordings li:not(.rec-more) b')).toContainText(['Tommy Flanagan']);
+  await expect(page.locator('#rec-form')).toBeHidden(); // (and cleared for the next one)
+  await page.click('#rec-add-toggle');
+  await expect(page.locator('#rec-form input[name=artist]')).toHaveValue('');
+  await page.click('#rec-add-toggle');
   const count = await page.locator('.recordings li:not(.rec-more)').count();
   await page.click('.recordings [data-rm="0"]');
   await expect(page.locator('.recordings li:not(.rec-more)')).toHaveCount(count - 1);

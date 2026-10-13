@@ -60,3 +60,17 @@ test('notes made from an exercise stay linked to it', async ({ page, ui }) => {
     return state.diary.find((e) => e.text === 'Even eighths')?.itemId === state.items.find((t) => t.name === name).id;
   }).toBe(true);
 });
+
+test('a note ticked Done stays done when its flag changes @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-note');
+  await page.fill('#n-text', 'Learn the bridge of Stella');
+  await page.click('[data-flag="remember"]');
+  await page.click('#n-save');
+  await page.locator('.remember .note').first().click();
+  await page.check('#n-done');
+  await page.click('[data-flag="teacher"]');
+  await expect(page.locator('#n-done')).toBeChecked();
+  await page.click('#n-save');
+  await expect.poll(async () => (await ui.saved()).state.diary.find((e) => e.text === 'Learn the bridge of Stella')).toMatchObject({ flag: 'teacher', done: true });
+});

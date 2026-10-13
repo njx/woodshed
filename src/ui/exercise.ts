@@ -117,6 +117,8 @@ export class ExerciseSheet extends View {
   private stopFn: (() => void) | null = null;
   private tune: TuneObject | null = null; // the notation drawn, to play
   private drawn = ''; // what the notation was drawn for (it's drawn again when that changes)
+  private drawnIn: HTMLElement | null = null; // …and where (a new place, e.g. its card shown again, is drawn in afresh)
+  private plays = 0; // each Play, so one stopped while its sound loads can tell
   private leaving = false; // to another sheet (note, recorder, editor), coming back after
   private added = false;
 
@@ -135,7 +137,7 @@ export class ExerciseSheet extends View {
   // Closed: a new exercise with a name is added (unless it's going on to its notation); going
   // back to where it was opened from.
   closed() {
-    this.stopFn?.();
+    this.stopPlaying();
     if (this.isNew && !this.leaving) this.addNew();
     if (!this.isNew) render();
     if (!this.leaving) this.opts.back?.();
@@ -153,11 +155,11 @@ export class ExerciseSheet extends View {
     closeSheet();
     fn();
   }
-  back = () => openExercise(this.t.id, { keys: this.todayKeys, back: this.opts.back });
+  back = () => openExercise(this.t.id, { ...this.opts, keys: this.todayKeys }); // (as it was opened: a warm-up stays one)
   // A change: saved (a new exercise is saved when it's added), and shown.
   commit() {
     if (!this.isNew) save();
-    this.requestUpdate();
+    this.refresh();
   }
 
   // What Played logs against: its plan item, or if it's only in the set as warm-ups, one of them
@@ -217,24 +219,28 @@ export class ExerciseSheet extends View {
 
   // ---------- Playing the notation ----------
   stopPlaying() {
-    if (!this.stopFn) return;
-    this.stopFn();
+    this.plays++; // (one still loading is stopped as soon as it starts)
+    this.stopFn?.();
     this.stopFn = null;
     this.playing = 'no';
   }
   async play() {
     if (this.stopFn) return this.stopPlaying();
-    if (!this.tune) return;
+    if (!this.tune || this.playing === 'loading') return;
+    const play = ++this.plays;
     this.playing = 'loading'; // the first time, the sound loads
     try {
-      this.stopFn = await playNotation(this.tune, {
+      const stop = await playNotation(this.tune, {
         transpose: this.shift() + soundingShift(view()),
         ...playbackFor(this.t.meter),
         onEnded: () => { this.stopFn = null; this.playing = 'no'; },
         onFallback: (id) => toast(`Couldn’t load the ${SOUNDS[id].label.toLowerCase()} sound — playing the synth`),
       });
+      if (play !== this.plays) return stop(); // stopped (or the sheet closed) while it loaded
+      this.stopFn = stop;
       this.playing = 'yes';
     } catch {
+      if (play !== this.plays) return;
       this.stopFn = null;
       this.playing = 'no';
       toast('Couldn’t play audio on this device');
@@ -336,8 +342,9 @@ export class ExerciseSheet extends View {
     const el = this.querySelector<HTMLElement>('#x-notation');
     const abc = this.abc();
     const what = el && abc ? `${abc}|${this.shift()}|${homeKey(this.t)}|${this.t.meter}` : '';
-    if (!el || !abc || what === this.drawn) return;
+    if (!el || !abc || (what === this.drawn && el === this.drawnIn)) return;
     this.drawn = what;
+    this.drawnIn = el;
     this.tune = await renderNotation(el, abc, { shift: this.shift(), key: homeKey(this.t), meter: this.t.meter, tempo: this.tempoFrom.tempo || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });
   }

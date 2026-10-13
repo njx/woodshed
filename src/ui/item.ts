@@ -61,12 +61,12 @@ export class TuneSheet extends View {
   @state() panel: PanelKey | null = null; // the setting open over the sheet
   @state() adding = false; // adding a recording
 
-  // A change: saved (a new tune is saved when it's added), and shown.
+  // A change: saved (a new tune is saved when it's added), and shown (with the chart in it).
   commit() {
     if (!this.isNew) save();
-    this.requestUpdate();
+    this.refresh();
   }
-  back = () => openItem(this.tune.id);
+  back = () => openItem(this.tune.id, { pid: this.pid }); // (as it was opened: from its card, it's today's)
 
   render() {
     const t = this.tune, isNew = this.isNew;
@@ -169,7 +169,7 @@ export class TuneSheet extends View {
           const v = (e.target as HTMLSelectElement).value;
           if (v === '') return;
           setTodayKey(it, Number(v));
-          this.requestUpdate();
+          this.refresh(); // (the chart follows)
         }}>
           ${it.key == null ? html`<option value="" selected>—</option>` : nothing}
           ${keys.map((k) => html`<option value=${k} ?selected=${k === it.key}>${kn(k)}${t.keys.includes(k) ? ' · usual' : ''}</option>`)}
@@ -218,6 +218,8 @@ export class TuneSheet extends View {
     const artist = field('artist');
     if (!artist) return;
     this.tune.recordings = [...(this.tune.recordings || []), { artist, album: field('album') || null }];
+    f.reset();
+    this.adding = false;
     this.commit();
   }
 

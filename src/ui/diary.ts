@@ -6,7 +6,7 @@ import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize, playOnSpeaker } fro
 import { openRecorder } from './recorder.js';
 import { ICON, ui, render, goTo, toast, withUndo, closeSheet } from './shell.js';
 import { customElement, property, state } from 'lit/decorators.js';
-import { View, mount, html, nothing, live, raw, openSheetView } from './lit.js';
+import { View, mount, html, nothing, raw, openSheetView } from './lit.js';
 import type { DateStr, DiaryEntry, Id } from '../types.js';
 
 type Flag = NonNullable<DiaryEntry['flag']>;
@@ -220,6 +220,8 @@ export class NoteSheet extends View {
   private finished = false; // (saved, or deleted, already)
   private next: (() => void) | null = null; // where to go after closing, instead of opts.back (e.g. the recorder)
   private urls: string[] = [];
+  private done: boolean | undefined; // Done, as ticked (saved with the note)
+  private shut = false; // closed
 
   get text() { return this.querySelector<HTMLTextAreaElement>('#n-text')!; }
 
@@ -251,7 +253,7 @@ export class NoteSheet extends View {
           </div>
         </li>`)}</ul>` : nothing}
       ${canRecord() ? html`<button class="ghost-btn rec-start" id="n-record" @click=${() => this.record()}>${raw(ICON.rec)}<span>${e.media?.length ? 'Record another' : 'Record audio or video'}</span></button>` : nothing}
-      ${!isNew && e.flag ? html`<label class="done-toggle"><input type="checkbox" id="n-done" .checked=${live(e.done)}> Done</label>` : nothing}
+      ${!isNew && e.flag ? html`<label class="done-toggle"><input type="checkbox" id="n-done" .checked=${this.done ?? e.done} @change=${(ev: Event) => { this.done = (ev.target as HTMLInputElement).checked; }}> Done</label>` : nothing}
       <button class="primary-btn" id="n-save" @click=${() => this.saveNote()}>${isNew ? 'Save note' : 'Done'}</button>
       ${isNew ? nothing : html`<button class="danger-btn" id="n-delete" @click=${() => this.deleteNote()}>Delete note</button>`}
     `;
@@ -260,6 +262,7 @@ export class NoteSheet extends View {
   firstUpdated() {
     (this.entry.media || []).forEach(async (c, i) => {
       const url = await clipUrl(c);
+      if (this.shut) { if (url) URL.revokeObjectURL(url); return; } // (closed meanwhile)
       const slot = this.querySelector<HTMLElement>(`[data-clip="${i}"] .clip-player`);
       if (!slot) return;
       if (!url) { slot.innerHTML = '<span class="fine">Not on this device (recordings aren’t included in backups).</span>'; return; }
@@ -269,6 +272,7 @@ export class NoteSheet extends View {
     });
   }
   closed() {
+    this.shut = true;
     this.stopListening();
     this.urls.forEach((u) => URL.revokeObjectURL(u));
     if (!this.finished && this.commit() && this.isNew) toast('Note saved');
@@ -285,8 +289,7 @@ export class NoteSheet extends View {
     if (this.isNew) addEntry(fields);
     else {
       Object.assign(e, fields, { text: fields.text.trim() });
-      const done = this.querySelector<HTMLInputElement>('#n-done');
-      if (done) e.done = done.checked;
+      if (this.done != null) e.done = this.done;
       if (!e.flag) e.done = false;
     }
     save();
