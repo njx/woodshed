@@ -68,7 +68,7 @@ export class MetronomeSheet extends View {
   setBpm(b: number) {
     this.bpm = clampBpm(b);
     store.state.settings.metroBpm = this.bpm;
-    if (metronome.state.running) metronome.setBpm(this.bpm);
+    if (this.mine()) metronome.setBpm(this.bpm); // (not one running for something else)
     if (this.item) perform(cmd.updateItem, { item: this.item.id, tempo: this.bpm, tempo_today: true });
     else save(); // (the metronome's own tempo, above)
   }
@@ -76,7 +76,9 @@ export class MetronomeSheet extends View {
     this.beats = n;
     store.state.settings.metroBeats = n;
     save();
-    metronome.setBeats(n);
+    // Running for this, as a plain click: in time with it now. (Not another tune's bass, nor one
+    // running for something else.)
+    if (this.mine() && !metronome.state.bass) metronome.setBeats(n);
   }
   tap() {
     const now = performance.now();

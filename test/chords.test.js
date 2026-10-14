@@ -27,6 +27,7 @@ describe('reading chords', () => {
     expect(parseChord('Cmin6')).toEqual({ root: 0, q: 'm6' });
     expect(parseChord('CM')).toEqual({ root: 0, q: '' });
     expect(chordFamily('2')).toBe('maj6');
+    expect(chordFamily('+7')).toBe('dom7s5');
     // All The Things You Are's last A (D♭ minor-major in bar 6) keeps it.
     expect(chart('All The Things You Are').sections[3].bars.flatMap((b) => b.chords).some((c) => c.q === 'm/maj7')).toBe(true);
   });

@@ -78,6 +78,14 @@ describe('walking bass', () => {
     for (const l of rounds([chord(2, 'm7', 4), chord(7, 'dom7', 4)], 300, seeded(7))) seen.add(l.slice(0, 4).map((n) => n.midi - l[0].midi).join(' '));
     for (const want of ['0 2 3 4', '0 2 3 7', '0 3 7 3', '0 3 7 6', '0 -12 -10 -9', '0 0 2 3']) expect([...seen]).toContain(want);
   });
+  it('walks a chord’s own 5th when it’s altered (7♭5, +7), not the natural one', () => {
+    // The 5th in the shapes that arpeggiate up from the root (1 3 5 …), over C7♭5 and C+7.
+    const fifths = (q, family) => rounds([{ ...chord(0, family, 4), q }, chord(5, 'maj7', 4)], 80, seeded(9))
+      .filter((l) => /^1 3 5/.test(l[0].shape)).map((l) => pc(l[2].midi));
+    expect(new Set(fifths('7b5', 'dom7'))).toEqual(new Set([6]));
+    expect(new Set(fifths('+7', 'dom7s5'))).toEqual(new Set([8]));
+    expect(new Set(fifths('7', 'dom7'))).toEqual(new Set([7]));
+  });
   it('plays the first beat of each bar firmest, the rest a little softer and not all alike', () => {
     const l = walkingLine(iiVI, { rand: seeded(8) });
     for (const n of l) expect(n.vel).toBe(n.shape ? 1 : n.vel);

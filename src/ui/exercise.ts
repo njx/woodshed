@@ -198,7 +198,7 @@ export class ExerciseSheet extends View {
     // written, in today's key (the one you're transposing it to).
     const root = this.asWritten() && this.todayKeys.length ? this.todayKeys[0] : this.previewRoot;
     const up = homeShift(root, homeKey(t), view()) + soundingShift(view());
-    return list.map((c) => ({ root: (((c.root + up) % 12) + 12) % 12, family: c.family, beats: c.beats }));
+    return list.map((c) => ({ root: (((c.root + up) % 12) + 12) % 12, family: c.family, q: c.q, beats: c.beats }));
   }
   startBass() {
     const chords = this.bassChords();

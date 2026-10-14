@@ -183,7 +183,7 @@ export function chordFamily(q: string): ChordType {
   if (/^(maj|add9)/.test(q)) return 'maj7';
   if (/^(6|69|2|add\d+)?$/.test(q)) return 'maj6'; // (and plain triads)
   if (/sus/.test(q)) return 'dom7sus';
-  if (/^(aug|\+)$|^7#5$|^9#5$/.test(q)) return 'dom7s5';
+  if (/^(aug|\+)$|^\+7|^7(\+|#5)$|^9#5$/.test(q)) return 'dom7s5';
   // Colours: ♭9 (dominants in minor keys), ♯9 and altered.
   if (/#9|alt/.test(q)) return 'dom7s9';
   if (/b9/.test(q)) return 'dom7b9';

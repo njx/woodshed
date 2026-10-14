@@ -4,8 +4,8 @@ import { chordTimeline, chordFamily, chartShift } from './chords.js';
 import type { Samples } from './sounds.js';
 import type { Bar, Chart, Chord, Key, Tune } from './types.js';
 
-/** A chord for the walking bass: its root (concert pitch class), family (a chord type in theory.ts) and beats. */
-export interface BassChord { root: number; family: string; beats: number }
+/** A chord for the walking bass: its root (concert pitch class), family (a chord type in theory.ts), beats, and quality as written (for an altered 5th). */
+export interface BassChord { root: number; family: string; beats: number; q?: string }
 /**
  * A note of the line: MIDI, the index of the chord it's on, how hard it's played (0–1), and on the
  * first note of each bar's shape, which shape it is (see SHAPES).
@@ -31,9 +31,11 @@ const MID = 40; // E2
 
 const MINOR = ['m7', 'm6', 'mMaj7', 'm7b5', 'dim7'];
 interface Tones { third: number; fifth: number; seventh: number; dominant: boolean }
-function degrees(family: string): Tones {
+function degrees(family: string, q = ''): Tones {
   const third = family === 'dom7sus' ? 5 : MINOR.includes(family) ? 3 : 4;
-  const fifth = ['m7b5', 'dim7'].includes(family) ? 6 : ['dom7s5', 'maj7s5'].includes(family) ? 8 : 7;
+  // (A 5th the family doesn't say: 7♭5, 7♯11, 7♯5♯9, +7…)
+  const altered = MINOR.includes(family) ? null : /b5|#11/.test(q) ? 6 : /#5|\+|aug/.test(q) ? 8 : null;
+  const fifth = altered ?? (['m7b5', 'dim7'].includes(family) ? 6 : ['dom7s5', 'maj7s5'].includes(family) ? 8 : 7);
   const seventh = family === 'dim7' ? 9 : ['maj7', 'maj7s5', 'mMaj7'].includes(family) ? 11 : ['maj6', 'm6'].includes(family) ? 9 : 10; // (the 6th, on a 6 chord)
   return { third, fifth, seventh, dominant: family.startsWith('dom7') };
 }
@@ -57,7 +59,7 @@ const SHAPES: Record<number, Record<string, Make>> = {
     '1 3 5 3': (r, c, t) => (leads(r + c.third, t) ? [r, r + c.third, r + c.fifth, r + c.third] : null),
     '8 1 2 3': (r, c, t) => (leads(r + c.third - 12, t) ? [r, r - 12, r - 10, r + c.third - 12] : null), // (from the octave, down)
     '1 1 2 3': (r, c, t) => (leads(r + c.third, t) ? [r, r, r + 2, r + c.third] : null),
-    '1 ♭7 6 5': (r, c, t) => (c.dominant && leads(r - 5, t) ? [r, r - 2, r - 3, r - 5] : null),
+    '1 ♭7 6 5': (r, c, t) => (c.dominant && leads(r + c.fifth - 12, t) ? [r, r - 2, r - 3, r + c.fifth - 12] : null),
     '1 3 5 7': (r, c, t) => (leads(r + c.seventh, t) ? [r, r + c.third, r + c.fifth, r + c.seventh] : null), // on up to the octave
     '1 5 6 7': (r, c, t) => (leads(r + c.seventh, t) && c.fifth === 7 && c.seventh > 9 ? [r, r + 7, r + 9, r + c.seventh] : null),
     '8 5 3 2': (r, c, t) => (leads(r - 10, t) ? [r, r + c.fifth - 12, r + c.third - 12, r - 10] : null), // down to the octave below
@@ -128,7 +130,7 @@ export function walkingLine(chords: BassChord[], { after = null, rand = Math.ran
   chords.forEach((c, ci) => {
     let n = Math.max(1, Math.round(at + c.beats) - Math.round(at));
     at += c.beats;
-    const tones = degrees(c.family);
+    const tones = degrees(c.family, c.q);
     const next = chords[(ci + 1) % chords.length];
     // In bars of four (any left over at the start); within the chord, each bar walks to its own
     // root (in this octave or another), then the last leads into the next chord.
@@ -176,7 +178,7 @@ export function chartChords(t: Tune, key: Key | null = null, { from = null, to =
   if (!chart) return null;
   const up = chartShift(chart, key ?? chart.key ?? 0, 'c');
   const beats = Number(String(chart.meter || '4/4').split('/')[0]) || 4;
-  const chord = (c: Chord, n: number): BassChord => ({ root: (c.root + up) % 12, family: chordFamily(c.q), beats: n });
+  const chord = (c: Chord, n: number): BassChord => ({ root: (c.root + up) % 12, family: chordFamily(c.q), q: c.q, beats: n });
   if (from == null) return { chords: chordTimeline(chart).map((c) => chord(c, c.beats)), beats };
   const { bars } = chartBars(chart);
   const out: BassChord[] = [];

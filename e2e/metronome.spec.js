@@ -115,3 +115,17 @@ test('the metronome stops when the app goes into the background, and offers to s
   await page.click('#toast button');
   await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
 });
+
+test('opened for another tune, the metronome’s controls don’t change one running for the first', async ({ page, ui }) => {
+  await ui.start();
+  const cards = page.locator('.card:not(.b-exercise)');
+  await cards.nth(0).locator('.tempo-chip').click();
+  const bpm = await page.locator('#m-bpm').textContent();
+  await page.click('#m-go');
+  await ui.backdrop();
+  await cards.nth(1).locator('.tempo-chip').click();
+  await page.click('[data-step="5"]');
+  await page.click('[data-step="5"]');
+  await ui.backdrop();
+  await expect(page.locator('#today-metro .hd-live')).toHaveText(bpm); // still the first one's tempo
+});
