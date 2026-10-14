@@ -21,6 +21,12 @@ function entryOf(pid: Id): { it: PlanItem; t: Item } {
   if (!it || !t) throw new CommandError('That isn’t in today’s set any more.');
   return { it, t };
 }
+// The entry, checked to be that item's (the assistant gives both).
+function entryFor(pid: Id, t: Item): PlanItem {
+  const { it } = entryOf(pid);
+  if (it.itemId !== t.id) throw new CommandError(`That entry in today’s set isn’t ${t.name}.`);
+  return it;
+}
 const tuneOf = (id: Id) => itemById(id) as Tune; // (checked by its field, or by the app)
 const exerciseOf = (id: Id) => itemById(id) as Exercise;
 
@@ -138,7 +144,7 @@ export const markPlayed = command<PlayedInput>({
   fields: { item: f.item(), entry: f.opt(f.entry()), keys: f.opt(f.app()), rating: f.opt(f.oneOf(RATING_IDS)) },
   run({ item, entry, keys, rating }, { note }) {
     const t = itemById(item)!; // (checked by its field, or by the app)
-    const it = entry ? entryOf(entry).it : todayItem(t);
+    const it = entry ? entryFor(entry, t) : todayItem(t);
     if (it ? isPlanItemPlayed(it) : todaysEntry(t.id) && !keys) throw new CommandError(`${t.name} is already logged for today.`);
     logPlayed(t.id, it || (t.type === 'tune' ? { key: t.keys[0] ?? null } : { keys: keys ?? [] }));
     if (rating && rating !== 'ok') rate(t.id, rating, it);
@@ -153,7 +159,7 @@ export const unmarkPlayed = command<{ item: Id; entry?: Id }>({
   fields: { item: f.item(), entry: f.opt(f.entry()) },
   run({ item, entry }, { note }) {
     const t = itemById(item)!;
-    const it = entry ? entryOf(entry).it : null;
+    const it = entry ? entryFor(entry, t) : null;
     if (!(it ? planEntry(it) : todaysEntry(t.id))) throw new CommandError(`${t.name} isn’t logged for today.`);
     unlog(t.id, it);
     note(`Unmarked ${t.name}`);
@@ -167,7 +173,7 @@ export const rateToday = command<{ item: Id; entry?: Id; rating: Rating }>({
   fields: { item: f.item(), entry: f.opt(f.entry()), rating: f.oneOf(RATING_IDS) },
   run({ item, entry, rating }, { note }) {
     const t = itemById(item)!;
-    const it = entry ? entryOf(entry).it : null;
+    const it = entry ? entryFor(entry, t) : null;
     if (!(it ? planEntry(it) : todaysEntry(t.id))) throw new CommandError(`${t.name} isn’t logged for today: mark it played first.`);
     rate(t.id, rating, it);
     note(`${t.name}: ${rating}`);

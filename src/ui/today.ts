@@ -320,7 +320,7 @@ export class Timer extends View {
     if (away) {
       const at = new Date(away.end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       return bar('', html`<b>${fmtDuration(total)}</b> today. The timer stopped at ${at}, when the app was closed.`,
-        html`<button class="pill-btn" id="pt-away" @click=${() => { countTimeAway(); render(); }}>${raw(ICON.plus)}Count since then</button>${start('Start again')}`);
+        html`<button class="pill-btn" id="pt-away" @click=${() => { countTimeAway(); cmd.dataChanged(); render(); }}>${raw(ICON.plus)}Count since then</button>${start('Start again')}`);
     }
     if (total) return bar('', html`Practiced <b>${fmtDuration(total)}</b> today`, start('Resume'));
     return bar('', html`Practice timer`, start('Start', 'Start practice'));

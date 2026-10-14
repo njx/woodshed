@@ -129,7 +129,7 @@ export class AssistantSheet extends View {
           </div>` : nothing}
         ${e.confirms?.length ? html`<div class="confirms">${e.confirms.map((c, j) => html`
           <div class="confirm"><span>${c.question}</span>${c.done ? html`<span class="fine">Done</span>`
-            : html`<button class="pill-btn danger" data-confirm=${`${i}:${j}`} @click=${() => this.confirm(e, j)}>Yes</button>`}</div>`)}</div>` : nothing}
+            : html`<button class="pill-btn danger" data-confirm=${`${i}:${j}`} ?disabled=${this.busy} @click=${() => this.confirm(e, j)}>Yes</button>`}</div>`)}</div>` : nothing}
         ${e.error ? html`<p class="chat-error">${e.error}</p>` : nothing}
         ${e.stop === 'refusal' ? html`<p class="chat-error">The assistant couldn’t help with that one.</p>` : nothing}
         ${e.stop === 'too_many_steps' ? html`<p class="fine">That took a lot of steps, so I stopped. Ask me to carry on if needed.</p>` : nothing}
@@ -151,7 +151,7 @@ export class AssistantSheet extends View {
 
   undo(i: number) {
     const e = transcript[i];
-    if (!e?.undo) return;
+    if (!e?.undo || this.busy) return;
     if (!undoChanges(e.undo)) { this.requestUpdate(); return toast('Can’t undo — other things have changed since'); }
     e.undone = true;
     pendingNote = 'I undid the changes you just made.';
@@ -163,6 +163,7 @@ export class AssistantSheet extends View {
   // A change the assistant asked for, confirmed: done (with its own undo, in the toast).
   confirm(e: Entry, j: number) {
     const c = e.confirms![j];
+    if (this.busy || c.done) return; // (not while a turn's changes are being gathered into one undo)
     try {
       const done = c.run();
       c.done = true;

@@ -253,6 +253,7 @@ export class SettingsView extends View {
   async restoreStray(btn: HTMLButtonElement) {
     btn.disabled = true; // (once)
     const n = await restoreStrayClips(addEntry);
+    cmd.dataChanged();
     await flush();
     render();
     toast(`Restored ${n} recording${n === 1 ? '' : 's'} — they’re in the Diary`);

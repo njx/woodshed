@@ -210,14 +210,21 @@ export function validate(schema: Schema, value: any, path = 'input'): string | n
 // changes with every command (and wherever the data changes on its own, see invalidateUndo), not
 // with saves of things beside it (a hint seen, the practice timer ticking).
 
-export interface UndoEntry { label: string; state: State; rev: number; key?: string }
+/**
+ * The state from before a change (or a group of them), to put back: rev, the change's; revBefore,
+ * from before it (what's current again once it's undone); timing, whether it started or ended the
+ * practice timer (otherwise the timer's sessions, which move on by themselves, stay as they are).
+ */
+export interface UndoEntry { label: string; state: State; rev: number; revBefore: number; timing: boolean; key?: string }
 export interface Done<R> { result: R; notes: string[]; undo: UndoEntry | null }
 
 const MAX_UNDO = 10;
 const stack: UndoEntry[] = [];
 let revs = 0;
 let rev = 0;
-let group: { state: State; rev: number; notes: string[] } | null = null;
+let group: { state: State; rev: number; notes: string[]; ran: number; timing: boolean } | null = null;
+// The commands that change the practice timer (undoing anything else leaves it as it is now).
+const TIMING = new Set(['start_practice', 'end_practice']);
 
 const copy = (): State => structuredClone(store.state);
 
@@ -226,6 +233,7 @@ export function exec<I, R>(c: Command<I, R>, input: I): Done<R> {
   const key = c.coalesce?.(input);
   const joined = !group && key != null && top?.key === key && top.rev === rev; // (typing on: the same undo)
   const before = joined ? null : copy();
+  const revBefore = rev;
   const notes: string[] = [];
   let result: R;
   try {
@@ -242,13 +250,15 @@ export function exec<I, R>(c: Command<I, R>, input: I): Done<R> {
   save();
   if (group) {
     group.notes.push(...notes);
+    group.ran++;
+    group.timing ||= TIMING.has(c.name);
     return { result, notes, undo: null };
   }
   if (joined) {
     top!.rev = rev;
     return { result, notes, undo: top! };
   }
-  const entry: UndoEntry = { label: notes.join(' · ') || c.name, state: before!, rev, ...(key != null ? { key } : {}) };
+  const entry: UndoEntry = { label: notes.join(' · ') || c.name, state: before!, rev, revBefore, timing: TIMING.has(c.name), ...(key != null ? { key } : {}) };
   stack.push(entry);
   if (stack.length > MAX_UNDO) stack.shift();
   return { result, notes, undo: entry };
@@ -256,31 +266,48 @@ export function exec<I, R>(c: Command<I, R>, input: I): Done<R> {
 
 // Several commands as one undo (the assistant's turn): begin, run them, end.
 export function beginGroup(): void {
-  group = { state: copy(), rev, notes: [] };
+  group = { state: copy(), rev, notes: [], ran: 0, timing: false };
 }
 /** The group's undo (null if it changed nothing), and what it did. */
 export function endGroup(): { undo: UndoEntry | null; notes: string[] } {
   const g = group;
   group = null;
-  if (!g || g.rev === rev) return { undo: null, notes: g?.notes ?? [] };
-  const entry: UndoEntry = { label: g.notes.join(' · '), state: g.state, rev };
+  if (!g || !g.ran) return { undo: null, notes: g?.notes ?? [] };
+  const entry: UndoEntry = { label: g.notes.join(' · '), state: g.state, rev, revBefore: g.rev, timing: g.timing };
   stack.push(entry);
   if (stack.length > MAX_UNDO) stack.shift();
   return { undo: entry, notes: g.notes };
 }
 
-export const canUndo = (entry: UndoEntry | null | undefined): boolean => !!entry && stack.at(-1) === entry && entry.rev === rev;
+// (Not while the assistant's turn is still going: its group was copied before, and would bring an
+// undone change back.)
+export const canUndo = (entry: UndoEntry | null | undefined): boolean => !!entry && !group && stack.at(-1) === entry && entry.rev === rev;
+
+// Settings that are the app remembering how it was used, not practice data: an undo leaves them.
+const REMEMBERED = ['metroBpm', 'metroBeats', 'recordKind', 'recordMic', 'recordMicLabel', 'instrumentsChosen'] as const;
 
 // Puts back the state from before it: only the latest, and only if nothing has changed since
-// (false otherwise). What isn't the practice data (hints seen, the day's welcome) stays as it is.
+// (false otherwise). What isn't the practice data (hints seen, the day's welcome, what the app
+// remembers, and the practice timer unless it was this that changed it) stays as it is now.
 export function undo(entry: UndoEntry): boolean {
   if (!canUndo(entry)) return false;
   stack.pop();
-  const { hintsSeen, greetedOn } = store.state;
-  store.state = { ...entry.state, hintsSeen, greetedOn };
-  rev = stack.at(-1)?.rev ?? ++revs;
+  const now = store.state;
+  const settings = { ...entry.state.settings };
+  for (const k of REMEMBERED) (settings as Record<string, unknown>)[k] = now.settings[k];
+  store.state = {
+    ...entry.state, settings, hintsSeen: now.hintsSeen, greetedOn: now.greetedOn,
+    ...(entry.timing ? {} : { sessions: now.sessions, timing: now.timing }),
+  };
+  rev = entry.revBefore; // (the change before it can be undone next, if nothing else came between)
   save();
   return true;
+}
+
+// The data changed outside a command (practice time counted, recordings restored as notes): the
+// latest undo no longer applies.
+export function dataChanged(): void {
+  rev = ++revs;
 }
 
 // The data changed on its own (a new day's set, a backup restored): what's on the undo stack no

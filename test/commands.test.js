@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store } from '../src/store.js';
-import { exec, undo, canUndo, invalidateUndo, CommandError, command, f, readInput } from '../src/commands/core.js';
-import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, COMMANDS } from '../src/commands/index.js';
+import { exec, undo, canUndo, invalidateUndo, dataChanged, beginGroup, endGroup, CommandError, command, f, readInput } from '../src/commands/core.js';
+import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, COMMANDS } from '../src/commands/index.js';
+import { running, startPractice as startTimer } from '../src/practicetime.js';
 import { buildPlan, ensurePlan } from '../src/plan.js';
 import { freezeToday, tune, setState } from './helpers.js';
 
@@ -72,6 +73,67 @@ describe('commands', () => {
     store.state.plan.date = '2026-10-05'; // (yesterday's)
     ensurePlan();
     expect(canUndo(a.undo)).toBe(false);
+  });
+
+  it('after one is undone, the one before it can be undone next', () => {
+    const a = exec(updateItem, { item: 'a', level: 3 });
+    const b = exec(updateItem, { item: 'b', priority: 1 });
+    undo(b.undo);
+    expect(undo(a.undo)).toBe(true);
+    expect(store.state.items[0].level).toBe(1);
+  });
+
+  it('a change made outside the commands (time away counted, clips put back) makes undo stale', () => {
+    const a = exec(updateItem, { item: 'a', level: 3 });
+    dataChanged();
+    expect(canUndo(a.undo)).toBe(false);
+  });
+
+  it('undo leaves the practice timer, and settings remembered as they’re used, as they are now', () => {
+    const a = exec(updateItem, { item: 'a', level: 3 });
+    startTimer();
+    store.state.settings.metroBpm = 180;
+    expect(undo(a.undo)).toBe(true);
+    expect(running()).toBeTruthy();
+    expect(store.state.settings.metroBpm).toBe(180);
+  });
+
+  it('undoing starting the timer stops it again', () => {
+    const a = exec(startPractice, {});
+    expect(running()).toBeTruthy();
+    expect(undo(a.undo)).toBe(true);
+    expect(running()).toBe(null);
+  });
+
+  it('a group (the assistant’s turn) is one undo, offered once it’s over; none if nothing ran', () => {
+    beginGroup();
+    const a = exec(updateItem, { item: 'a', level: 3 });
+    exec(updateItem, { item: 'b', priority: 1 });
+    expect(canUndo(a.undo)).toBe(false);
+    const { undo: g, notes } = endGroup();
+    expect(notes).toHaveLength(2);
+    expect(undo(g)).toBe(true);
+    expect(store.state.items[0].level).toBe(1);
+    expect(store.state.items[1].priority).not.toBe(1);
+    beginGroup();
+    expect(endGroup().undo).toBe(null);
+  });
+
+  it('refuse an entry in today’s set that isn’t the item’s', () => {
+    const b = store.state.plan.items.find((i) => i.itemId === 'b');
+    expect(() => exec(markPlayed, { item: 'a', entry: b.pid })).toThrow(/isn’t Solar/);
+    const a = store.state.plan.items.find((i) => i.itemId === 'a');
+    exec(markPlayed, { item: 'a', entry: a.pid });
+    expect(() => exec(rateToday, { item: 'b', entry: a.pid, rating: 'good' })).toThrow(/isn’t Stella/);
+  });
+
+  it('take away a recording by artist and album (one without: \'\'; left out: any)', () => {
+    exec(addRecording, { tune: 'a', artist: 'Miles', album: 'Walkin' });
+    exec(addRecording, { tune: 'a', artist: 'Miles' });
+    exec(removeRecording, { tune: 'a', artist: 'Miles', album: '' });
+    expect(store.state.items[0].recordings).toEqual([{ artist: 'Miles', album: 'Walkin' }]);
+    exec(removeRecording, { tune: 'a', artist: 'Miles' });
+    expect(store.state.items[0].recordings).toEqual([]);
   });
 
   it('say what they did', () => {

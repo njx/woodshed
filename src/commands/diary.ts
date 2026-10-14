@@ -1,4 +1,4 @@
-import { store } from '../store.js';
+import { store, save } from '../store.js';
 import { itemById } from '../practice.js';
 import { addEntry, entryById, deleteEntry, FLAGS } from '../diary.js';
 import { dateStr } from '../dates.js';
@@ -63,10 +63,12 @@ export const deleteNote = command<{ note: Id }>({
 // Something the assistant was asked for that it (or the app) can't do yet, for later.
 export const reportUnsupported = command<{ request: string }>({
   name: 'report_unsupported',
+  query: true, // (a note for later, not a change to undo: saved straight away)
   description: "Call this when the user asks for something the app or these tools can't do, so it can be added later. Then tell the user it isn't possible yet.",
   fields: { request: f.str('What they wanted, in a sentence', 500) },
   run({ request }) {
     (store.state.assistantWishes ||= []).push({ date: dateStr(), request });
+    save();
     return { noted: true };
   },
 });

@@ -93,7 +93,9 @@ function varyFrom(t: { vary: Vary | null }, a: ItemFields): Vary | null {
   const same = t.vary?.kind === kind;
   const shape = a.shape || (same ? t.vary!.shape : 'updown');
   const pattern = a.pattern ?? (same ? t.vary!.pattern : '');
-  if (shape === 'custom' && !a.pattern_unfinished) {
+  // (Checked when the shape or pattern is what's changing: one left unfinished on the number pad
+  // doesn't block changing the types.)
+  if (shape === 'custom' && !a.pattern_unfinished && (a.shape || a.pattern != null)) {
     const { error } = parsePattern(pattern, kind);
     if (error) throw new CommandError(`Pattern: ${error}`);
   }
@@ -253,6 +255,7 @@ export const removeRecording = command<{ tune: Id; artist: string; album?: strin
   fields: { tune: f.item('tune'), artist: f.str(), album: f.opt(f.str()) },
   run({ tune, artist, album }, { note }) {
     const t = itemById(tune) as Tune;
+    // (album: '' for one without; left out, any by that artist)
     const i = (t.recordings || []).findIndex((r) => r.artist === artist && (album == null || (r.album || '') === album));
     if (i < 0) throw new CommandError(`No recording by ${artist} was added to ${t.name}.`);
     t.recordings = t.recordings!.filter((_, j) => j !== i);

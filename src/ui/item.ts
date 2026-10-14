@@ -196,7 +196,7 @@ export class TuneSheet extends View {
               <span class="rec-text"><b>${r.artist}</b><small>${[r.album, r.year].filter(Boolean).join(' · ') || 'Search this artist'}</small></span>
               <span class="rec-out">${raw(ICON.out)}</span>
             </a>
-            ${r.mine ? html`<button class="rec-remove" data-rm=${i} aria-label="Remove this recording" @click=${() => { perform(cmd.removeRecording, { tune: t.id, artist: r.artist, album: r.album ?? undefined }); this.refresh(); }}>${raw(ICON.skip)}</button>` : nothing}
+            ${r.mine ? html`<button class="rec-remove" data-rm=${i} aria-label="Remove this recording" @click=${() => { perform(cmd.removeRecording, { tune: t.id, artist: r.artist, album: r.album ?? '' }); this.refresh(); }}>${raw(ICON.skip)}</button>` : nothing}
           </li>`)}
         <li class="rec-more">
           <a href=${searchUrl(service, searchName(t))} target="_blank" rel="noopener">${raw(ICON.search)}<span>${recs.length ? 'Other versions' : `Search ${label}`}</span></a>

@@ -308,7 +308,7 @@ export class NoteSheet extends View {
       this.next = () => openRecorder({ entryId: created.id, back: () => openNote(created.id, { back }) });
     } else {
       const tune = findItemByName(this.querySelector<HTMLInputElement>('#n-tune')!.value);
-      this.next = () => openRecorder({ itemId: tune?.id || this.opts.itemId, flag: e.flag, back });
+      this.next = () => openRecorder({ itemId: tune?.id || this.opts.itemId, flag: this.flag, back });
     }
     this.finished = true;
     closeSheet();

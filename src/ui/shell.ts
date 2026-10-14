@@ -104,8 +104,10 @@ export function offerUndo(done: Pick<Done<unknown>, 'notes' | 'undo'>): void {
     fn: () => {
       if (!undo(entry)) return toast('Can’t undo — other things have changed since');
       // An open sheet holds objects from the state put back over: it's closed (after the swap, so
-      // anything it reopens reads the restored state).
-      closeSheet();
+      // anything it reopens reads the restored state). Not the assistant's, which holds none.
+      const chat = document.querySelector<HTMLElement & { requestUpdate(): void }>('#sheet-root ws-assistant');
+      if (chat) chat.requestUpdate();
+      else closeSheet();
       render();
     },
   } : undefined);

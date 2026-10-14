@@ -3,8 +3,9 @@ import { dateStr, addDays, niceDate } from '../dates.js';
 import { ensurePlan } from '../plan.js';
 import { itemById } from '../practice.js';
 import { openTodos } from '../diary.js';
-import { timedToday, startPractice } from '../practicetime.js';
-import { ICON, goTo } from './shell.js';
+import { timedToday } from '../practicetime.js';
+import * as cmd from '../commands/index.js';
+import { ICON, goTo, perform } from './shell.js';
 import { customElement } from 'lit/decorators.js';
 import { View, html, nothing, raw, type TemplateResult } from './lit.js';
 import type { Item, PlanItem } from '../types.js';
@@ -74,7 +75,7 @@ export class Greet extends View {
   }
   skip() { greeted(); this.remove(); }
   start() {
-    startPractice();
+    perform(cmd.startPractice, {}, { quiet: true });
     greeted();
     this.remove();
     goTo('today');
