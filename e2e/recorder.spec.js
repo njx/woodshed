@@ -294,3 +294,17 @@ test('recording with no sound coming in says so', async ({ page, ui }) => {
   await expect(page.locator('#rec-quiet')).toContainText('No sound is coming in');
   await page.click('#rec-go');
 });
+
+test('the mic test opens the mic each way, and says what it got @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('settings');
+  await page.click('#mic-test');
+  await page.click('#mt-go');
+  await expect(page.locator('#mt-info')).toContainText('Channels:');
+  await expect(page.locator('#mt-info')).toContainText('Web Audio:');
+  await page.click('[data-mt="webAudio"] button[data-v="off"]');
+  await expect(page.locator('#mt-info')).toContainText('Web Audio: not used');
+  await page.click('#mt-go');
+  await expect(page.locator('#mt-info')).toHaveCount(0);
+  await ui.expectNoSideScroll();
+});

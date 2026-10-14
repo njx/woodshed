@@ -1216,3 +1216,6 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .copies li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .copies li span { display: flex; flex-direction: column; }
 .copies small { color: var(--ink-3); }
+.mt-level { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 12px 0; }
+.mt-level i { display: block; height: 100%; background: var(--good); transition: width .05s linear; }
+.mt-info { white-space: pre-wrap; font: 12.5px/1.5 ui-monospace, monospace; color: var(--ink-2); background: var(--surface); border-radius: 10px; padding: 10px 12px; margin-top: 12px; }

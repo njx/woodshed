@@ -8,6 +8,7 @@ import { addEntry } from '../diary.js';
 import { getApiKey, setApiKey } from '../assistant/agent.js';
 import { getUsage, summarize, resetUsage, fmtCost, type Usage } from '../assistant/cost.js';
 import { openKeySetup, openAssistant } from './assistant.js';
+import { openMicTest } from './mictest.js';
 import { ICON, render, toast, goTo, closeSheet, perform } from './shell.js';
 import * as cmd from '../commands/index.js';
 import { customElement, state } from 'lit/decorators.js';
@@ -173,6 +174,11 @@ export class SettingsView extends View {
         ${wishes.length ? html`
           <div class="field-label">Things it couldn’t do yet</div>
           <ul class="wishes">${wishes.slice(-10).reverse().map((w) => html`<li><span>${w.request}</span><small>${w.date}</small></li>`)}</ul>` : nothing}
+      </section>
+
+      <section class="panel">
+        <ws-heading label="Microphone" help="If an external mic (a USB mic, say) misbehaves when the tuner or recorder listens — its own headphone monitoring stops, or it isn’t heard — the mic test opens it in different ways to find out why."></ws-heading>
+        <button class="ghost-btn" id="mic-test" @click=${() => openMicTest()}>Mic test</button>
       </section>
 
       <section class="panel">
