@@ -124,12 +124,11 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
   // The shared audio (see audio.ts), through the iPhone's silent switch, like the metronome
   // (otherwise it's silent with the ringer off).
   const shared = acquireAudio('playback');
-  const ctx = shared.ctx;
   let voice: SoundId = SOUNDS[sound] ? sound : 'synth';
   let samples: Samples | null = null;
   if (voice !== 'synth') {
     try {
-      samples = await loadSamples(ctx, voice);
+      samples = await loadSamples(shared.ctx, voice);
     } catch (err) {
       console.warn('Could not load sound', voice, err);
       onFallback?.(voice);
@@ -138,87 +137,89 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
   }
   // Stopped (or another started) while its sound loaded: it doesn't start.
   if (mine !== plays) { shared.release(); setTimeout(() => onEnded?.()); return () => {}; } // (ended, once the caller has it)
-  let audio: AudioTracks;
+  // (The context as it is now: it can have been started again, at a mic's rate, while the sound
+  // loaded. If anything below fails, the audio is let go.)
+  const ctx = shared.ctx;
   try {
-    audio = tune.setUpAudio({ midiTranspose: transpose, chordsOff: true }); // the line itself, not comping
+    const audio: AudioTracks = tune.setUpAudio({ midiTranspose: transpose, chordsOff: true }); // the line itself, not comping
+    const secPerBeat = 60 / (tempo || audio.tempo || 100);
+    const ratio = SWING[swing]?.ratio ?? 0.5;
+    // abcjs times are in whole notes; a beat is a quarter note.
+    const at = (whole: number) => swingTime(whole * 4, ratio) * secPerBeat;
+
+    const out = shared.output(); // (disconnected when it stops: everything scheduled goes quiet)
+    let synthIn: BiquadFilterNode | null = null;
+    if (voice === 'synth') {
+      out.gain.value = 0.22;
+      synthIn = ctx.createBiquadFilter(); // soften the sawtooth into something reedy
+      synthIn.type = 'lowpass';
+      synthIn.frequency.value = 2400;
+      synthIn.connect(out);
+    } else out.gain.value = 0.9;
+
+    const t0 = ctx.currentTime + 0.08;
+    const sources: AudioScheduledSourceNode[] = [];
+    const release = SOUNDS[voice].release;
+    for (const track of audio.tracks) {
+      for (const ev of track) {
+        if (ev.cmd !== 'note' || ev.pitch == null) continue;
+        const start = t0 + at(ev.start);
+        const end = Math.max(start + 0.05, t0 + at(ev.start + ev.duration) - 0.02);
+        const peak = (ev.volume || 85) / 127;
+        const env = ctx.createGain();
+        if (voice === 'synth') {
+          env.gain.setValueAtTime(0, start);
+          env.gain.linearRampToValueAtTime(peak, start + 0.015);
+          env.gain.setTargetAtTime(peak * 0.75, start + 0.015, 0.12);
+          env.gain.setTargetAtTime(0, end, release);
+          env.connect(synthIn!); // (made above, for the synth)
+          const freq = 440 * Math.pow(2, (ev.pitch - 69) / 12);
+          for (const [type, level] of [['sawtooth', 0.35], ['triangle', 0.65]] as const) {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = type;
+            o.frequency.value = freq;
+            g.gain.value = level;
+            o.connect(g).connect(env);
+            o.start(start);
+            o.stop(end + 0.2);
+            sources.push(o);
+          }
+        } else {
+          const m = nearestSample(voice, ev.pitch)!; // (every recorded sound has samples)
+          const src = ctx.createBufferSource();
+          src.buffer = samples![m]; // (loaded above, or it's the synth)
+          src.playbackRate.value = Math.pow(2, (ev.pitch - m) / 12);
+          env.gain.setValueAtTime(peak, start);
+          env.gain.setTargetAtTime(0, end, release);
+          src.connect(env).connect(out);
+          src.start(start);
+          src.stop(end + release * 6);
+          sources.push(src);
+        }
+      }
+    }
+    const totalSec = at(audio.totalDuration || 0) + 0.5;
+    let done = false;
+    const stop = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      for (const o of sources) { try { o.stop(); } catch {} }
+      out.disconnect();
+      unreset();
+      shared.release();
+      if (current?.stop === stop) current = null;
+    };
+    const timer = setTimeout(() => { stop(); onEnded?.(); }, totalSec * 1000);
+    // (The audio started again at another rate: what was scheduled on the old one is gone.)
+    const unreset = onAudioReset(() => { stop(); onEnded?.(); });
+    current = { stop };
+    return stop;
   } catch (err) {
     shared.release();
     throw err;
   }
-  const secPerBeat = 60 / (tempo || audio.tempo || 100);
-  const ratio = SWING[swing]?.ratio ?? 0.5;
-  // abcjs times are in whole notes; a beat is a quarter note.
-  const at = (whole: number) => swingTime(whole * 4, ratio) * secPerBeat;
-
-  const out = shared.output(); // (disconnected when it stops: everything scheduled goes quiet)
-  let synthIn: BiquadFilterNode | null = null;
-  if (voice === 'synth') {
-    out.gain.value = 0.22;
-    synthIn = ctx.createBiquadFilter(); // soften the sawtooth into something reedy
-    synthIn.type = 'lowpass';
-    synthIn.frequency.value = 2400;
-    synthIn.connect(out);
-  } else out.gain.value = 0.9;
-
-  const t0 = ctx.currentTime + 0.08;
-  const sources: AudioScheduledSourceNode[] = [];
-  const release = SOUNDS[voice].release;
-  for (const track of audio.tracks) {
-    for (const ev of track) {
-      if (ev.cmd !== 'note' || ev.pitch == null) continue;
-      const start = t0 + at(ev.start);
-      const end = Math.max(start + 0.05, t0 + at(ev.start + ev.duration) - 0.02);
-      const peak = (ev.volume || 85) / 127;
-      const env = ctx.createGain();
-      if (voice === 'synth') {
-        env.gain.setValueAtTime(0, start);
-        env.gain.linearRampToValueAtTime(peak, start + 0.015);
-        env.gain.setTargetAtTime(peak * 0.75, start + 0.015, 0.12);
-        env.gain.setTargetAtTime(0, end, release);
-        env.connect(synthIn!); // (made above, for the synth)
-        const freq = 440 * Math.pow(2, (ev.pitch - 69) / 12);
-        for (const [type, level] of [['sawtooth', 0.35], ['triangle', 0.65]] as const) {
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.type = type;
-          o.frequency.value = freq;
-          g.gain.value = level;
-          o.connect(g).connect(env);
-          o.start(start);
-          o.stop(end + 0.2);
-          sources.push(o);
-        }
-      } else {
-        const m = nearestSample(voice, ev.pitch)!; // (every recorded sound has samples)
-        const src = ctx.createBufferSource();
-        src.buffer = samples![m]; // (loaded above, or it's the synth)
-        src.playbackRate.value = Math.pow(2, (ev.pitch - m) / 12);
-        env.gain.setValueAtTime(peak, start);
-        env.gain.setTargetAtTime(0, end, release);
-        src.connect(env).connect(out);
-        src.start(start);
-        src.stop(end + release * 6);
-        sources.push(src);
-      }
-    }
-  }
-  const totalSec = at(audio.totalDuration || 0) + 0.5;
-  let done = false;
-  const stop = () => {
-    if (done) return;
-    done = true;
-    clearTimeout(timer);
-    for (const o of sources) { try { o.stop(); } catch {} }
-    out.disconnect();
-    unreset();
-    shared.release();
-    if (current?.stop === stop) current = null;
-  };
-  const timer = setTimeout(() => { stop(); onEnded?.(); }, totalSec * 1000);
-  // (The audio started again at another rate: what was scheduled on the old one is gone.)
-  const unreset = onAudioReset(() => { stop(); onEnded?.(); });
-  current = { stop };
-  return stop;
 }
 
 // ---------- Sound and feel, chosen next to a Play button ----------

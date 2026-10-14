@@ -80,12 +80,16 @@ export async function kvGet(key: string): Promise<Raw> {
 }
 
 // Throws if the IndexedDB write fails (after keeping a localStorage copy, where it fits).
-export async function kvSet(key: string, value: unknown): Promise<void> {
-  if (!hasIdb()) return globalThis.localStorage?.setItem(lsKey(key), JSON.stringify(value));
+// spill: false for what mustn't take the room the state's own copy needs there (the earlier copies).
+export async function kvSet(key: string, value: unknown, { spill = true }: { spill?: boolean } = {}): Promise<void> {
+  if (!hasIdb()) {
+    if (!spill) throw new Error('no IndexedDB');
+    return globalThis.localStorage?.setItem(lsKey(key), JSON.stringify(value));
+  }
   try {
     await tx<IDBValidKey>(KV, 'readwrite', (s) => s.put(value, key));
   } catch (err) {
-    try { globalThis.localStorage?.setItem(lsKey(key), JSON.stringify(value)); } catch { /* full too */ }
+    if (spill) try { globalThis.localStorage?.setItem(lsKey(key), JSON.stringify(value)); } catch { /* full too */ }
     throw err;
   }
   try { globalThis.localStorage?.removeItem(lsKey(key)); } catch { /* ignore */ }

@@ -59,6 +59,14 @@ describe('commands', () => {
     expect(canUndo(a.undo)).toBe(false);
   });
 
+  it('after the data changes on its own (an import, a copy put back), an older undo doesn’t come back', () => {
+    const a = exec(updateItem, { item: 'a', level: 3 });
+    invalidateUndo();
+    const b = exec(updateItem, { item: 'b', priority: 1 });
+    expect(undo(b.undo)).toBe(true);
+    expect(canUndo(a.undo)).toBe(false);
+  });
+
   it('a new day’s set makes earlier undos stale', () => {
     const a = exec(updateItem, { item: 'a', level: 3 });
     store.state.plan.date = '2026-10-05'; // (yesterday's)

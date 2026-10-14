@@ -57,6 +57,18 @@ describe('clips in the diary', () => {
     vi.useRealTimers();
   });
 
+  it('keeps a clip an earlier copy of the data refers to (to put that copy back)', async () => {
+    const { kvSet } = await import('../src/db.js');
+    await kvSet('copies', [{ at: 1, reason: 'Before reset', state: { diary: [{ media: [clip('old')] }] } }]);
+    await mediaPut('old', 'audio-bytes');
+    freezeToday('2026-10-06');
+    await cleanupMedia();
+    freezeToday('2026-12-06');
+    await cleanupMedia();
+    expect(await mediaKeys()).toContain('old');
+    vi.useRealTimers();
+  });
+
   it('totals recordings for settings', () => {
     addEntry({ text: 'a', media: [clip('a', 'audio', 900_000), clip('b', 'video', 12_500_000)] });
     expect(mediaStats(store.state)).toEqual({ count: 2, bytes: 13_400_000 });

@@ -224,7 +224,7 @@ export async function keepCopy(reason: string, state: Raw = store.state): Promis
   if (!state) return;
   const copies: Copy[] = (await kvGet(COPIES_KEY).catch(() => null)) || [];
   copies.unshift({ at: Date.now(), reason, state: JSON.parse(JSON.stringify(state)) });
-  await kvSet(COPIES_KEY, copies.slice(0, MAX_COPIES));
+  await kvSet(COPIES_KEY, copies.slice(0, MAX_COPIES), { spill: false });
 }
 export async function listCopies(): Promise<CopyInfo[]> {
   const copies: Copy[] = (await kvGet(COPIES_KEY).catch(() => null)) || [];
@@ -236,7 +236,8 @@ export async function restoreCopy(at: number): Promise<boolean> {
   const copies: Copy[] = (await kvGet(COPIES_KEY).catch(() => null)) || [];
   const c = copies.find((x) => x.at === at);
   if (!c) return false;
-  await keepCopy('Before putting back an earlier copy');
+  if ((c.state?.version || 1) > SCHEMA_VERSION) throw new Error('newer');
+  await keepCopy('Before putting back an earlier copy').catch(() => {}); // (storage full: put back anyway)
   store.state = migrate(structuredClone(c.state));
   save();
   return true;

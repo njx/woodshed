@@ -1,5 +1,6 @@
 import { holdAudio } from '../audiosession.js';
 import { acquireAudio, matchSampleRate, type Audio } from '../audio.js';
+import { pauseTuner } from '../tuning.js';
 import { customElement, state } from 'lit/decorators.js';
 import { View, html, nothing, segButtons, openSheetView } from './lit.js';
 
@@ -36,14 +37,18 @@ export class MicTest extends View {
   private source: MediaStreamAudioSourceNode | null = null;
   private releaseSession: (() => void) | null = null;
   private raf = 0;
+  private gen = 0; // each start; a mic that answers after a stop (or a newer start) is let go
 
+  private resumeTuner: () => void = () => {};
   connectedCallback() {
     super.connectedCallback();
+    this.resumeTuner = pauseTuner(); // (the mic is this one's while it's open)
     this.listMics();
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     this.stop();
+    this.resumeTuner();
   }
   async listMics() {
     try {
@@ -55,6 +60,7 @@ export class MicTest extends View {
 
   async start() {
     this.stop();
+    const gen = this.gen;
     const o = this.opts;
     // (From the tap: the shared audio may start here.)
     if (o.webAudio === 'on') this.audio = acquireAudio();
@@ -66,12 +72,16 @@ export class MicTest extends View {
       ...(o.channels === 'one' ? { channelCount: { ideal: 1 } } : {}),
       ...(this.mic ? { deviceId: { exact: this.mic } } : {}),
     };
+    let stream: MediaStream;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio });
+      stream = await navigator.mediaDevices.getUserMedia({ audio });
     } catch (err) {
+      if (gen !== this.gen) return;
       this.info = `Couldn’t open the mic: ${(err as Error).name}`;
       return this.stop(false);
     }
+    if (gen !== this.gen || !this.isConnected) return stream.getTracks().forEach((t) => t.stop()); // (stopped, or closed, meanwhile)
+    this.stream = stream;
     this.running = true;
     const track = this.stream.getAudioTracks()[0];
     const s = track?.getSettings?.() ?? {};
@@ -101,6 +111,7 @@ export class MicTest extends View {
     ].join('\n');
   }
   stop(clear = true) {
+    this.gen++;
     cancelAnimationFrame(this.raf);
     this.source?.disconnect();
     this.source = null;

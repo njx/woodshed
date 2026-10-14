@@ -73,7 +73,10 @@ const ORPHANS = 'orphans'; // { clip id: date first seen without a note }
 const KEEP_DAYS = 30;
 export async function cleanupMedia(): Promise<void> {
   try {
-    const orphans = orphanIds(store.state, await mediaKeys());
+    // (A recording an earlier copy of the data refers to stays, for putting that copy back.)
+    const copies: { state?: State }[] = (await kvGet('copies').catch(() => null)) || [];
+    const kept = new Set(copies.flatMap((c) => (c.state?.diary || []).flatMap((e) => (e.media || []).map((m) => m.id))));
+    const orphans = orphanIds(store.state, await mediaKeys()).filter((id) => !kept.has(id));
     const seen: Record<string, DateStr> = (await kvGet(ORPHANS).catch(() => null)) || {};
     const today = dateStr();
     const next: Record<string, DateStr> = {};

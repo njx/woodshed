@@ -237,8 +237,12 @@ export class SettingsView extends View {
   }
   async putBack(c: CopyInfo) {
     if (!confirm(`Put back this copy (${c.reason.toLowerCase()})? What’s here now is kept as a copy too.`)) return;
-    await loadSeedCharts(); // (an old copy's tunes may need their charts)
-    if (!(await restoreCopy(c.at))) return toast('That copy isn’t there any more');
+    try {
+      await loadSeedCharts(); // (an old copy's tunes may need their charts)
+      if (!(await restoreCopy(c.at))) return toast('That copy isn’t there any more');
+    } catch (err) {
+      return toast((err as Error).message === 'newer' ? 'That copy is from a newer Woodshed: close and reopen the app to update it, then put it back' : 'Couldn’t put that copy back');
+    }
     cmd.invalidateUndo();
     await flush();
     render();

@@ -100,6 +100,12 @@ describe('earlier copies', () => {
     copies = await listCopies();
     expect(copies.map((c) => c.reason)).toEqual(['Before putting back an earlier copy', 'Before an update']);
   });
+  it('doesn’t spill copies into localStorage when storage is full (that room is the state’s own)', async () => {
+    const db = await import('../src/db.js');
+    const { kvSet } = db;
+    await expect(kvSet('copies', [1], { spill: false })).resolves.toBeUndefined(); // (fine when there's room)
+    expect(localStorage.getItem('woodshed.kv.copies')).toBe(null);
+  });
   it('keeps the last three, newest first; none for data that’s already current', async () => {
     await loadState(); // (first run: nothing to keep)
     expect(await listCopies()).toEqual([]);

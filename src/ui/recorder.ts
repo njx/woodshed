@@ -1,4 +1,5 @@
-import { acquireAudio, matchSampleRate, type Audio } from '../audio.js';
+import { acquireAudio, matchSampleRate, onAudioReset, type Audio } from '../audio.js';
+import { pauseTuner } from '../tuning.js';
 import { store, save, flush } from '../store.js';
 import { itemById } from '../practice.js';
 import { entryById, findItemByName, linkableItems } from '../diary.js';
@@ -54,6 +55,9 @@ export class RecorderSheet extends View {
   private releaseAwake: () => void = () => {};
   private audio: Audio | null = null; // the shared audio (see audio.ts), for the meter and the mono track
   get audioCtx() { return this.audio?.ctx ?? null; }
+  private monoCtx: AudioContext | null = null; // the context the meter and mono track were built on
+  private unreset: () => void = () => {};
+  private resumeTuner: () => void = () => {};
   private analyser: AnalyserNode | null = null;
   private monoAnalyser: AnalyserNode | null = null; // after the mono step: to check sound comes through it
   private heard = { mic: false, mono: false }; // sound seen on the mic, and on the mono path
@@ -76,6 +80,15 @@ export class RecorderSheet extends View {
     this.releaseAwake = keepAwake();
     // Created during the tap that opened the recorder, so iOS lets it run (for the level meter).
     try { this.audio = acquireAudio(); } catch { /* no Web Audio: no meter, the mic as it comes */ }
+    // The tuner lets go of the mic meanwhile (two at once can end each other's, or start the audio
+    // again under the recorder), and listens again once the recorder closes.
+    this.resumeTuner = pauseTuner();
+    // The audio started again at another rate (not by this): the meter and mono track again, on it.
+    this.unreset = onAudioReset(() => {
+      if (!this.stream || this.stage === 'recording') return;
+      this.connectAudio(this.stream);
+      this.meter();
+    });
     document.addEventListener('visibilitychange', this.onHide);
     this.startStream();
   }
@@ -241,12 +254,23 @@ export class RecorderSheet extends View {
       }
     }
     if (gen !== this.streamGen || this.isClosed) return s.getTracks().forEach((tr) => tr.stop());
-    this.monoStream = null;
-    this.heard = { mic: false, mono: false };
     // Earbuds can switch the audio to another rate when their mic comes on; an audio engine
     // left at the old one hears silence. Start it again to match.
     matchSampleRate(s.getAudioTracks()[0]?.getSettings?.().sampleRate);
+    this.connectAudio(s);
+    this.stage = 'ready';
+    this.meter();
+  }
+
+  // The mic into the shared audio: the level meter, and what's recorded — the mic's first channel
+  // only, as a mono track (see below). Again if the audio is started afresh (another rate).
+  connectAudio(s: MediaStream) {
+    this.micSource?.disconnect();
+    this.monoStream?.getAudioTracks().forEach((tr) => tr.stop());
+    this.monoStream = null;
+    this.heard = { mic: false, mono: false };
     const audioCtx = this.audioCtx;
+    this.monoCtx = audioCtx;
     if (audioCtx) {
       this.analyser = audioCtx.createAnalyser();
       this.analyser.fftSize = 1024;
@@ -271,8 +295,6 @@ export class RecorderSheet extends View {
         console.warn('Recording the mic as it comes', err);
       }
     }
-    this.stage = 'ready';
-    this.meter();
   }
 
   startRecording() {
@@ -280,7 +302,7 @@ export class RecorderSheet extends View {
     const mimeType = pickMime(kind);
     // Through Web Audio (mono) only while it's running and, if the mic has been heard, passing
     // the sound on; otherwise the mic as it comes (better two channels than silence).
-    const monoWorks = this.audioCtx?.state === 'running' && (!this.heard.mic || this.heard.mono);
+    const monoWorks = this.monoCtx?.state === 'running' && (!this.heard.mic || this.heard.mono); // (built on the audio as it is)
     const source = this.monoStream && monoWorks ? this.monoStream : this.stream!; // (recording starts once ready)
     this.quietSince = 0;
     let recorder: MediaRecorder;
@@ -422,7 +444,9 @@ export class RecorderSheet extends View {
     this.stopStream();
     this.audio?.release();
     this.audio = null;
+    this.unreset();
     this.micSession(false);
+    this.resumeTuner();
     this.releaseAwake();
     document.removeEventListener('visibilitychange', this.onHide);
   }

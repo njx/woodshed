@@ -287,4 +287,5 @@ export function undo(entry: UndoEntry): boolean {
 // longer applies.
 export function invalidateUndo(): void {
   rev = ++revs;
+  stack.length = 0; // (none of it can come back: undoing a later change mustn't make an older one live)
 }

@@ -84,6 +84,19 @@ export const tuner = {
   },
 };
 
+// Another part of the app needs the mic (the recorder, the mic test): the tuner lets it go, and
+// the function returned has it listen again (as it was: small or not), if it was listening.
+export function pauseTuner(): () => void {
+  if (!st.running) return () => {};
+  const mini = st.mini;
+  tuner.stop();
+  return () => {
+    if (st.running) return;
+    tuner.setMini(mini);
+    tuner.start();
+  };
+}
+
 // Back from the background (or after the recorder took the mic): phones can end the mic track,
 // which would leave the mini tuner showing nothing: listen again from the start. (The audio itself
 // is woken by audio.ts.)
