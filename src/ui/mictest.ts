@@ -14,7 +14,7 @@ interface Options {
   processing: 'off' | 'default'; // the phone's echo cancellation, noise suppression and auto level off, or as Safari sets them
   webAudio: 'on' | 'off'; // the mic into Web Audio (the tuner's analyser, the recorder's meter), at the mic's sample rate
 }
-const ASIS: Options = { session: 'record', channels: 'one', processing: 'off', webAudio: 'on' }; // (as the app does it)
+const ASIS: Options = { session: 'record', channels: 'any', processing: 'off', webAudio: 'on' }; // (as the app does it)
 
 export function openMicTest(): void {
   openSheetView(document.createElement('ws-mic-test'), () => (document.querySelector('ws-mic-test') as MicTest | null)?.stop());
@@ -127,7 +127,7 @@ export class MicTest extends View {
         <option value="" ?selected=${!this.mic}>Phone’s choice</option>
         ${this.mics.map((m) => html`<option value=${m.id} ?selected=${m.id === this.mic}>${m.label}</option>`)}</select></label>` : nothing}
       ${row('session', 'Audio session', 'Record mode set by the app, or left to Safari', [['record', 'App sets it'], ['safari', 'Safari’s']])}
-      ${row('channels', 'Channels', 'Ask for one, or take what the mic gives', [['one', 'One'], ['any', 'As it comes']])}
+      ${row('channels', 'Channels', 'Take what the mic gives, or ask for one', [['any', 'As it comes'], ['one', 'One']])}
       ${row('processing', 'Phone’s processing', 'Echo cancellation, noise suppression, auto level', [['off', 'Off'], ['default', 'Safari’s default']])}
       ${row('webAudio', 'Web Audio', 'The level meter and tuner listen through it', [['on', 'On'], ['off', 'Off']])}
       <button class="primary-btn" id="mt-go" @click=${() => (this.running ? this.stop() : this.start())}>${this.running ? 'Stop' : 'Start'}</button>
