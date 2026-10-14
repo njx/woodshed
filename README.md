@@ -463,7 +463,7 @@ Layout:
 - `src/media.ts`: recorded clips (formats, storage, cleanup)
 - `src/listen.ts`, `src/data/`: recordings and search links; the seed tunes and exercises
 - `src/ui/`: one module per screen (`today`, `tunes`, `diary`, `progress`, `settings`), the tune detail
-  sheet (`item`), exercises (`exercise`), notation and its editor (`notation`, `notation-editor`),
+  sheet (`item`), exercises (`exercise`, its settings in `exercise-settings`), notation and its editor (`notation`, `notation-editor`),
   the chord chart (`chart`), the recorder (`recorder`), the metronome and tuner (`metronome`,
   `tuner`), the assistant chat (`assistant`), and shared pieces (`lit`, `shell`)
 - `src/sw.js`: service worker template. The build fills in the list of files to cache, so the

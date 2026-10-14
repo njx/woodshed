@@ -1,20 +1,22 @@
 import { store } from '../store.js';
 import { autoStart } from '../practicetime.js';
-import { LEVELS, PRIORITIES, RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
+import { RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, levelSuggestion } from '../practice.js';
 import { itemStatus, inToday, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
 import './chart.js'; // (<ws-chart>)
+import './exercise-settings.js'; // (<ws-exercise-settings>)
+import type { ExerciseSettings } from './exercise-settings.js';
 import { swapInToday, removeFromToday } from './today.js';
 import { pickTune } from './pickers.js';
 import { harmonyOf } from '../warmups.js';
 import { entryKeys } from '../keystats.js';
 import { entriesFor } from '../diary.js';
 import { soundingShift, homeKey, homeShift, homeName, chordTimes } from '../abc.js';
-import { chordsInAbc, chordsFromText, chordName, chordChanges, abcFirstChords } from '../chords.js';
-import { VARY, SHAPES, PATTERN_PAD, typesOf, typeInfo, variantName, generateAbc, parsePattern, patternText, progressionAbc, chooseTypes } from '../theory.js';
+import { chordsInAbc, chordName, chordChanges, abcFirstChords } from '../chords.js';
+import { VARY, typeInfo, variantName, generateAbc, progressionAbc, chooseTypes } from '../theory.js';
 import { canRecord } from '../media.js';
 import { renderNotation, playNotation, playbackOptions, playbackFor, openFullNotation } from './notation.js';
 import { noteRows, openNote } from './diary.js';
@@ -26,10 +28,10 @@ import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
 import { customElement, state } from 'lit/decorators.js';
 import {
-  View, html, nothing, live, raw, openSheetView, segButtons, stepperButtons, settingRows, subPanel, statusControl, levelSuggestionPart, helpParts,
+  View, html, nothing, live, raw, openSheetView, statusControl, levelSuggestionPart, helpParts,
   type TemplateResult, priBadge } from './lit.js';
 import type { TuneObject } from 'abcjs';
-import type { Category, Exercise, Id, Item, ItemStats, Key, KeyMode, PlanItem, Priority, Progression, Shape, Tune, Vary } from '../types.js';
+import type { Exercise, Id, Item, ItemStats, Key, PlanItem, Progression, Tune } from '../types.js';
 import {
   ICON, render, toast, perform, haptic, closeSheet, kn, openMenu, overLabel } from './shell.js';
 import * as cmd from '../commands/index.js';
@@ -62,10 +64,6 @@ export function takeLabel(t: Exercise, keys: Key[] = [], types: string[] | null 
   return [what && (t.vary || prog ? what : `In ${what}`), tempo && `${tempo} bpm`].filter(Boolean).join(' · ');
 }
 
-const patternHint = (kind: Vary['kind']) => (kind === 'chord'
-  ? 'Numbers are chord tones: 1 3 5 7, and 8 10 12 14 an octave up. Tap numbers to change the pattern.'
-  : 'Numbers are notes of the scale: 1 is the root, and on a 7-note scale 8 is the octave. Tap numbers to change the pattern; the presets fit themselves to scales with more or fewer notes.');
-
 // The notation to show: generated for a progression (a warm-up), a scale or chord type, or the
 // exercise's own. (A varying exercise always has a type to show: at least one is turned on.)
 // part: play only its first so many chords (part of a lick over part of a progression).
@@ -89,14 +87,6 @@ export function openExercise(id: Id | null, opts: ExerciseOpts = {}): void {
   openSheetView(el, () => el.closed());
 }
 
-// How it's set up: a row for each (showing what it's set to), opening a panel with its controls.
-// A new exercise shows the controls themselves, all at once.
-type PanelKey = 'harmony' | 'kind' | 'vary' | 'keys' | 'level' | 'priority';
-const PANEL_LABELS: Record<PanelKey, string> = {
-  harmony: 'Chords it goes with', kind: 'Kind', vary: 'Each session', keys: 'Keys', level: 'How well you know it', priority: 'Priority',
-};
-const TUNES_HELP = 'As a warm-up before a tune, or through a tune’s form. Off for technical work like long tones or interval drills.';
-
 @customElement('ws-exercise-sheet')
 export class ExerciseSheet extends View {
   t!: Exercise;
@@ -111,9 +101,7 @@ export class ExerciseSheet extends View {
   @state() todayKeys: Key[] = []; // changes if today's keys are edited
   @state() previewRoot: Key = 0; // the key shown
   @state() previewType: string | undefined; // the scale or chord type shown
-  @state() panel: PanelKey | null = null; // the setting open over the sheet
   @state() playing: 'no' | 'loading' | 'yes' = 'no';
-  @state() harmonyText = ''; // the chords it goes with, as typed (or not yet typed: from its notation)
   private stopFn: (() => void) | null = null;
   private tune: TuneObject | null = null; // the notation drawn, to play
   private drawn = ''; // what the notation was drawn for (it's drawn again when that changes)
@@ -132,7 +120,6 @@ export class ExerciseSheet extends View {
     this.todayKeys = opts.keys || this.planItem?.keys || [];
     this.previewRoot = this.asWritten() || t.keyMode === 'none' ? this.writtenC() : this.todayKeys[0] ?? 0;
     this.previewType = this.typeFor(this.previewRoot);
-    this.harmonyText = t.harmony ?? this.guessed();
   }
   // Closed: a new exercise with a name is added (unless it's going on to its notation); going
   // back to where it was opened from.
@@ -326,9 +313,8 @@ export class ExerciseSheet extends View {
         ? html`<div data-item-id=${this.tempoFrom.id}>${tempoRow(this.tempoFrom, () => this.openMetronome())}<p class="fine">As a warm-up it’s played at ${this.tempoFrom.name}’s tempo.</p></div>`
         : html`<div data-item-id=${t.id}>${tempoRow(t, () => this.openMetronome())}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
       ${isNew || !canRecord() ? nothing : this.takes()}
-      ${this.settings()}
+      <ws-exercise-settings .sheet=${this}></ws-exercise-settings>
       ${isNew ? html`<button class="primary-btn" id="x-save" @click=${() => this.add()}>Add exercise</button>` : this.history()}
-      ${this.panel ? subPanel(PANEL_LABELS[this.panel], this.panelBody(this.panel), () => (this.panel = null)) : nothing}
     `;
   }
   updated() {
@@ -442,43 +428,10 @@ export class ExerciseSheet extends View {
     this.requestUpdate();
   }
 
-  // ---------- Settings ----------
-  shown(k: PanelKey) {
-    const t = this.t;
-    if (k === 'harmony') return !this.isNew && !t.vary && !t.fromTune;
-    if (k === 'vary') return !t.fromTune;
-    if (k === 'keys') return !t.fromTune && t.keyMode !== 'none'; // (No key is a choice in Each session)
-    return true;
-  }
-  panelValue(k: PanelKey) {
-    const t = this.t;
-    switch (k) {
-      case 'harmony': return (t.harmony ?? this.guessed()) || 'None yet';
-      case 'kind': return CATEGORIES[t.category] || 'Other';
-      case 'vary': return t.keyMode === 'none' ? 'No key' : !t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary!.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`;
-      case 'keys': return `${t.keysPerSession} · ${KEY_MODES[t.keyMode].label.toLowerCase()}${t.keyMode === 'fixed' && t.keys.length ? `: ${t.keys.map((k) => rootName(k)).join(' ')}` : ''}`;
-      case 'level': return LEVELS[t.level ?? 0].label;
-      case 'priority': return PRIORITIES[(t.priority || 3) - 1].label;
-    }
-  }
-  settings() {
-    const t = this.t;
-    const keys = (Object.keys(PANEL_LABELS) as PanelKey[]).filter((k) => this.shown(k));
-    if (this.isNew) return keys.map((k) => html`<label class="field-label">${PANEL_LABELS[k]}</label>${this.panelBody(k)}`);
-    const row = (key: PanelKey) => ({ key, label: PANEL_LABELS[key], value: this.panelValue(key) });
-    const help = helpParts('x-tunes-help', TUNES_HELP);
-    return html`${settingRows([
-      ...keys.slice(0, 2).map(row),
-      !t.fromTune && { content: html`<label class="as-written use-tunes"><span>Use with tunes${help.btn}</span><input type="checkbox" id="x-tunes" .checked=${!t.solo}
-        @change=${(e: Event) => this.edit({ use_with_tunes: (e.target as HTMLInputElement).checked })}></label>` },
-      ...keys.slice(2).map(row),
-    ], (k) => (this.panel = k as PanelKey))}${t.fromTune ? nothing : help.text}`;
-  }
+  // ---------- Settings (see exercise-settings.ts) ----------
   // Varying exercises are written out from their pattern: Edit pattern opens its panel.
-  async toPattern() {
-    this.panel = 'vary';
-    await this.updateComplete;
-    this.querySelector('.sub-panel .pattern-card')?.scrollIntoView({ block: 'start' });
+  toPattern() {
+    this.querySelector<ExerciseSettings>('ws-exercise-settings')?.openPanel('vary', '.pattern-card');
   }
   // Its scale or chord settings changed (and today's types with them, unless it's been played
   // today): the type shown follows.
@@ -498,118 +451,6 @@ export class ExerciseSheet extends View {
     this.previewType = this.typeFor(this.previewRoot);
     this.requestUpdate();
   }
-  panelBody(k: PanelKey) {
-    const t = this.t;
-    switch (k) {
-      case 'harmony': return this.harmonyBody();
-      case 'kind': return html`<div class="chips wrap" id="x-cat">${(Object.entries(CATEGORIES) as [Category, string][]).map(([c, l]) => html`<button class="chip ${t.category === c ? 'on' : ''}" data-cat=${c} @click=${() => this.edit({ category: c })}>${l}</button>`)}</div>`;
-      case 'vary': return this.varyBody();
-      case 'keys': return this.keysBody();
-      case 'level': return html`<div class="seg four" data-field="level">${segButtons(LEVELS.map((l) => [l.v, l.label] as const), t.level, (v) => this.edit({ level: v }))}</div>`;
-      case 'priority': return html`<div class="seg four" data-field="priority">${segButtons(PRIORITIES.map((p) => [p.v, p.label] as const), t.priority, (v) => this.edit({ priority: v as Priority }))}</div>`;
-    }
-  }
-  // The chords a written exercise goes with (so it can be a warm-up over them in tunes): typed
-  // here, or else read from the chord symbols in its notation. As written, like the notes.
-  harmonyBody() {
-    const t = this.t;
-    const text = this.harmonyText.trim();
-    const bad = !!text && !chordsFromText(text);
-    const msg = bad ? 'Couldn’t read those chords — like Dm7 G7 Cmaj7.'
-      : t.harmony ? 'As typed here (clear it to go back to the notation’s chord symbols).'
-      : this.guessed() ? 'From the chord symbols in its notation.' : '';
-    return html`
-      <div class="field"><input id="x-harmony" .value=${this.harmonyText} placeholder="e.g. Dm7 G7 Cmaj7" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Chords it goes with"
-        @input=${(e: Event) => this.setHarmony((e.target as HTMLInputElement).value)}></div>
-      <p class="fine ${bad ? 'error' : ''}" id="x-harmony-msg">${msg}</p>
-      <p class="fine">The chords it goes over, as written, like the notes — so it comes up as a warm-up for tunes with those chords. Read from the chord symbols in its notation, or typed here.</p>`;
-  }
-  setHarmony(value: string) {
-    const t = this.t;
-    this.harmonyText = value;
-    const text = value.trim();
-    if (text && !chordsFromText(text)) return this.requestUpdate(); // (said so, under it)
-    if (!text || text === this.guessed()) { if (t.harmony != null) this.edit({ harmony: '' }); } // the notation's own, then
-    else this.edit({ harmony: text });
-    this.requestUpdate();
-  }
-  varyBody() {
-    const t = this.t, vary = t.vary;
-    const noKey = t.keyMode === 'none';
-    const current = noKey ? 'none' : vary?.kind || '';
-    // No key (as written, like long tones); or a key each time, with a scale or chord type too.
-    const setKind = (kind: Vary['kind'] | '' | 'none') => {
-      if (current === kind) return;
-      const vary = kind && kind !== 'none' ? kind : 'none';
-      // (keys again after No key: weak keys first, as a new exercise does)
-      const keyMode = kind === 'none' ? 'none' : noKey ? 'weak' : undefined;
-      if (keyMode) this.keysChanged({ vary, key_mode: keyMode });
-      else this.varyChanged({ vary });
-    };
-    return html`
-      <div class="seg four" id="x-vary">${([['none', 'No key'], ['', 'Key only'], ['scale', 'Scale type'], ['chord', 'Chord type']] as const).map(([v, l]) => html`
-        <button class=${current === v ? 'on' : ''} data-vary=${v} @click=${() => setKind(v)}>${l}</button>`)}
-      </div>
-      <p class="fine">${noKey ? `${KEY_MODES.none.hint}: played as written, with no key to pick.`
-        : vary ? `Each key comes with one of the ${vary.kind === 'scale' ? 'scales' : 'chords'} turned on here, favouring the ones you’ve played least. The notation is written out for each.`
-        : 'Practice it in a different key each time — or with a different scale or chord type in each key, too.'}</p>
-      ${vary ? html`
-        <div class="chips wrap" id="x-types">${Object.entries(typesOf(vary.kind)).map(([id, x]) => html`
-          <button class="chip ${vary.types.includes(id) ? 'on' : ''}" data-vtype=${id} aria-pressed=${String(vary.types.includes(id))} @click=${() => this.toggleType(id)}>${x.label}</button>`)}</div>
-        <label class="field-label">Pattern</label>
-        <div class="chips wrap" id="x-shape">${(Object.entries(SHAPES) as [Shape, (typeof SHAPES)[Shape]][]).filter(([, x]) => (x.kinds as readonly string[]).includes(vary.kind)).map(([id, x]) => html`
-          <button class="chip ${vary.shape === id ? 'on' : ''}" data-shape=${id} @click=${() => this.setShape(id)}>${x.label}</button>`)}</div>
-        ${this.patternCard()}` : nothing}`;
-  }
-  toggleType(id: string) {
-    const vary = this.t.vary!; // (its buttons are there only when it varies)
-    const on = vary.types.includes(id);
-    this.varyChanged({ types: on ? vary.types.filter((x) => x !== id) : [...vary.types, id] });
-  }
-  setShape(shape: Shape) {
-    const vary = this.t.vary!;
-    // Custom starts from the preset that was chosen (its numbers to change).
-    const pattern = shape === 'custom' && vary.shape !== 'custom' ? patternText(vary.kind, vary.shape, vary.pattern) : undefined;
-    this.edit({ shape, ...(pattern != null ? { pattern } : {}), pattern_unfinished: true });
-  }
-  // The pattern's numbers; for Custom, a number pad to change them (changing a preset makes it
-  // your own). The notation follows once it's a pattern that can be played.
-  patternCard() {
-    const vary = this.t.vary!;
-    const nums = patternText(vary.kind, vary.shape, vary.pattern);
-    const { error } = parsePattern(vary.pattern, vary.kind);
-    const custom = vary.shape === 'custom';
-    const pad = (v: string) => {
-      const list = patternText(vary.kind, vary.shape, vary.pattern).split(' ').filter(Boolean);
-      if (v === 'back') list.pop();
-      else if (v === 'clear') list.length = 0;
-      else if (list.length < 64) list.push(v);
-      this.stopPlaying();
-      this.edit({ shape: 'custom', pattern: list.join(' '), pattern_unfinished: true });
-    };
-    return html`
-      <div class="pattern-card">
-        <div class="pattern-line" id="x-pattern" aria-live="polite">${nums || raw('&nbsp;')}</div>
-        ${custom ? html`<div class="keypad pattern-pad" id="x-pad">${PATTERN_PAD[vary.kind].map((n) => html`<button data-pn=${n} @click=${() => pad(String(n))}>${n}</button>`)}
-          <button data-pn="back" aria-label="Delete the last number" @click=${() => pad('back')}>⌫</button><button data-pn="clear" @click=${() => pad('clear')}>Clear</button></div>
-        <p class="fine ${error ? 'error' : ''}" id="x-pattern-msg">${error ? (vary.pattern.trim() ? error : 'Tap some numbers.') : patternHint(vary.kind)}</p>` : nothing}
-      </div>`;
-  }
-  keysBody() {
-    const t = this.t;
-    return html`
-      <div class="chips wrap" id="x-mode">${(Object.entries(KEY_MODES) as [KeyMode, (typeof KEY_MODES)[KeyMode]][]).filter(([k]) => k !== 'none').map(([k, m]) => html`<button class="chip ${t.keyMode === k ? 'on' : ''}" data-mode=${k} @click=${() => this.keysChanged({ key_mode: k })}>${m.label}</button>`)}</div>
-      <p class="fine">${KEY_MODES[t.keyMode].hint}</p>
-      ${t.keyMode === 'fixed' ? html`<div class="keygrid" id="x-fixed">${[...Array(12).keys()].map((w) => {
-        const r = writtenToConcert(w, view());
-        return html`<button class=${t.keys.includes(r) ? 'on' : ''} data-fixed=${r} @click=${() => this.keysChanged({ keys: t.keys.includes(r) ? t.keys.filter((x) => x !== r) : [...t.keys, r] })}>${rootName(r)}</button>`;
-      })}</div>` : nothing}
-      <div class="setting">
-        <div><b>Keys per session</b><span>How many keys to play it in each time</span></div>
-        <div class="stepper" id="x-kps">${stepperButtons(t.keysPerSession, (v) => this.keysChanged({ keys_per_session: v }), 1, 12)}</div>
-      </div>`;
-  }
-
   // ---------- Below the settings ----------
   // Recordings, up top by the notation.
   takes() {
