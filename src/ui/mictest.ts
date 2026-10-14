@@ -11,10 +11,13 @@ import { View, html, nothing, segButtons, openSheetView } from './lit.js';
 interface Options {
   session: 'safari' | 'record'; // leave the iPhone's session to Safari (as the app does), or set play-and-record ourselves
   channels: 'one' | 'any'; // ask for one channel, or take what the mic gives
-  processing: 'off' | 'default'; // the phone's echo cancellation, noise suppression and auto level off, or as Safari sets them
+  // The phone's processing, each part off or as Safari sets it.
+  echo: 'off' | 'default'; // echo cancellation (on an iPhone, which way the mic is captured)
+  noise: 'off' | 'default'; // noise suppression
+  level: 'off' | 'default'; // automatic level
   webAudio: 'on' | 'off'; // the mic into Web Audio (the tuner's analyser, the recorder's meter), at the mic's sample rate
 }
-const ASIS: Options = { session: 'safari', channels: 'one', processing: 'off', webAudio: 'on' }; // (as the app does it)
+const ASIS: Options = { session: 'safari', channels: 'one', echo: 'off', noise: 'off', level: 'off', webAudio: 'on' }; // (as the app does it)
 
 export function openMicTest(): void {
   openSheetView(document.createElement('ws-mic-test'), () => (document.querySelector('ws-mic-test') as MicTest | null)?.stop());
@@ -63,7 +66,9 @@ export class MicTest extends View {
     this.releaseSession = holdAudio('record'); // (as the tuner and recorder do: Safari's session)
     if (o.session === 'record') setSession('play-and-record');
     const audio: MediaTrackConstraints = {
-      ...(o.processing === 'off' ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : {}),
+      ...(o.echo === 'off' ? { echoCancellation: false } : {}),
+      ...(o.noise === 'off' ? { noiseSuppression: false } : {}),
+      ...(o.level === 'off' ? { autoGainControl: false } : {}),
       ...(o.channels === 'one' ? { channelCount: { ideal: 1 } } : {}),
       ...(this.mic ? { deviceId: { exact: this.mic } } : {}),
     };
@@ -135,7 +140,9 @@ export class MicTest extends View {
         ${this.mics.map((m) => html`<option value=${m.id} ?selected=${m.id === this.mic}>${m.label}</option>`)}</select></label>` : nothing}
       ${row('session', 'Audio session', 'Left to Safari, or record mode set by the app', [['safari', 'Safari’s'], ['record', 'Record mode']])}
       ${row('channels', 'Channels', 'Ask for one, or take what the mic gives', [['one', 'One'], ['any', 'As it comes']])}
-      ${row('processing', 'Phone’s processing', 'Echo cancellation, noise suppression, auto level', [['off', 'Off'], ['default', 'Safari’s default']])}
+      ${row('echo', 'Echo cancellation', 'The phone’s processing, for calls', [['off', 'Off'], ['default', 'Safari’s']])}
+      ${row('noise', 'Noise suppression', 'Can eat long, steady notes', [['off', 'Off'], ['default', 'Safari’s']])}
+      ${row('level', 'Auto level', 'Evens out loud and soft', [['off', 'Off'], ['default', 'Safari’s']])}
       ${row('webAudio', 'Web Audio', 'The level meter and tuner listen through it', [['on', 'On'], ['off', 'Off']])}
       <button class="primary-btn" id="mt-go" @click=${() => (this.running ? this.stop() : this.start())}>${this.running ? 'Stop' : 'Start'}</button>
       ${this.running && o.webAudio === 'on' ? html`<div class="mt-level" aria-hidden="true"><i style="width:${Math.round(this.level * 100)}%"></i></div>` : nothing}
