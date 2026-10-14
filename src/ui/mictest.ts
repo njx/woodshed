@@ -9,7 +9,7 @@ import { View, html, nothing, segButtons, openSheetView } from './lit.js';
 // its headphones, and see which keeps it going. It shows what the phone actually gave.
 
 interface Options {
-  session: 'safari' | 'record'; // leave the iPhone's session to Safari (as the app does), or set play-and-record ourselves
+  session: 'record' | 'safari'; // set the iPhone's session to play-and-record (as the app does), or leave it to Safari
   channels: 'one' | 'any'; // ask for one channel, or take what the mic gives
   // The phone's processing, each part off or as Safari sets it.
   echo: 'off' | 'default'; // echo cancellation (on an iPhone, which way the mic is captured)
@@ -17,15 +17,10 @@ interface Options {
   level: 'off' | 'default'; // automatic level
   webAudio: 'on' | 'off'; // the mic into Web Audio (the tuner's analyser, the recorder's meter), at the mic's sample rate
 }
-const ASIS: Options = { session: 'safari', channels: 'one', echo: 'off', noise: 'off', level: 'off', webAudio: 'on' }; // (as the app does it)
+const ASIS: Options = { session: 'record', channels: 'one', echo: 'off', noise: 'off', level: 'off', webAudio: 'on' }; // (as the app does it)
 
 export function openMicTest(): void {
   openSheetView(document.createElement('ws-mic-test'), () => (document.querySelector('ws-mic-test') as MicTest | null)?.stop());
-}
-
-// The iPhone's audio session set directly (the 'record' option: what the app used to do).
-function setSession(type: 'auto' | 'play-and-record') {
-  try { if (navigator.audioSession) navigator.audioSession.type = type; } catch { /* not supported */ }
 }
 
 @customElement('ws-mic-test')
@@ -63,8 +58,7 @@ export class MicTest extends View {
     const o = this.opts;
     // (From the tap: the shared audio may start here.)
     if (o.webAudio === 'on') this.audio = acquireAudio();
-    this.releaseSession = holdAudio('record'); // (as the tuner and recorder do: Safari's session)
-    if (o.session === 'record') setSession('play-and-record');
+    if (o.session === 'record') this.releaseSession = holdAudio('record'); // (as the tuner and recorder do)
     const audio: MediaTrackConstraints = {
       ...(o.echo === 'off' ? { echoCancellation: false } : {}),
       ...(o.noise === 'off' ? { noiseSuppression: false } : {}),
@@ -116,7 +110,6 @@ export class MicTest extends View {
     this.audio = null;
     this.releaseSession?.();
     this.releaseSession = null;
-    if (this.opts.session === 'record') setSession('auto');
     this.running = false;
     this.level = 0;
     if (clear) this.info = '';
@@ -138,7 +131,7 @@ export class MicTest extends View {
       ${this.mics.length > 1 ? html`<label class="rec-mic"><span>Mic</span><select id="mt-mic" @change=${(e: Event) => { this.mic = (e.target as HTMLSelectElement).value; if (this.running) this.start(); }}>
         <option value="" ?selected=${!this.mic}>Phone’s choice</option>
         ${this.mics.map((m) => html`<option value=${m.id} ?selected=${m.id === this.mic}>${m.label}</option>`)}</select></label>` : nothing}
-      ${row('session', 'Audio session', 'Left to Safari, or record mode set by the app', [['safari', 'Safari’s'], ['record', 'Record mode']])}
+      ${row('session', 'Audio session', 'Record mode set by the app, or left to Safari', [['record', 'App sets it'], ['safari', 'Safari’s']])}
       ${row('channels', 'Channels', 'Ask for one, or take what the mic gives', [['one', 'One'], ['any', 'As it comes']])}
       ${row('echo', 'Echo cancellation', 'The phone’s processing, for calls', [['off', 'Off'], ['default', 'Safari’s']])}
       ${row('noise', 'Noise suppression', 'Can eat long, steady notes', [['off', 'Off'], ['default', 'Safari’s']])}

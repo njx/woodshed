@@ -134,7 +134,7 @@ test('record from a card in today’s set: the take goes with that exercise @nar
   await ui.expectNoSideScroll();
 });
 
-test('record while the metronome plays (no mic in a playback session: Safari’s own while the mic is on)', async ({ page, ui }) => {
+test('record while the metronome plays (Safari only allows the mic in a play-and-record session)', async ({ page, ui }) => {
   await page.addInitScript(() => {
     // Like Safari: an audio session, and no mic while it's set to playback only.
     const session = { type: 'auto', log: [] };
@@ -152,9 +152,7 @@ test('record while the metronome plays (no mic in a playback session: Safari’s
   await expect(page.locator('.rec-stage.review audio')).toHaveCount(1);
   await page.click('#rec-discard');
   // Back to playback for the metronome alone once the recorder closes; still clicking.
-  // (Safari's own session while the mic is on, not play-and-record set by the app: that stopped a
-  // USB mic's own headphone monitoring.)
-  expect(await page.evaluate(() => navigator.audioSession.log)).toEqual(['playback', 'auto', 'playback']);
+  expect(await page.evaluate(() => navigator.audioSession.log)).toEqual(['playback', 'play-and-record', 'playback']);
   await expect(page.locator('#today-metro')).toHaveClass(/\blive\b/);
 });
 
@@ -165,17 +163,16 @@ test('a take plays back on the loudspeaker: the mic’s session ends when the ta
   });
   await ui.start();
   await page.click('#today-rec');
-  await expect(page.locator('#rec-go')).toBeEnabled();
-  expect(await page.evaluate(() => navigator.audioSession.log)).not.toContain('play-and-record'); // (Safari's own, for the mic)
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('play-and-record');
   await record(page, 800);
   await expect(page.locator('.rec-stage.review audio')).toHaveCount(1);
   // Reviewing the take: not play-and-record (which on an iPhone plays through the earpiece).
   expect(await page.evaluate(() => navigator.audioSession.type)).toBe('auto');
   await page.locator('.rec-stage.review audio').evaluate((a) => a.play());
   await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('playback');
-  // Record again: the mic's session (Safari's own) is back.
+  // Record again: the mic's session is back.
   await page.click('#rec-again');
-  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('auto');
+  await expect.poll(() => page.evaluate(() => navigator.audioSession.type)).toBe('play-and-record');
 });
 
 test('a recording can be deleted from the list it’s in, with undo', async ({ page, ui }) => {
