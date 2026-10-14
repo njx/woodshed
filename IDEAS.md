@@ -69,6 +69,10 @@ sessions), L (a big piece, or needs a native app).
 - **Transcription from the mic** (L). Play a phrase and get notation (sax first: one note at a
   time is far easier than piano). The tuner's pitch detection is the starting point.
 - **Practice-day rollover as a setting** (S). It's fixed at 4am now.
+- **USB mic monitoring** (parked). A Blue Yeti's own headphone monitoring stops whenever Safari
+  listens to it (tuner, recorder), however the audio session and mic are set up (tried every
+  combination with Settings → Mic test); Voice Memos keeps it. Possible: a "Hear yourself" switch
+  sending the mic to the headphones through Web Audio (expect ~20–50 ms of delay on an iPhone).
 - **Tuner with the metronome on iPhone** (check). Set up to work, but untested on a real device.
 
 ## Data
