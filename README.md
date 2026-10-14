@@ -374,6 +374,9 @@ diary note: audio plays right from the list, and the note shows players for each
   (better for an instrument than an earbud's), remembering what you pick.
 - Recordings are stored on the device (in IndexedDB) and are **not** part of the JSON backup —
   they're too big. Save the ones you want to keep. Settings shows how much space they use.
+- A take is saved as it's recorded, a second at a time, so a long one isn't held in memory, and
+  one cut off (the phone closing the app, or the app closed before you kept it) is put in a
+  "Recovered recording" note the next time the app opens.
 - iOS may ask for microphone/camera permission again after the app has been closed for a while.
 
 ## Listening

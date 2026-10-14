@@ -4,7 +4,7 @@ import { store, save, flush } from '../store.js';
 import { itemById } from '../practice.js';
 import { entryById, findItemByName, linkableItems } from '../diary.js';
 import * as cmd from '../commands/index.js';
-import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving } from '../media.js';
+import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving, TakeWriter } from '../media.js';
 import { mediaDelete } from '../db.js';
 import { ICON, render, toast, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
@@ -41,11 +41,11 @@ export class RecorderSheet extends View {
   @state() keeping = false;
   stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
-  private chunks: Blob[] = [];
   private startedAt = 0;
-  // Once a recording has stopped: it, and it stored (straight away, so a take isn't lost if the
-  // app is closed before it's kept: one in no note is offered back in Settings; null if it couldn't be).
-  take: { blob: Blob; url: string; ms: number; stored: Promise<Clip | null> } | null = null;
+  // Once a recording has stopped: it, and it stored as a clip (straight away; null if it couldn't
+  // be). Its pieces stay stored until it's kept or discarded, so a take the app is closed on before
+  // then is put in a note next time (see TakeWriter).
+  take: { blob: Blob; url: string; ms: number; stored: Promise<Clip | null>; writer: TakeWriter } | null = null;
   private isClosed = false;
   private handled = false; // take kept or discarded
   private tick: ReturnType<typeof setInterval> | null = null;
@@ -68,7 +68,7 @@ export class RecorderSheet extends View {
   private streamGen = 0;
   private onHide = () => {
     // Phones stop capture in the background: finish the take so it can be kept.
-    if (document.visibilityState === 'hidden' && this.stage === 'recording') this.recorder!.stop();
+    if (document.visibilityState === 'hidden' && this.stage === 'recording') this.stopRecording();
   };
 
   setup(opts: RecorderOpts) {
@@ -107,7 +107,7 @@ export class RecorderSheet extends View {
     let pending: Promise<void> | null = null;
     if (this.stage === 'recording') {
       pending = new Promise<void>((resolve) => { this.afterStop = resolve; });
-      this.recorder!.stop(); // onstop keeps the take
+      this.stopRecording(); // onstop keeps the take
     } else if (this.take && !this.handled) pending = this.keep();
     const finish = () => {
       this.teardown();
@@ -180,7 +180,7 @@ export class RecorderSheet extends View {
         <div class="rec-controls">
           <span class="rec-time ${recording ? 'live' : ''}" id="rec-time">${fmtDuration(this.elapsed)}</span>
           <button class="rec-btn ${recording ? 'stop' : ''}" id="rec-go" ?disabled=${stage === 'starting'}
-            aria-label=${recording ? 'Stop recording' : 'Start recording'} @click=${() => (this.stage === 'recording' ? this.recorder!.stop() : this.startRecording())}><span></span></button>
+            aria-label=${recording ? 'Stop recording' : 'Start recording'} @click=${() => (this.stage === 'recording' ? this.stopRecording() : this.startRecording())}><span></span></button>
           <span class="rec-hint">${recording ? 'Recording' : 'Tap to record'}</span>
         </div>
         <p class="fine rec-quiet" id="rec-quiet" ?hidden=${!this.quiet}>No sound is coming in from ${this.mics.find((m) => m.id === this.currentMic())?.label || 'the microphone'}${this.mics.length > 1 ? ' — try another Mic above' : ''}.</p>`;
@@ -316,13 +316,25 @@ export class RecorderSheet extends View {
       recorder = new MediaRecorder(source);
     }
     this.recorder = recorder;
-    this.chunks = [];
-    recorder.ondataavailable = (e) => { if (e.data.size) this.chunks.push(e.data); };
-    recorder.onstop = () => {
+    const writer = new TakeWriter(recorder.mimeType || mimeType || `${kind}/webm`);
+    recorder.ondataavailable = (e) => writer.add(e.data);
+    recorder.onstop = async () => {
       clearInterval(this.tick ?? undefined);
-      const blob = new Blob(this.chunks, { type: recorder.mimeType || mimeType || `${kind}/webm` });
       const ms = Date.now() - this.startedAt;
-      this.take = { blob, url: URL.createObjectURL(blob), ms, stored: whileSaving(() => saveClip(blob, kind, ms)).catch(() => null) };
+      let blob: Blob;
+      try {
+        blob = await whileSaving(() => writer.blob());
+      } catch (err) {
+        // (Its pieces are still stored: it's put in a note next time the app opens.)
+        console.warn('Could not put the take together', err);
+        this.stopStream();
+        this.micSession(false);
+        if (this.isClosed) return this.afterStop?.();
+        toast('Couldn’t finish the recording — it’ll be recovered when the app next opens');
+        this.startStream();
+        return;
+      }
+      this.take = { blob, url: URL.createObjectURL(blob), ms, writer, stored: whileSaving(() => saveClip(blob, kind, ms, writer.id)).catch(() => null) };
       this.stopStream();
       this.micSession(false); // (so the take plays on the loudspeaker)
       if (this.isClosed) return this.keep().then(() => this.afterStop?.());
@@ -333,6 +345,11 @@ export class RecorderSheet extends View {
     this.elapsed = 0;
     this.stage = 'recording';
     this.tick = setInterval(() => { this.elapsed = Date.now() - this.startedAt; }, 250);
+  }
+
+  // (Once: the take is put together after it stops, while the stage still shows recording.)
+  stopRecording() {
+    if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop();
   }
 
   // Scrolling level meter from the microphone.
@@ -399,6 +416,7 @@ export class RecorderSheet extends View {
       render();
       toast(entry ? 'Recording added' : 'Recording saved to your diary');
       URL.revokeObjectURL(t.url);
+      t.writer.done();
     } catch (err) {
       // Don't lose the take: offer it as a file instead (the URL stays alive for that).
       console.warn('Could not save recording', err);
@@ -419,6 +437,7 @@ export class RecorderSheet extends View {
   dropTake() {
     if (this.take) {
       URL.revokeObjectURL(this.take.url);
+      this.take.writer.done();
       this.take.stored.then((clip) => clip && mediaDelete(clip.id)).catch(() => {});
     }
     this.take = null;

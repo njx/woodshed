@@ -51,6 +51,38 @@ test('discarding keeps nothing; closing mid-take keeps it', async ({ page, ui })
   await expect.poll(async () => (await ui.saved()).state.diary.length).toBe(1);
 });
 
+test('a take is stored as it’s recorded: one cut off (the app closed) is in a note next time', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-rec');
+  await expect(page.locator('#rec-go')).toBeEnabled();
+  await page.click('#rec-go');
+  await expect.poll(async () => (await ui.saved()).partKeys.length).toBeGreaterThan(1);
+  // Gone before the take is finished (as when the phone closes the app): not stopped by the app.
+  await page.evaluate(() => { MediaRecorder.prototype.stop = () => {}; });
+  await page.reload();
+  await expect(page.locator('#toast')).toContainText('A recording that was cut off is in your diary');
+  await expect.poll(async () => (await ui.saved()).state.diary.length).toBe(1);
+  const { state, clipIds, partKeys } = await ui.saved();
+  const note = state.diary.find((e) => e.text === 'Recovered recording');
+  expect(note.media[0].size).toBeGreaterThan(1000);
+  expect(clipIds).toContain(note.media[0].id);
+  expect(partKeys).toEqual([]);
+  await ui.tab('diary');
+  await expect(page.locator('.note', { hasText: 'Recovered recording' }).locator('.clip-pill')).toHaveCount(1);
+});
+
+test('kept and discarded takes leave no pieces behind', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#today-rec');
+  await record(page, 1200);
+  await page.click('#rec-discard');
+  await page.click('#today-rec');
+  await record(page, 1200);
+  await page.click('#rec-keep');
+  await expect(page.locator('#toast')).toContainText('Recording saved');
+  await expect.poll(async () => (await ui.saved()).partKeys.length).toBe(0);
+});
+
 test('video from a tune’s details returns to the tune', async ({ page, ui }) => {
   await ui.start();
   await page.locator('.card:not(.b-exercise) h2').first().click();

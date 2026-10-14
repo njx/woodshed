@@ -1,11 +1,14 @@
-// Persistence on IndexedDB. Two object stores:
+// Persistence on IndexedDB. Three object stores:
 //   kv:    small key-value records (the app state), with localStorage as a fallback for
 //          browsers (or private modes) where IndexedDB isn't available
 //   media: recorded clips (Blobs), keyed by clip id. No fallback: recording needs IndexedDB.
+//   parts: a take's pieces as it's recorded ({ type, blob }), keyed "take id:piece number", until
+//          it's stored as a clip.
 
 const DB_NAME = 'woodshed';
 const KV = 'kv';
 const MEDIA = 'media';
+const PARTS = 'parts';
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 // A value read back from storage: whatever was saved (store.ts and validate.ts check the state).
@@ -16,11 +19,12 @@ function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   const mine: Promise<IDBDatabase> = new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new Error('no IndexedDB'));
-    const req = indexedDB.open(DB_NAME, 2);
+    const req = indexedDB.open(DB_NAME, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(KV)) db.createObjectStore(KV);
       if (!db.objectStoreNames.contains(MEDIA)) db.createObjectStore(MEDIA);
+      if (!db.objectStoreNames.contains(PARTS)) db.createObjectStore(PARTS);
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -100,6 +104,21 @@ export const mediaPut = (id: string, blob: Blob) => tx<IDBValidKey>(MEDIA, 'read
 export const mediaGet = (id: string) => tx<Blob | undefined>(MEDIA, 'readonly', (s) => s.get(id));
 export const mediaDelete = (id: string) => tx<undefined>(MEDIA, 'readwrite', (s) => s.delete(id));
 export const mediaKeys = () => tx<string[]>(MEDIA, 'readonly', (s) => s.getAllKeys());
+
+// A take's pieces. (Numbered with leading zeros, so they sort in order.)
+const partKey = (take: string, i: number) => `${take}:${String(i).padStart(6, '0')}`;
+const partsOf = (take: string) => IDBKeyRange.bound(`${take}:`, `${take}:\uffff`);
+export interface Part { type: string; blob: Blob }
+export const partPut = (take: string, i: number, part: Part) => tx<IDBValidKey>(PARTS, 'readwrite', (s) => s.put(part, partKey(take, i)));
+/** A take's pieces, by number. */
+export const takeParts = (take: string) => tx<Map<number, Part>>(PARTS, 'readonly', (s) => {
+  const keys = s.getAllKeys(partsOf(take));
+  const values = s.getAll(partsOf(take)); // (in the same order)
+  return { get result() { return new Map((keys.result as string[]).map((k, i) => [Number(k.slice(k.lastIndexOf(':') + 1)), values.result[i] as Part])); } } as IDBRequest;
+});
+export const partsDelete = (take: string) => tx<undefined>(PARTS, 'readwrite', (s) => s.delete(partsOf(take)));
+/** Takes with pieces stored. */
+export const partTakes = () => tx<string[]>(PARTS, 'readonly', (s) => s.getAllKeys()).then((keys) => [...new Set(keys.map((k) => k.slice(0, k.lastIndexOf(':'))))]);
 
 // For tests: close the connection so the database can be deleted.
 export async function _resetDb(): Promise<void> {

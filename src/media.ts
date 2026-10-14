@@ -1,7 +1,7 @@
 import { holdAudio } from './audiosession.js';
 import { store } from './store.js';
 import { uid } from './util.js';
-import { mediaPut, mediaGet, mediaDelete, mediaKeys, kvGet, kvSet } from './db.js';
+import { mediaPut, mediaGet, mediaDelete, mediaKeys, kvGet, kvSet, partPut, takeParts, partsDelete, partTakes } from './db.js';
 import { dateStr, daysBetween } from './dates.js';
 import type { Clip, DateStr, State } from './types.js';
 
@@ -42,10 +42,82 @@ export async function whileSaving<T>(fn: () => T | Promise<T>): Promise<T> {
   try { return await fn(); } finally { saving--; }
 }
 
-export async function saveClip(blob: Blob, kind: Clip['kind'], ms: number): Promise<Clip> {
-  const clip: Clip = { id: uid(), kind, mime: blob.type, ms: Math.round(ms), size: blob.size };
+export async function saveClip(blob: Blob, kind: Clip['kind'], ms: number, id = uid()): Promise<Clip> {
+  const clip: Clip = { id, kind, mime: blob.type, ms: Math.round(ms), size: blob.size };
   await mediaPut(clip.id, blob);
   return clip;
+}
+
+// A take as it's recorded: each piece (a second or so) stored as it comes, so a long take isn't
+// all held in memory, and one cut off (the app closed, or the phone out of memory) is found next
+// time (recoverTakes). Put together from storage at the end, and stored as a clip with its id.
+export class TakeWriter {
+  readonly id = uid();
+  private held = new Map<number, Blob>(); // pieces not stored (yet, or ever: storage full)
+  private count = 0;
+  private writes: Promise<unknown>[] = [];
+  constructor(private type: string) {}
+  add(blob: Blob): void {
+    if (!blob.size) return;
+    const i = this.count++;
+    this.held.set(i, blob);
+    this.writes.push(partPut(this.id, i, { type: this.type, blob }).then(() => this.held.delete(i), () => {}));
+  }
+  /** The whole take. Throws if a stored piece can't be read back (it's still there, for next time). */
+  async blob(): Promise<Blob> {
+    await Promise.all(this.writes);
+    const stored = this.held.size < this.count ? await takeParts(this.id) : new Map<number, { blob: Blob }>();
+    const pieces: Blob[] = [];
+    for (let i = 0; i < this.count; i++) {
+      const b = this.held.get(i) ?? stored.get(i)?.blob;
+      if (!b) throw new Error(`Piece ${i} of the take is missing`);
+      pieces.push(b);
+    }
+    return new Blob(pieces, { type: this.type });
+  }
+  /** Stored as a clip (or let go): the pieces aren't needed. */
+  done(): void { partsDelete(this.id).catch(() => {}); }
+}
+
+// Takes cut off before they were stored as clips: stored now, each in a note of its own (as is one
+// stored whose note wasn't saved). The ids put in notes.
+export async function recoverTakes(addEntry: (entry: { text: string; media: Clip[]; take: boolean }) => unknown): Promise<string[]> {
+  const out: string[] = [];
+  try {
+    for (const id of await partTakes()) {
+      let blob = await mediaGet(id);
+      if (!blob) {
+        const parts = await takeParts(id);
+        const pieces = [...parts.keys()].sort((a, b) => a - b).map((i) => parts.get(i)!);
+        if (pieces.length) await mediaPut(id, (blob = new Blob(pieces.map((p) => p.blob), { type: pieces[0].type })));
+      }
+      if (blob && orphanIds(store.state, [id]).length) {
+        addEntry({ text: 'Recovered recording', media: [await clipOf(id, blob)], take: true });
+        out.push(id);
+      }
+      await partsDelete(id);
+    }
+  } catch (err) {
+    console.warn('Couldn’t recover recordings', err);
+  }
+  return out;
+}
+
+// A stored recording's clip (its length read from the file).
+async function clipOf(id: string, blob: Blob): Promise<Clip> {
+  const kind = (blob.type || '').startsWith('video') ? 'video' : 'audio';
+  const ms = await new Promise<number>((resolve) => {
+    if (typeof document === 'undefined') return resolve(0);
+    const el = document.createElement(kind);
+    const url = URL.createObjectURL(blob);
+    const done = (v: number) => { URL.revokeObjectURL(url); resolve(v); };
+    el.onloadedmetadata = () => done(Number.isFinite(el.duration) ? el.duration * 1000 : 0);
+    el.onerror = () => done(0);
+    setTimeout(() => done(0), 3000);
+    el.preload = 'metadata';
+    el.src = url;
+  });
+  return { id, kind, mime: blob.type || '', ms: Math.round(ms), size: blob.size };
 }
 
 export async function clipUrl(clip: Clip): Promise<string | null> {
@@ -104,19 +176,9 @@ export async function restoreStrayClips(addEntry: (entry: { text: string; media:
     if (!orphanIds(store.state, [id]).length) continue; // (in a note by now)
     const blob = await mediaGet(id).catch(() => null);
     if (!blob) continue;
-    const kind = (blob.type || '').startsWith('video') ? 'video' : 'audio';
-    const ms = await new Promise<number>((resolve) => {
-      const el = document.createElement(kind);
-      const url = URL.createObjectURL(blob);
-      const done = (v: number) => { URL.revokeObjectURL(url); resolve(v); };
-      el.onloadedmetadata = () => done(Number.isFinite(el.duration) ? el.duration * 1000 : 0);
-      el.onerror = () => done(0);
-      setTimeout(() => done(0), 3000);
-      el.preload = 'metadata';
-      el.src = url;
-    });
+    const clip = await clipOf(id, blob);
     if (!orphanIds(store.state, [id]).length) continue;
-    addEntry({ text: 'Recovered recording', media: [{ id, kind, mime: blob.type || '', ms: Math.round(ms), size: blob.size }], take: true });
+    addEntry({ text: 'Recovered recording', media: [clip], take: true });
     delete seen[id]; // in a note again: if it's ever let go, its 30 days start afresh
     n++;
   }

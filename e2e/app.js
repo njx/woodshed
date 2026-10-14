@@ -93,14 +93,15 @@ function helpers(page) {
       const [scroll, client] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
       expect(scroll).toBeLessThanOrEqual(client);
     },
-    // Saved state and recorded clip ids, straight from IndexedDB.
+    // Saved state, recorded clip ids, and stored pieces of takes, straight from IndexedDB.
     saved: () => page.evaluate(() => new Promise((resolve) => {
       const q = indexedDB.open('woodshed');
       q.onsuccess = () => {
-        const t = q.result.transaction(['kv', 'media']);
+        const t = q.result.transaction(['kv', 'media', 'parts']);
         const s = t.objectStore('kv').get('state');
         const k = t.objectStore('media').getAllKeys();
-        t.oncomplete = () => { resolve({ state: s.result, clipIds: k.result }); q.result.close(); };
+        const p = t.objectStore('parts').getAllKeys();
+        t.oncomplete = () => { resolve({ state: s.result, clipIds: k.result, partKeys: p.result }); q.result.close(); };
       };
     })),
     // Change saved state directly (then reload to see it): fn(state) runs in the page.

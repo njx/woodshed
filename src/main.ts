@@ -2,7 +2,7 @@ import './styles.css';
 // Lit first: it uses Math.random once as it loads, so loading it up front keeps the end-to-end
 // tests' seeded picks the same whichever screens use it.
 import 'lit';
-import { store, loadState, flush, setSaveErrorHandler } from './store.js';
+import { store, loadState, save, flush, setSaveErrorHandler } from './store.js';
 import { dateStr } from './dates.js';
 import { $, $$, ui, registerViews, render, goTo, toast, closeSheet } from './ui/shell.js';
 import { renderToday } from './ui/today.js';
@@ -10,7 +10,9 @@ import { renderTunes } from './ui/tunes.js';
 import { renderProgress } from './ui/progress.js';
 import { renderSettings } from './ui/settings.js';
 import { renderDiary } from './ui/diary.js';
-import { cleanupMedia, savingMedia } from './media.js';
+import { cleanupMedia, savingMedia, recoverTakes } from './media.js';
+import { addEntry } from './diary.js';
+import { dataChanged } from './commands/index.js';
 import { mountMetronomePill } from './ui/metronome.js';
 import { mountTunerPill } from './ui/tuner.js';
 import { heartbeat, HEARTBEAT_MS } from './practicetime.js';
@@ -61,7 +63,16 @@ loadState().then(
     heartbeat(); // carries on a running timer, or stops it if the app was closed a while
     render();
     maybeGreet();
-    cleanupMedia();
+    // A take cut off last time (the app closed while recording, or before it was kept): in a note.
+    recoverTakes(addEntry).then((ids) => {
+      if (ids.length) {
+        dataChanged();
+        save();
+        render();
+        toast(ids.length > 1 ? `${ids.length} recordings that were cut off are in your diary` : 'A recording that was cut off is in your diary');
+      }
+      cleanupMedia();
+    });
   },
   (err) => {
     // Don't start over from the seed list: the saved data is probably still there.

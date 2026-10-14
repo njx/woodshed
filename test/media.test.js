@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { store } from '../src/store.js';
-import { mediaPut, mediaKeys, _resetDb } from '../src/db.js';
-import { pickMime, constraints, orphanIds, cleanupMedia, strayClips, mediaStats, fmtDuration, fmtSize } from '../src/media.js';
+import { mediaPut, mediaGet, mediaKeys, partPut, partTakes, _resetDb } from '../src/db.js';
+import { pickMime, constraints, orphanIds, cleanupMedia, strayClips, mediaStats, fmtDuration, fmtSize, TakeWriter, recoverTakes, saveClip } from '../src/media.js';
 import { addEntry, todoText } from '../src/diary.js';
 import { tune, setState, freezeToday } from './helpers.js';
 
@@ -72,6 +72,42 @@ describe('clips in the diary', () => {
   it('totals recordings for settings', () => {
     addEntry({ text: 'a', media: [clip('a', 'audio', 900_000), clip('b', 'video', 12_500_000)] });
     expect(mediaStats(store.state)).toEqual({ count: 2, bytes: 13_400_000 });
+  });
+});
+
+describe('takes stored as they’re recorded', () => {
+  const text = async (blob) => (blob ? new TextDecoder().decode(await blob.arrayBuffer()) : null);
+
+  it('are put together from their pieces, in order', async () => {
+    const w = new TakeWriter('audio/mp4');
+    for (const p of ['one ', 'two ', 'three']) w.add(new Blob([p]));
+    w.add(new Blob([])); // (an empty piece: none)
+    const blob = await w.blob();
+    expect(blob.type).toBe('audio/mp4');
+    expect(await text(blob)).toBe('one two three');
+    expect(await partTakes()).toEqual([w.id]);
+    w.done();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await partTakes()).toEqual([]);
+  });
+
+  it('one cut off is stored and put in a note next time', async () => {
+    await partPut('t1', 1, { type: 'video/mp4', blob: new Blob(['B']) });
+    await partPut('t1', 0, { type: 'video/mp4', blob: new Blob(['A']) });
+    const added = [];
+    expect(await recoverTakes((e) => added.push(addEntry(e)))).toEqual(['t1']);
+    expect(await text(await mediaGet('t1'))).toBe('AB');
+    expect(added[0]).toMatchObject({ text: 'Recovered recording', take: true, media: [{ id: 't1', kind: 'video', mime: 'video/mp4', size: 2 }] });
+    expect(await partTakes()).toEqual([]);
+  });
+
+  it('one stored as a clip and kept just has its pieces let go', async () => {
+    const w = new TakeWriter('audio/mp4');
+    w.add(new Blob(['x']));
+    const clip = await saveClip(await w.blob(), 'audio', 1000, w.id);
+    addEntry({ text: 'take', media: [clip] });
+    expect(await recoverTakes(() => { throw new Error('not again'); })).toEqual([]);
+    expect(await partTakes()).toEqual([]);
   });
 });
 
