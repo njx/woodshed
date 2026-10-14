@@ -131,7 +131,7 @@ it's running, there and then). It comes in after a bar of clicks to count in, th
 each chord starts on its root, and its last beat leads into the next root by a half step (below or
 above) or a step. In between are shapes a bass player uses, with the chord's own 3rd and 5th: in a
 bar of four 1 2 3 5, 1 2 ♭3 3 into a root a 4th up (and the same down into one a 4th below), 1 3 5
-♭5, 1 3 5 3, 8 1 2 3, 1 1 2 3, 1 ♭7 6 5 on a dominant, 8 5 3 2…; on a chord held longer, round and
+♭5, 1 3 5 3, 8 1 2 3, 1 ♭7 6 5 on a dominant (♭6 into a minor chord), 8 5 3 2…; on a chord held longer, round and
 back to its root (1 2 3 2, 1 3 2 ♭2) or to the other octave; in two beats 1 and an approach note,
 or 1 5. Each is picked at random where it leads where the line's going, not the same one twice
 running, with the next root in the octave that keeps the line moving smoothly around the middle

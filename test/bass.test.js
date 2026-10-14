@@ -72,11 +72,21 @@ describe('walking bass', () => {
     const again = shapes.filter((s, i) => i && s === shapes[i - 1]).length;
     expect(again / shapes.length).toBeLessThan(0.15);
   });
-  it('walks the shapes a bass player does: 1 2 ♭3 3 into a 4th up, 1 2 3 5, 1 3 5 3, 1 3 5 ♭5, 8 1 2 3, 1 1 2 3', () => {
+  it('walks the shapes a bass player does: 1 2 ♭3 3 into a 4th up, 1 2 3 5, 1 3 5 3, 1 3 5 ♭5, 8 1 2 3', () => {
     // A bar of D minor, into G: the steps above D, seen over many times.
     const seen = new Set();
     for (const l of rounds([chord(2, 'm7', 4), chord(7, 'dom7', 4)], 300, seeded(7))) seen.add(l.slice(0, 4).map((n) => n.midi - l[0].midi).join(' '));
-    for (const want of ['0 2 3 4', '0 2 3 7', '0 3 7 3', '0 3 7 6', '0 -12 -10 -9', '0 0 2 3']) expect([...seen]).toContain(want);
+    for (const want of ['0 2 3 4', '0 2 3 7', '0 3 7 3', '0 3 7 6', '0 -12 -10 -9']) expect([...seen]).toContain(want);
+  });
+  it('walks down 1 ♭7 ♭6 5 into a minor chord (its minor 3rd), 1 ♭7 6 5 into a major one', () => {
+    const sixths = (next) => rounds([chord(0, 'dom7', 4), chord(5, next, 4)], 300, seeded(10))
+      .filter((l) => l[0].shape === '1 ♭7 6 5').map((l) => pc(l[2].midi));
+    expect(new Set(sixths('m7'))).toEqual(new Set([8])); // C B♭ A♭ G into F minor
+    expect(new Set(sixths('maj7'))).toEqual(new Set([9]));
+  });
+  it('doesn’t play 1 1 2 3', () => {
+    const shapes = rounds(iiVI, 100, seeded(11)).flatMap((l) => l.map((n) => n.shape));
+    expect(shapes).not.toContain('1 1 2 3');
   });
   it('walks a chord’s own 5th when it’s altered (7♭5, +7), not the natural one', () => {
     // The 5th in the shapes that arpeggiate up from the root (1 3 5 …), over C7♭5 and C+7.

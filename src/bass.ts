@@ -19,8 +19,8 @@ export interface BarSection { label: string; from: number; to: number; name: str
 //
 // Each chord starts on its root, and its last beat leads into the next chord's root: a half step
 // below or above it, or a step. In between, a few shapes a bass player uses (in a bar of four:
-// 1 2 3 5, 1 2 ♭3 3 into a root a 4th up, 1 3 5 ♭5, 1 3 5 3, 8 1 2 3, 1 1 2 3, 1 ♭7 6 5 on a
-// dominant…), each one only where it leads where the line is going, picked at random but not the
+// 1 2 3 5, 1 2 ♭3 3 into a root a 4th up, 1 3 5 ♭5, 1 3 5 3, 8 1 2 3, 1 ♭7 6 5 on a dominant
+// (♭6 into a minor chord)…), each one only where it leads where the line is going, picked at random but not the
 // same twice running. The next root goes in the octave the line leads to, so it moves like one
 // line, between E1 and E3. A chord held longer walks to its own octave and on. Played round and
 // round, it's made again each time (from where the last time left off), so it doesn't repeat.
@@ -45,8 +45,9 @@ const leads = (x: number, t: number) => { const d = Math.abs(t - x); return d ==
 const inRange = (notes: number[]) => notes.every((m) => m >= LOW && m <= HIGH);
 
 // The shapes, by how many beats they fill: from root r toward t (the next root, or this chord's
-// own octave), with the chord's tones; the notes, or null where it doesn't lead to t.
-type Make = (r: number, c: Tones, t: number) => number[] | null;
+// own octave), with the chord's tones and those of the chord at t; the notes, or null where it
+// doesn't lead to t.
+type Make = (r: number, c: Tones, t: number, to: Tones) => number[] | null;
 const SHAPES: Record<number, Record<string, Make>> = {
   4: {
     '1 2 3 5': (r, c, t) => (leads(r + c.fifth, t) ? [r, r + 2, r + c.third, r + c.fifth] : null),
@@ -58,8 +59,8 @@ const SHAPES: Record<number, Record<string, Make>> = {
     '1 3 5 ♯5': (r, c, t) => (Math.abs(r + c.fifth - (t - 1)) <= 2 && r + c.fifth !== t - 1 ? [r, r + c.third, r + c.fifth, t - 1] : null),
     '1 3 5 3': (r, c, t) => (leads(r + c.third, t) ? [r, r + c.third, r + c.fifth, r + c.third] : null),
     '8 1 2 3': (r, c, t) => (leads(r + c.third - 12, t) ? [r, r - 12, r - 10, r + c.third - 12] : null), // (from the octave, down)
-    '1 1 2 3': (r, c, t) => (leads(r + c.third, t) ? [r, r, r + 2, r + c.third] : null),
-    '1 ♭7 6 5': (r, c, t) => (c.dominant && leads(r + c.fifth - 12, t) ? [r, r - 2, r - 3, r + c.fifth - 12] : null),
+    // (Into a minor chord, the ♭6: its minor 3rd, C B♭ A♭ G into F minor.)
+    '1 ♭7 6 5': (r, c, t, to) => (c.dominant && leads(r + c.fifth - 12, t) ? [r, r - 2, to.third === 3 ? r - 4 : r - 3, r + c.fifth - 12] : null),
     '1 3 5 7': (r, c, t) => (leads(r + c.seventh, t) ? [r, r + c.third, r + c.fifth, r + c.seventh] : null), // on up to the octave
     '1 5 6 7': (r, c, t) => (leads(r + c.seventh, t) && c.fifth === 7 && c.seventh > 9 ? [r, r + 7, r + 9, r + c.seventh] : null),
     '8 5 3 2': (r, c, t) => (leads(r - 10, t) ? [r, r + c.fifth - 12, r + c.third - 12, r - 10] : null), // down to the octave below
@@ -89,7 +90,7 @@ const octaves = (pc: number) => [...Array(HIGH - LOW + 1).keys()].map((i) => LOW
 const rootMidi = (pc: number) => 33 + ((((pc - 9) % 12) + 12) % 12);
 
 // One stretch of a chord (1–4 beats) from root r: the notes, its shape, and where it leads (t).
-function stretch(n: number, r: number, c: Tones, targets: number[], last: string | undefined, rand: () => number) {
+function stretch(n: number, r: number, c: Tones, targets: number[], to: Tones, last: string | undefined, rand: () => number) {
   if (n === 1) return { notes: [r], shape: '1', t: nearest(targets, r) };
   // First which octave to head for: smaller moves sound more like one line, and the middle of the
   // range (E2) more like a bass. Then a shape that gets there: the same one twice running, less often.
@@ -97,7 +98,7 @@ function stretch(n: number, r: number, c: Tones, targets: number[], last: string
     t,
     w: 1 / (1 + Math.abs(t - r) / 5) / (1 + Math.abs(t - MID) / 8),
     shapes: Object.entries(SHAPES[n]).flatMap(([shape, make]) => {
-      const notes = make(r, c, t);
+      const notes = make(r, c, t, to);
       return notes && inRange(notes) ? [{ notes, shape, t, w: shape === last ? 0.15 : 1 }] : [];
     }),
   })).filter((x) => x.shapes.length);
@@ -138,8 +139,9 @@ export function walkingLine(chords: BassChord[], { after = null, rand = Math.ran
       const len = n % 4 || 4;
       n -= len;
       const own = [r - 12, r, r + 12].filter((m) => m >= LOW && m <= HIGH);
-      const targets = n > 0 && own.length ? own : octaves(next.root);
-      const s = stretch(len, r, tones, targets, last, rand);
+      const onward = n > 0 && own.length;
+      const targets = onward ? own : octaves(next.root);
+      const s = stretch(len, r, tones, targets, onward ? tones : degrees(next.family, next.q), last, rand);
       s.notes.forEach((midi, i) => out.push({
         midi, chord: ci,
         // A little life: the first beat firmest, the rest a touch softer, not all alike.
