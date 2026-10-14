@@ -451,6 +451,9 @@ Layout:
 - `src/keys.ts`, `src/dates.ts`: key names and transposition, calendar-day helpers
 - `src/keystats.ts`: key familiarity and choosing exercise keys
 - `src/tempo.ts`, `src/metronome.ts`: working tempos and suggestions; the metronome engine
+- `src/audio.ts`, `src/audiosession.ts`: the one AudioContext everything plays and listens through
+  (metronome, bass, notation, tuner, recorder), kept running through the phone's interruptions; the
+  iPhone's audio session
 - `src/commands/`: every change to the data, as commands (today's set, items, diary, settings), with
   the registry, running and undo (`core.ts`, `index.ts`)
 - `src/assistant/`: the assistant's tools (`tools.ts`: its queries, and the commands), conversation

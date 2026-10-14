@@ -1,3 +1,4 @@
+import { acquireAudio, matchSampleRate, type Audio } from '../audio.js';
 import { store, save, flush } from '../store.js';
 import { itemById } from '../practice.js';
 import { entryById, findItemByName, linkableItems } from '../diary.js';
@@ -25,7 +26,6 @@ export function openRecorder(opts: RecorderOpts = {}): void {
   openSheetView(el, () => el.closed());
 }
 
-const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
 
 @customElement('ws-recorder')
 export class RecorderSheet extends View {
@@ -52,7 +52,8 @@ export class RecorderSheet extends View {
   private levels: number[] = [];
   private releaseRecord: (() => void) | null = null;
   private releaseAwake: () => void = () => {};
-  private audioCtx: AudioContext | null = null;
+  private audio: Audio | null = null; // the shared audio (see audio.ts), for the meter and the mono track
+  get audioCtx() { return this.audio?.ctx ?? null; }
   private analyser: AnalyserNode | null = null;
   private monoAnalyser: AnalyserNode | null = null; // after the mono step: to check sound comes through it
   private heard = { mic: false, mono: false }; // sound seen on the mic, and on the mono path
@@ -74,8 +75,7 @@ export class RecorderSheet extends View {
     // The screen stays on while the recorder is open: a phone that locks mid-take ends the take.
     this.releaseAwake = keepAwake();
     // Created during the tap that opened the recorder, so iOS lets it run (for the level meter).
-    this.audioCtx = AudioCtx ? new AudioCtx() : null;
-    this.audioCtx?.resume?.();
+    try { this.audio = acquireAudio(); } catch { /* no Web Audio: no meter, the mic as it comes */ }
     document.addEventListener('visibilitychange', this.onHide);
     this.startStream();
   }
@@ -245,12 +245,7 @@ export class RecorderSheet extends View {
     this.heard = { mic: false, mono: false };
     // Earbuds can switch the audio to another rate when their mic comes on; an audio engine
     // left at the old one hears silence. Start it again to match.
-    const rate = s.getAudioTracks()[0]?.getSettings?.().sampleRate;
-    if (this.audioCtx && rate && this.audioCtx.sampleRate !== rate) {
-      this.audioCtx.close?.().catch(() => {});
-      this.audioCtx = new AudioCtx();
-      this.audioCtx.resume?.().catch(() => {});
-    }
+    matchSampleRate(s.getAudioTracks()[0]?.getSettings?.().sampleRate);
     const audioCtx = this.audioCtx;
     if (audioCtx) {
       this.analyser = audioCtx.createAnalyser();
@@ -425,7 +420,8 @@ export class RecorderSheet extends View {
     this.querySelectorAll<HTMLMediaElement>('audio, video').forEach((el) => el.pause());
     clearInterval(this.tick ?? undefined);
     this.stopStream();
-    this.audioCtx?.close?.().catch(() => {});
+    this.audio?.release();
+    this.audio = null;
     this.micSession(false);
     this.releaseAwake();
     document.removeEventListener('visibilitychange', this.onHide);

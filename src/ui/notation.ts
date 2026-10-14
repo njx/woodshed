@@ -5,7 +5,7 @@ import { SOUNDS, SWING, nearestSample, swingTime, loadSamples } from '../sounds.
 import type { Samples } from '../sounds.js';
 import { store } from '../store.js';
 import { exec, changeSettings } from '../commands/index.js';
-import { holdAudio } from '../audiosession.js';
+import { acquireAudio, onAudioReset } from '../audio.js';
 import type { AudioTracks, TuneObject } from 'abcjs';
 import type { Key, Settings, SoundId, SwingId } from '../types.js';
 
@@ -104,7 +104,9 @@ export class FullNotation extends View {
 
 // One thing plays at a time.
 let current: { stop: () => void } | null = null;
+let plays = 0; // each playNotation, so one still loading when another starts (or it's stopped) can tell
 export function stopPlayback() {
+  plays++;
   current?.stop();
   current = null;
 }
@@ -118,13 +120,11 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
   transpose?: number; tempo?: number; sound?: SoundId; swing?: SwingId; onEnded?: () => void; onFallback?: (sound: SoundId) => void;
 } = {}): Promise<() => void> {
   stopPlayback();
-  const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
-  if (!Ctx) throw new Error('no audio');
-  const ctx = new Ctx();
-  // Play through the iPhone's silent switch, like the metronome (otherwise it's silent with the
-  // ringer off).
-  const releaseAudio = holdAudio('playback');
-  try { await ctx.resume?.(); } catch { /* resumes on its own, or not at all */ }
+  const mine = plays;
+  // The shared audio (see audio.ts), through the iPhone's silent switch, like the metronome
+  // (otherwise it's silent with the ringer off).
+  const shared = acquireAudio('playback');
+  const ctx = shared.ctx;
   let voice: SoundId = SOUNDS[sound] ? sound : 'synth';
   let samples: Samples | null = null;
   if (voice !== 'synth') {
@@ -136,12 +136,13 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
       voice = 'synth';
     }
   }
+  // Stopped (or another started) while its sound loaded: it doesn't start.
+  if (mine !== plays) { shared.release(); setTimeout(() => onEnded?.()); return () => {}; } // (ended, once the caller has it)
   let audio: AudioTracks;
   try {
     audio = tune.setUpAudio({ midiTranspose: transpose, chordsOff: true }); // the line itself, not comping
   } catch (err) {
-    releaseAudio();
-    ctx.close?.().catch(() => {});
+    shared.release();
     throw err;
   }
   const secPerBeat = 60 / (tempo || audio.tempo || 100);
@@ -149,8 +150,7 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
   // abcjs times are in whole notes; a beat is a quarter note.
   const at = (whole: number) => swingTime(whole * 4, ratio) * secPerBeat;
 
-  const out = ctx.createGain();
-  out.connect(ctx.destination);
+  const out = shared.output(); // (disconnected when it stops: everything scheduled goes quiet)
   let synthIn: BiquadFilterNode | null = null;
   if (voice === 'synth') {
     out.gain.value = 0.22;
@@ -209,11 +209,14 @@ export async function playNotation(tune: TuneObject, { transpose = 0, tempo, sou
     done = true;
     clearTimeout(timer);
     for (const o of sources) { try { o.stop(); } catch {} }
-    ctx.close?.().catch(() => {});
-    releaseAudio();
+    out.disconnect();
+    unreset();
+    shared.release();
     if (current?.stop === stop) current = null;
   };
   const timer = setTimeout(() => { stop(); onEnded?.(); }, totalSec * 1000);
+  // (The audio started again at another rate: what was scheduled on the old one is gone.)
+  const unreset = onAudioReset(() => { stop(); onEnded?.(); });
   current = { stop };
   return stop;
 }

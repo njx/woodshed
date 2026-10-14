@@ -1,5 +1,5 @@
 import { clampBpm } from './tempo.js';
-import { holdAudio } from './audiosession.js';
+import { acquireAudio, onAudioReset, type Audio } from './audio.js';
 import { keepAwake } from './keepawake.js';
 import { walkingLine, pluckSample } from './bass.js';
 import type { WalkingLine } from './bass.js';
@@ -32,13 +32,14 @@ let line: WalkingLine | BassNote[] = [];
 let lineAt = 0;
 let countIn = 0; // beats of clicks still to come before the bass comes in
 let bassSamples: Samples | null = null; // the recorded bass, once loaded (the synth until then)
-let ctx: AudioContext | null = null;
+let audio: Audio | null = null; // the shared audio, while running (see audio.ts)
+let ctx: AudioContext | null = null; // (its context)
+let out: GainNode | null = null; // where the clicks and the bass go
 let timer: ReturnType<typeof setInterval> | null = null;
 let nextTime = 0;
 let nextBeat = 0;
 let queue: Scheduled[] = []; // scheduled beats [{ time, beat }] for the visuals
 let releaseAwake: (() => void) | null = null;
-let releaseAudio: (() => void) | null = null;
 
 export const metronome = {
   get state(): MetronomeState { return { ...state }; },
@@ -62,24 +63,18 @@ export const metronome = {
       loadBass();
       return emit();
     }
-    const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
-    ctx = new Ctx();
-    ctx.resume?.();
-    // iOS pauses ("interrupts") the audio when the mic starts (recorder, tuner) or a call comes
-    // in; pick up again rather than go quiet while it still says it's running.
-    const mine = ctx;
-    ctx.onstatechange = () => {
-      if (ctx === mine && state.running && mine.state !== 'running' && mine.state !== 'closed') mine.resume?.().catch(() => {});
-    };
-    // Play through the iPhone's silent switch, like a music app.
-    releaseAudio = holdAudio('playback');
+    // The shared audio (kept running through the phone's interruptions), through the iPhone's
+    // silent switch, like a music app.
+    const mine = (audio = acquireAudio('playback'));
+    ctx = audio.ctx;
+    out = audio.output();
     state.running = true;
     nextBeat = 0;
     queue = [];
     // The first time with the bass, wait a moment for its samples (the synth if they're slow).
     const go = () => {
-      if (ctx !== mine || !state.running) return;
-      nextTime = ctx.currentTime + 0.06;
+      if (audio !== mine || !state.running) return;
+      nextTime = ctx!.currentTime + 0.06;
       timer = setInterval(schedule, LOOKAHEAD_MS);
       schedule();
     };
@@ -95,11 +90,13 @@ export const metronome = {
     state.bass = null;
     line = [];
     clearInterval(timer ?? undefined);
-    ctx?.close?.().catch(() => {});
+    // What was already scheduled (a beat or so ahead) is cut off with its output.
+    out?.disconnect();
+    out = null;
+    audio?.release();
+    audio = null;
     ctx = null;
     queue = [];
-    releaseAudio?.();
-    releaseAudio = null;
     releaseAwake?.();
     releaseAwake = null;
     emit();
@@ -138,6 +135,15 @@ export const metronome = {
   },
 };
 
+// The audio started again at another sample rate (see audio.ts): on with the beat there.
+onAudioReset((c) => {
+  if (!state.running || !audio) return;
+  ctx = c;
+  out = audio.output();
+  queue = [];
+  nextTime = c.currentTime + 0.05;
+});
+
 // Loads the recorded bass, when there's a bass line and it isn't loaded yet: the promise, or null.
 function loadBass(): Promise<void> | null {
   if (!state.bass || bassSamples || !ctx) return null;
@@ -167,7 +173,7 @@ function schedule() {
       click(nextTime, accent); // (every beat, whatever the click's set to with the bass)
     } else if (line.length) {
       at = lineAt;
-      pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm, line[at].vel);
+      pluckSample(ctx, bassSamples, line[at].midi, nextTime, 60 / state.bpm, line[at].vel, out!);
       advanceLine();
       if (state.click === 'all') click(nextTime, accent);
       else if (state.click === 'twofour' && nextBeat % 2 === 1) click(nextTime, false);
@@ -187,7 +193,7 @@ function advanceLine() {
 
 // A short woodblock-ish click; higher and louder on the downbeat.
 function click(time: number, accent: boolean) {
-  // (ctx!: only called from schedule, which has a context)
+  // (ctx!, out!: only called from schedule, while it's running)
   const osc = ctx!.createOscillator();
   const gain = ctx!.createGain();
   osc.type = 'square';
@@ -199,7 +205,7 @@ function click(time: number, accent: boolean) {
   tone.type = 'bandpass';
   tone.frequency.value = accent ? 1760 : 1100;
   tone.Q.value = 4;
-  osc.connect(tone).connect(gain).connect(ctx!.destination);
+  osc.connect(tone).connect(gain).connect(out!);
   osc.start(time);
   osc.stop(time + 0.06);
 }

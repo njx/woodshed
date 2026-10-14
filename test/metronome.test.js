@@ -10,7 +10,7 @@ const plucks = []; // times
 let now = 0;
 function node() {
   const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} });
-  const n = { gain: param(), frequency: param(), Q: param(), playbackRate: param(), connect: (x) => x, start() {}, stop() {} };
+  const n = { gain: param(), frequency: param(), Q: param(), playbackRate: param(), connect: (x) => x, disconnect() {}, start() {}, stop() {} };
   return n;
 }
 class FakeContext {
@@ -26,6 +26,7 @@ class FakeContext {
   }
   createBufferSource() { return node(); }
   resume() { return Promise.resolve(); }
+  suspend() { return Promise.resolve(); }
   close() { return Promise.resolve(); }
 }
 

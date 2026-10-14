@@ -1,7 +1,7 @@
 import { store } from './store.js';
 import { constraints } from './media.js';
 import { detectPitch, noteOf } from './pitch.js';
-import { holdAudio } from './audiosession.js';
+import { acquireAudio, onAudioReset, matchSampleRate, type Audio } from './audio.js';
 import { keepAwake } from './keepawake.js';
 
 export interface TunerState { running: boolean; error: boolean; mini: boolean }
@@ -19,12 +19,12 @@ const DETECT_MS = 30;
 
 const listeners = new Set<(s: TunerState) => void>();
 const st: TunerState = { running: false, error: false, mini: false };
-let ctx: AudioContext | null = null;
+let audio: Audio | null = null; // the shared audio, while listening (see audio.ts)
 let stream: MediaStream | null = null;
+let source: MediaStreamAudioSourceNode | null = null;
 let analyser: AnalyserNode | null = null;
 let buf: Float32Array<ArrayBuffer> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
-let releaseAudio: (() => void) | null = null;
 let releaseAwake: (() => void) | null = null;
 let gen = 0; // each start; a mic request that answers after a stop (or a restart) is let go
 let last: TunerReading | null = null; // { midi, cents, hz, at } (at: performance.now())
@@ -47,18 +47,17 @@ export const tuner = {
     emit();
     const mine = ++gen;
     try {
-      ctx = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
-      // A session that allows the mic alongside playback (the metronome keeps clicking).
-      releaseAudio = holdAudio('record');
+      // The shared audio, in a session that allows the mic alongside playback (the metronome
+      // keeps clicking).
+      audio = acquireAudio('record');
       releaseAwake = keepAwake();
       const s = await navigator.mediaDevices.getUserMedia({ audio: constraints('audio').audio });
       if (mine !== gen || !st.running) return s.getTracks().forEach((tr) => tr.stop()); // stopped meanwhile
       stream = s;
-      await ctx.resume().catch(() => {});
-      analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      buf = new Float32Array(analyser.fftSize);
-      ctx.createMediaStreamSource(stream).connect(analyser);
+      // The recorder taking the mic (or the phone) can end this one: listen again.
+      for (const tr of s.getAudioTracks()) tr.addEventListener('ended', () => { if (stream === s) setTimeout(revive, 300); });
+      matchSampleRate(s.getAudioTracks()[0]?.getSettings?.().sampleRate);
+      listen(audio.ctx);
       timer = setInterval(detect, DETECT_MS);
     } catch (err) {
       if (mine !== gen) return;
@@ -85,18 +84,30 @@ export const tuner = {
   },
 };
 
-// Back from the background (or after the recorder took the mic): phones suspend the audio and
-// can end the mic track, which would leave the mini tuner showing nothing. Wake it up, or listen
-// again from the start.
+// Back from the background (or after the recorder took the mic): phones can end the mic track,
+// which would leave the mini tuner showing nothing: listen again from the start. (The audio itself
+// is woken by audio.ts.)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || !st.running || !stream) return;
-  if (stream.getAudioTracks().some((tr) => tr.readyState === 'ended' || tr.muted)) {
-    const mini = st.mini;
-    tuner.stop();
-    tuner.setMini(mini); // keeps the pill (or sheet) as it was
-    tuner.start();
-  } else ctx?.resume().catch(() => {});
+  if (document.visibilityState === 'visible' && stream?.getAudioTracks().some((tr) => tr.readyState === 'ended' || tr.muted)) revive();
 });
+function revive() {
+  if (!st.running || !stream || document.visibilityState !== 'visible') return;
+  const mini = st.mini;
+  tuner.stop();
+  tuner.setMini(mini); // keeps the pill (or sheet) as it was
+  tuner.start();
+}
+
+// The mic into an analyser, on the shared context (again, if that's been started afresh).
+function listen(c: AudioContext) {
+  source?.disconnect();
+  analyser = c.createAnalyser();
+  analyser.fftSize = 2048;
+  buf = new Float32Array(analyser.fftSize);
+  source = c.createMediaStreamSource(stream!); // (listening: it has the mic)
+  source.connect(analyser);
+}
+onAudioReset((c) => { if (stream && analyser) listen(c); });
 
 function emit() {
   for (const fn of listeners) fn(tuner.state);
@@ -107,11 +118,11 @@ function teardown() {
   timer = null;
   stream?.getTracks().forEach((tr) => tr.stop());
   stream = null;
-  ctx?.close().catch(() => {});
-  ctx = null;
+  source?.disconnect();
+  source = null;
   analyser = null;
-  releaseAudio?.();
-  releaseAudio = null;
+  audio?.release();
+  audio = null;
   releaseAwake?.();
   releaseAwake = null;
   last = null;
@@ -121,9 +132,9 @@ function teardown() {
 function detect() {
   if (!analyser) return;
   const now = performance.now();
-  // (buf!, ctx!: start sets them before analyser, and teardown clears analyser with ctx)
+  // (buf!, audio!: start sets them before analyser, and teardown clears analyser with audio)
   analyser.getFloatTimeDomainData(buf!);
-  const p = detectPitch(buf!, ctx!.sampleRate);
+  const p = detectPitch(buf!, audio!.ctx.sampleRate);
   if (p && p.clarity > 0.8) {
     const n = noteOf(p.hz, store.state.settings.a4 || 440);
     // Smooth out jitter: average with the previous reading of the same note.

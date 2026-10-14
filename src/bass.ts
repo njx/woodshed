@@ -192,11 +192,11 @@ export function chartChords(t: Tune, key: Key | null = null, { from = null, to =
 
 // A recorded bass note (an upright, plucked: see scripts/make-samples.sh): the nearest sample,
 // shifted to the pitch, held right into the next beat (a walking line is legato) and then damped
-// as the next note starts. samples: { midi: AudioBuffer }; vel: how hard (0–1).
-export function pluckSample(ctx: BaseAudioContext, samples: Samples | null, midi: number, time: number, beat: number, vel = 1): void {
+// as the next note starts. samples: { midi: AudioBuffer }; vel: how hard (0–1); dest: where it goes.
+export function pluckSample(ctx: BaseAudioContext, samples: Samples | null, midi: number, time: number, beat: number, vel = 1, dest: AudioNode = ctx.destination): void {
   const m = nearestSample('bass', midi);
   const buf = m == null ? undefined : samples?.[m]; // (no sample note: none loaded either)
-  if (m == null || !buf) return pluck(ctx, midi, time, beat, vel);
+  if (m == null || !buf) return pluck(ctx, midi, time, beat, vel, dest);
   const end = time + beat; // the next note
   const src = ctx.createBufferSource();
   src.buffer = buf;
@@ -205,7 +205,7 @@ export function pluckSample(ctx: BaseAudioContext, samples: Samples | null, midi
   gain.gain.setValueAtTime(0.9 * vel, time);
   gain.gain.setValueAtTime(0.9 * vel, end);
   gain.gain.exponentialRampToValueAtTime(0.0008, end + 0.07);
-  src.connect(gain).connect(ctx.destination);
+  src.connect(gain).connect(dest);
   src.start(time);
   src.stop(end + 0.09);
 }
@@ -213,7 +213,7 @@ export function pluckSample(ctx: BaseAudioContext, samples: Samples | null, midi
 // The synth, until the samples are loaded (or offline before they ever were). A plucked bass note: a sawtooth (whose overtones carry the pitch on a phone's small speaker,
 // which can't play the low notes themselves) with a sine for the low end, through a low-pass
 // that closes after the attack. Held most of the beat, a little detached.
-export function pluck(ctx: BaseAudioContext, midi: number, time: number, beat: number, vel = 1): void {
+export function pluck(ctx: BaseAudioContext, midi: number, time: number, beat: number, vel = 1, dest: AudioNode = ctx.destination): void {
   const f = 440 * 2 ** ((midi - 69) / 12);
   const len = beat * 0.9;
   const gain = ctx.createGain();
@@ -227,7 +227,7 @@ export function pluck(ctx: BaseAudioContext, midi: number, time: number, beat: n
   lp.Q.value = 0.7;
   lp.frequency.setValueAtTime(2200, time);
   lp.frequency.exponentialRampToValueAtTime(750, time + 0.25);
-  lp.connect(gain).connect(ctx.destination);
+  lp.connect(gain).connect(dest);
   for (const [type, mult, level] of [['sawtooth', 1, 0.5], ['sine', 1, 0.8]] as const) {
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
