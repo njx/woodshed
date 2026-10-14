@@ -1,5 +1,5 @@
 import { TRANSPOSITIONS } from './constants.js';
-import { isMinor } from './keys.js';
+import { sigCount } from './keys.js';
 import type { Standard } from './standards.js';
 import type { Bar, Chart, Chord, Section, ChordType, Key, ScaleType, Transposition } from './types.js';
 
@@ -83,10 +83,7 @@ export function chartFromStandard(x: Standard): Chart {
 // ---------- Names ----------
 
 // Sharps in sharp keys (G D A E B F♯ major and their minors), flats otherwise.
-export function usesSharps(key: Key): boolean {
-  const major = isMinor(key) ? (key + 3) % 12 : key % 12;
-  return [7, 2, 9, 4, 11].includes(major); // (G♭ and E♭m: flats, as keyName names them)
-}
+export const usesSharps = (key: Key): boolean => sigCount(key) > 0; // (C: flats, for B♭7 and the like)
 export const noteName = (pc: number, sharps: boolean): string => (sharps ? SHARPS : FLATS)[((pc % 12) + 12) % 12];
 
 // What a warm-up is played over (see warmups.ts), for an instrument: roman numerals as they are;

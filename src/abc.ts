@@ -1,4 +1,5 @@
 import { TRANSPOSITIONS } from './constants.js';
+import { MAJOR, MINOR, sigCount } from './keys.js';
 import { parseChord, chordFamily, type FamilyChord } from './chords.js';
 import type { Exercise, Key, Transposition } from './types.js';
 
@@ -123,18 +124,16 @@ export function buildAbc(body: string, { meter = '4/4', tempo = 100, key = 0 } =
 // 12–23 minor; C if not set), as you read it on your instrument; it's transposed from there.
 // (Generated notation — scales, arpeggios, progressions — is always in C.)
 export const homeKey = (t: Exercise | null | undefined): Key => (t?.vary || t?.fromTune ? 0 : t?.home ?? 0);
-const MAJOR = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-const MINOR = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
-export const abcKey = (k: Key): string => (k >= 12 ? `${MINOR[k % 12]}m` : MAJOR[k % 12]);
+// As ABC writes it (Bb, F#m): the key's name (keys.ts).
+export const abcKey = (k: Key): string => (k >= 12 ? MINOR[k % 12] : MAJOR[k % 12]).replace('♭', 'b').replace('♯', '#');
 // For showing: B♭, F♯m.
 export const homeName = (k: Key): string => abcKey(k).replace('b', '♭').replace('#', '♯');
 // Semitones to shift an exercise written in `home` so it shows in concert key `root`.
 export const homeShift = (root: number, home: Key, view: Transposition = 'c'): number => (((writtenShift(root, view) - (home % 12)) % 12) + 12) % 12;
 
 // Sharps (+) or flats (−) in a key's signature, and what it does to each letter.
-const SIG_COUNT = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5]; // major keys C…B
 function signature(k: Key): Record<string, number> {
-  const n = SIG_COUNT[(k >= 12 ? k + 3 : k) % 12]; // a minor key: its relative major's
+  const n = sigCount(k);
   const out: Record<string, number> = { C: 0, D: 0, E: 0, F: 0, G: 0, A: 0, B: 0 };
   for (const l of [...(n > 0 ? 'FCGDAEB' : 'BEADGCF')].slice(0, Math.abs(n))) out[l] = Math.sign(n);
   return out;

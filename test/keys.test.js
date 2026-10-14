@@ -45,3 +45,18 @@ describe('practice day', () => {
     expect(today(new Date(2027, 0, 1, 2, 0))).toBe('2026-12-31'); // and a year
   });
 });
+
+describe('spelling', () => {
+  it('names, key signatures, notation and chords agree for every key', async () => {
+    const { keyName, sigCount } = await import('../src/keys.js');
+    const { abcKey } = await import('../src/abc.js');
+    const { usesSharps } = await import('../src/chords.js');
+    for (let k = 0; k < 24; k++) {
+      const name = keyName(k);
+      if (name.includes('♭')) expect(sigCount(k), name).toBeLessThan(0);
+      if (name.includes('♯')) expect(sigCount(k), name).toBeGreaterThan(0);
+      expect(abcKey(k)).toBe(name.replace('♭', 'b').replace('♯', '#'));
+      expect(usesSharps(k), name).toBe(sigCount(k) > 0);
+    }
+  });
+});
