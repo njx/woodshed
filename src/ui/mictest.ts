@@ -9,15 +9,20 @@ import { View, html, nothing, segButtons, openSheetView } from './lit.js';
 // its headphones, and see which keeps it going. It shows what the phone actually gave.
 
 interface Options {
-  session: 'record' | 'safari'; // set the iPhone's session to play-and-record ourselves, or leave it to Safari
+  session: 'safari' | 'record'; // leave the iPhone's session to Safari (as the app does), or set play-and-record ourselves
   channels: 'one' | 'any'; // ask for one channel, or take what the mic gives
   processing: 'off' | 'default'; // the phone's echo cancellation, noise suppression and auto level off, or as Safari sets them
   webAudio: 'on' | 'off'; // the mic into Web Audio (the tuner's analyser, the recorder's meter), at the mic's sample rate
 }
-const ASIS: Options = { session: 'record', channels: 'any', processing: 'off', webAudio: 'on' }; // (as the app does it)
+const ASIS: Options = { session: 'safari', channels: 'one', processing: 'off', webAudio: 'on' }; // (as the app does it)
 
 export function openMicTest(): void {
   openSheetView(document.createElement('ws-mic-test'), () => (document.querySelector('ws-mic-test') as MicTest | null)?.stop());
+}
+
+// The iPhone's audio session set directly (the 'record' option: what the app used to do).
+function setSession(type: 'auto' | 'play-and-record') {
+  try { if (navigator.audioSession) navigator.audioSession.type = type; } catch { /* not supported */ }
 }
 
 @customElement('ws-mic-test')
@@ -55,7 +60,8 @@ export class MicTest extends View {
     const o = this.opts;
     // (From the tap: the shared audio may start here.)
     if (o.webAudio === 'on') this.audio = acquireAudio();
-    if (o.session === 'record') this.releaseSession = holdAudio('record');
+    this.releaseSession = holdAudio('record'); // (as the tuner and recorder do: Safari's session)
+    if (o.session === 'record') setSession('play-and-record');
     const audio: MediaTrackConstraints = {
       ...(o.processing === 'off' ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : {}),
       ...(o.channels === 'one' ? { channelCount: { ideal: 1 } } : {}),
@@ -86,7 +92,7 @@ export class MicTest extends View {
       };
       tick();
     }
-    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession?.type ?? 'n/a';
+    const session = navigator.audioSession?.type ?? 'n/a';
     this.info = [
       `Mic: ${track?.label || '?'}`,
       `Channels: ${s.channelCount ?? '?'} · Sample rate: ${s.sampleRate ?? '?'}`,
@@ -105,6 +111,7 @@ export class MicTest extends View {
     this.audio = null;
     this.releaseSession?.();
     this.releaseSession = null;
+    if (this.opts.session === 'record') setSession('auto');
     this.running = false;
     this.level = 0;
     if (clear) this.info = '';
@@ -126,8 +133,8 @@ export class MicTest extends View {
       ${this.mics.length > 1 ? html`<label class="rec-mic"><span>Mic</span><select id="mt-mic" @change=${(e: Event) => { this.mic = (e.target as HTMLSelectElement).value; if (this.running) this.start(); }}>
         <option value="" ?selected=${!this.mic}>Phone’s choice</option>
         ${this.mics.map((m) => html`<option value=${m.id} ?selected=${m.id === this.mic}>${m.label}</option>`)}</select></label>` : nothing}
-      ${row('session', 'Audio session', 'Record mode set by the app, or left to Safari', [['record', 'App sets it'], ['safari', 'Safari’s']])}
-      ${row('channels', 'Channels', 'Take what the mic gives, or ask for one', [['any', 'As it comes'], ['one', 'One']])}
+      ${row('session', 'Audio session', 'Left to Safari, or record mode set by the app', [['safari', 'Safari’s'], ['record', 'Record mode']])}
+      ${row('channels', 'Channels', 'Ask for one, or take what the mic gives', [['one', 'One'], ['any', 'As it comes']])}
       ${row('processing', 'Phone’s processing', 'Echo cancellation, noise suppression, auto level', [['off', 'Off'], ['default', 'Safari’s default']])}
       ${row('webAudio', 'Web Audio', 'The level meter and tuner listen through it', [['on', 'On'], ['off', 'Off']])}
       <button class="primary-btn" id="mt-go" @click=${() => (this.running ? this.stop() : this.start())}>${this.running ? 'Stop' : 'Start'}</button>

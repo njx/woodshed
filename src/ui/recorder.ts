@@ -80,9 +80,9 @@ export class RecorderSheet extends View {
     this.startStream();
   }
 
-  // The mic needs a session that allows it alongside playback (the metronome in your earbuds),
-  // held while the mic is on. Not while a take is played back: in that session the iPhone plays
-  // through the earpiece, not the loudspeaker, so a take would be barely audible.
+  // The mic needs a session that allows it alongside playback (the metronome in your earbuds):
+  // Safari's own, held while the mic is on (see audiosession.ts). Not while a take is played back:
+  // in that session the iPhone can play through the earpiece, not the loudspeaker.
   micSession(on: boolean) {
     if (on && !this.releaseRecord) this.releaseRecord = holdAudio('record');
     if (!on && this.releaseRecord) { this.releaseRecord(); this.releaseRecord = null; }

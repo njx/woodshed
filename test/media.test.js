@@ -22,9 +22,8 @@ describe('recording formats', () => {
     expect(pickMime('audio', () => false)).toBe('');
   });
 
-  it('turns off voice processing so instruments sound natural, and takes the channels the mic gives', () => {
-    // (Asking for one channel stopped a USB mic's own headphone monitoring.)
-    expect(constraints('audio')).toEqual({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  it('turns off voice processing so instruments sound natural', () => {
+    expect(constraints('audio')).toEqual({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 1 } } });
     expect(constraints('video', 'environment').video).toMatchObject({ facingMode: 'environment' });
   });
 });
