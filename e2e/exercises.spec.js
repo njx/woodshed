@@ -419,9 +419,10 @@ test('a warm-up opened from today says what it’s for, and has full screen', as
   const forTune = (await warm.locator('.style').textContent()).replace(/^for /, '');
   await warm.locator('h2').click();
   await expect(page.locator('.in-today')).toHaveText(`In today’s set, as a warm-up for ${forTune}`);
-  // Off to the metronome and back: still the warm-up (at the tune's tempo), and still today's.
+  // Off to the metronome (the warm-up's) and back: still the warm-up, and still today's.
+
   await page.click('.sheet .tempo-row');
-  await expect(page.locator('#m-bpm')).toBeVisible();
+  await expect(page.locator('.sheet .eyebrow')).toContainText(`warm-up for ${forTune}`);
   await ui.backdrop();
   await expect(page.locator('.in-today')).toHaveText(`In today’s set, as a warm-up for ${forTune}`);
   await page.click('#item-menu'); // (no Add to today for a warm-up)

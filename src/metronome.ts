@@ -14,9 +14,10 @@ export type Click = NonNullable<Settings['bassClick']>;
 export interface BassLoop { from: number; to: number; name: string }
 /** A walking bass: its chords, who started it (e.g. 'chart:<id>'), what it's through, and any loop. */
 export interface Bass { chords: BassChord[]; owner: string; label: string; loop?: BassLoop | null }
-export interface MetronomeState { running: boolean; bpm: number; beats: number; beat: number; itemId: Id | null; bass: Bass | null; click: Click }
+/** itemId: the tune or exercise it's for; pid: which warm-up in today's set (a warm-up has its own tempo). */
+export interface MetronomeState { running: boolean; bpm: number; beats: number; beat: number; itemId: Id | null; pid?: Id; bass: Bass | null; click: Click }
 /** countIn: bars of clicks before a bass starting comes in (0–2; 1 if not given). */
-export interface MetronomeStart { bpm?: number; beats?: number; itemId?: Id | null; bass?: Bass | null; click?: Click; countIn?: number }
+export interface MetronomeStart { bpm?: number; beats?: number; itemId?: Id | null; pid?: Id; bass?: Bass | null; click?: Click; countIn?: number }
 /** A click scheduled, for the visuals: its audio time, beat in the bar, and beat in the bass line (or null). */
 interface Scheduled { time: number; beat: number; at: number | null }
 
@@ -50,10 +51,10 @@ export const metronome = {
     return () => listeners.delete(fn);
   },
   // Must be called from a tap, so the phone allows audio.
-  start({ bpm, beats, itemId, bass = null, click, countIn: bars = 1 }: MetronomeStart = {}) {
+  start({ bpm, beats, itemId, pid, bass = null, click, countIn: bars = 1 }: MetronomeStart = {}) {
     if (bpm) state.bpm = clampBpm(bpm);
     if (beats) state.beats = beats;
-    if (itemId !== undefined) state.itemId = itemId; // null: not for an item
+    if (itemId !== undefined) { state.itemId = itemId; state.pid = pid; } // null: not for an item
     if (click) state.click = click;
     // A bass starting (not just the same one changing key or loop) comes in after the count-in.
     countInBars = bars;
@@ -215,10 +216,10 @@ function click(time: number, accent: boolean) {
 
 // In the background the phone slows the timer down, so the clicks would drift: stop, and keep
 // what it was doing so the app can offer to start it again (takeAwayStop).
-let stoppedAway: Pick<MetronomeState, 'bpm' | 'beats' | 'itemId' | 'bass' | 'click'> & { countIn: number } | null = null;
+let stoppedAway: Pick<MetronomeState, 'bpm' | 'beats' | 'itemId' | 'pid' | 'bass' | 'click'> & { countIn: number } | null = null;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && state.running) {
-    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId, bass: state.bass, click: state.click, countIn: countInBars };
+    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId, pid: state.pid, bass: state.bass, click: state.click, countIn: countInBars };
     metronome.stop();
   }
 });

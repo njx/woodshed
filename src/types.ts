@@ -74,6 +74,8 @@ export interface Tune extends ItemBase {
   recordings?: Recording[];
   chart?: Chart | null;
   chartEdited?: boolean;
+  /** The tempo its warm-ups start at, once one's been set (until then, its own). */
+  warmupTempo?: number | null;
 }
 
 /** A recording to listen to (search links, see listen.ts): your own or from data/recordings.ts. */
@@ -133,6 +135,8 @@ export interface PlanItem {
   mix?: number;
   /** The tune it's a warm-up for. */
   warmup?: Id;
+  /** A warm-up's own tempo: its tune's warm-up tempo when it was added (see practice.ts playTempo). */
+  tempo?: number | null;
   /** A progression, for a fromTune exercise. */
   prog?: Progression | null;
   /** What a written exercise is played over (see warmups.ts), in overKey; parts: which bars. */

@@ -3,6 +3,7 @@ import { RATINGS } from '../constants.js';
 import { randomOf } from '../util.js';
 import { VARY, chooseTypes } from '../theory.js';
 import { itemStats, itemById, isPlanItemPlayed, planEntry, markPlayed as logPlayed, unmarkPlayed as unlog, rate, todaysEntry } from '../practice.js';
+import { clampBpm } from '../tempo.js';
 import {
   ensurePlan, addToToday as addItem, todayItem, setTodayKeys, setTodayKey, refreshTypes, typeCounts, makePlanItem, pickItem, pickFocus,
   excludedIds, swapWarmup, dropOrphanWarmups, buildPlan, addWarmups as addTuneWarmups, addWarmup as addOneWarmup, tryWithTune as tryThrough,
@@ -248,5 +249,20 @@ export const tryWithTune = command<{ exercise: Id; tune?: Id }>({
     if (!t) throw new CommandError(`No tune to try ${x.name} with.`);
     note(`${x.name} through ${t.name}`);
     return { tune: t.name };
+  },
+});
+
+export const setWarmupTempo = command<{ entry: Id; tempo: number }>({
+  name: 'set_warmup_tempo',
+  description: "Set the tempo (BPM) of a warm-up in today's set. A warm-up starts at its tune's tempo; once set, its own is kept (changing the tune's doesn't change it) and the tune's later warm-ups start there too.",
+  fields: { entry: f.entry(), tempo: f.int('BPM') },
+  coalesce: ({ entry }) => `warmup_tempo:${entry}`, // (nudging it: one undo)
+  run({ entry, tempo }, { note }) {
+    const { it, t } = entryOf(entry);
+    const tune = it.warmup ? itemById(it.warmup) as Tune | undefined : undefined;
+    if (!tune) throw new CommandError(`${t.name} isn’t a warm-up in today’s set.`);
+    it.tempo = tune.warmupTempo = clampBpm(tempo);
+    note(`${t.name} (warm-up for ${tune.name}): ${it.tempo} bpm`);
+    return { tempo: it.tempo };
   },
 });

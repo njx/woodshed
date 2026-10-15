@@ -80,8 +80,13 @@ export function planEntry(it: PlanRef): LogEntry | null {
 const entryFor = (itemId: Id, planItem: Partial<PlanItem> | null | undefined) => (planItem?.pid ? planEntry({ ...planItem, itemId }) : todaysEntry(itemId));
 export const isPlanItemPlayed = (it: PlanRef): boolean => !!planEntry(it);
 
-// Where a played item's tempo comes from: a warm-up is played at its tune's tempo.
-export const tempoSource = (t: Item, planItem?: Partial<PlanItem> | null): Item => (planItem?.warmup && itemById(planItem.warmup)) || t;
+// The tempo an item's played at: its working tempo, or a warm-up's own (it starts at its tune's
+// warm-up tempo, or the tune's own tempo; then changing one doesn't change the other).
+export const warmupTempo = (tune: Item): number | null => (tune.type === 'tune' && tune.warmupTempo) || tune.tempo || null;
+export function playTempo(t: Item, planItem?: Partial<PlanItem> | null): number | null {
+  const tune = planItem?.warmup ? itemById(planItem.warmup) : null;
+  return tune ? planItem!.tempo || warmupTempo(tune) : t.tempo || null;
+}
 
 export function markPlayed(itemId: Id, planItem?: Partial<PlanItem> | null): void {
   if (entryFor(itemId, planItem)) return;
@@ -97,7 +102,7 @@ export function markPlayed(itemId: Id, planItem?: Partial<PlanItem> | null): voi
     ...(planItem?.types?.length ? { types: [...planItem.types] } : {}),
     ...(planItem?.prog ? { progName: planItem.prog.name } : {}),
     rating: 'ok', prev: earlier ? { ...earlier.prev } : { ivl: t.ivl, due: t.due },
-    ...(tempoSource(t, planItem).tempo ? { bpm: tempoSource(t, planItem).tempo } : {}),
+    ...(playTempo(t, planItem) ? { bpm: playTempo(t, planItem) } : {}),
     ...(planItem?.warmup ? { warmup: planItem.warmup } : {}), // played as a warm-up for that tune
   };
   store.state.log.push(entry);

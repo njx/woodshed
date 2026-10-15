@@ -2,7 +2,7 @@ import { store } from './store.js';
 import { homeKey } from './abc.js';
 import { chartFor } from './charts.js';
 import { mainChords, scaleFor, progressions, chordKind, chordsInAbc, chordsFromText, chordChanges, chordName, roman, usesSharps } from './chords.js';
-import { itemStats } from './practice.js';
+import { itemStats, warmupTempo } from './practice.js';
 import { CHORDS, SCALES } from './theory.js';
 import { uid } from './util.js';
 import type { ChartProgression, FamilyChord } from './chords.js';
@@ -26,7 +26,8 @@ const exercises = (): Exercise[] => store.state.items.filter((x): x is Exercise 
 const count = (x: Exercise, fallback: number) => Math.max(2, Math.min(4, x.keysPerSession || fallback));
 
 const warmItem = (x: Exercise, t: Tune, keys: Key[], types: string[] | null = null, extra: Partial<PlanItem> = {}): PlanItem => ({
-  pid: uid(), itemId: x.id, bucket: 'exercise', key: null, keys, ...(types ? { types } : {}), alt: false, shift: null, warmup: t.id, ...extra,
+  pid: uid(), itemId: x.id, bucket: 'exercise', key: null, keys, ...(types ? { types } : {}), alt: false, shift: null, warmup: t.id,
+  ...(warmupTempo(t) ? { tempo: warmupTempo(t) } : {}), ...extra,
 });
 const progItem = (x: Exercise, t: Tune, prog: ChartProgression, up: (r: number) => number) => warmItem(x, t, [up(prog.target)], null, {
   prog: { name: prog.name, chords: prog.chords.map(({ d, family }) => ({ d, family })) },

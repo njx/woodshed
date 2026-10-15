@@ -3,7 +3,7 @@ import { autoStart } from '../practicetime.js';
 import { RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
-import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, levelSuggestion } from '../practice.js';
+import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, levelSuggestion, playTempo } from '../practice.js';
 import { itemStatus, inToday, typeCounts, todayItem } from '../plan.js';
 import { chartFor } from '../charts.js';
 import './chart.js'; // (<ws-chart>)
@@ -97,7 +97,7 @@ export class ExerciseSheet extends View {
   today: PlanItem[] = [];
   planItem: PlanItem | null = null;
   prog: Progression | null = null; // a tune's progression (warm-ups)
-  tempoFrom!: Item; // a warm-up is played at its tune's tempo (the tempo row, notation and takes use that)
+  forTune: Tune | null = null; // the tune it's a warm-up for (with a tempo of its own: see playTempo)
   @state() todayKeys: Key[] = []; // changes if today's keys are edited
   @state() previewRoot: Key = 0; // the key shown
   @state() previewType: string | undefined; // the scale or chord type shown
@@ -116,7 +116,7 @@ export class ExerciseSheet extends View {
     this.today = state.plan?.date === dateStr() ? state.plan.items.filter((i) => i.itemId === t.id) : [];
     this.planItem = this.today.find((i) => opts.pid && i.pid === opts.pid) || this.today.find((i) => !i.warmup) || null;
     this.prog = this.planItem?.prog || opts.prog || null;
-    this.tempoFrom = (this.planItem?.warmup && itemById(this.planItem.warmup)) || t;
+    this.forTune = (this.planItem?.warmup && itemById(this.planItem.warmup) as Tune | undefined) || null;
     this.todayKeys = opts.keys || this.planItem?.keys || [];
     this.previewRoot = this.asWritten() || t.keyMode === 'none' ? this.writtenC() : this.todayKeys[0] ?? 0;
     this.previewType = this.typeFor(this.previewRoot);
@@ -167,6 +167,10 @@ export class ExerciseSheet extends View {
   stripTypes() { return [...new Set([...(this.t.vary?.types || []), ...this.todayTypes()])]; }
   // The scale or chord type shown: today's for the key shown, or the first one turned on.
   typeFor(root: Key): string | undefined { return this.todayTypes()[this.todayKeys.indexOf(root)] ?? this.todayTypes()[0] ?? this.t.vary?.types[0]; }
+  // Its tempo: its own, or as a warm-up, the warm-up's (the tempo row, notation, bass and takes use it).
+  tempo() { return playTempo(this.t, this.forTune ? this.planItem : null); }
+  // The metronome's (and bass's) target: the exercise, and which warm-up it is.
+  warmPid() { return this.forTune ? this.planItem!.pid : undefined; }
   // A lick played over part of a progression: in which key only its first so many chords (all of
   // it when it's shown only as written).
   partFor(root: Key) { return this.asWritten() ? null : this.planItem?.parts?.[this.todayKeys.indexOf(root)] ?? null; }
@@ -176,8 +180,8 @@ export class ExerciseSheet extends View {
   label() {
     const t = this.t, prog = this.prog;
     return prog || !this.todayKeys.length
-      ? takeLabel(t, [this.previewRoot], this.previewType ? [this.previewType] : null, prog, this.tempoFrom.tempo)
-      : takeLabel(t, this.todayKeys, this.todayTypes(), prog, this.tempoFrom.tempo);
+      ? takeLabel(t, [this.previewRoot], this.previewType ? [this.previewType] : null, prog, this.tempo())
+      : takeLabel(t, this.todayKeys, this.todayTypes(), prog, this.tempo());
   }
   // The chords a written exercise goes with, read from the chord symbols in its notation.
   guessed() { return chordChanges(chordsInAbc(this.t.abc)).map((c) => chordName(c)).join(' '); }
@@ -205,7 +209,7 @@ export class ExerciseSheet extends View {
     if (!chords.length) return;
     const beats = Number(String(this.t.meter || '4/4').split('/')[0]) || 4;
     metronome.start({
-      bpm: this.tempoFrom.tempo || 100, beats: this.prog ? 4 : beats, itemId: this.tempoFrom.id,
+      bpm: this.tempo() || 100, beats: this.prog ? 4 : beats, itemId: this.t.id, pid: this.warmPid(),
       bass: { chords, owner: this.bassOwner, label: this.prog ? this.prog.name : this.t.name },
       click: store.state.settings.bassClick, countIn: store.state.settings.bassCountIn,
     });
@@ -258,7 +262,7 @@ export class ExerciseSheet extends View {
     let fullTune: TuneObject | null = null;
     openFullNotation({
       title: `${t.name} · ${what}`,
-      draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, key: homeKey(t), meter: t.meter, tempo: this.tempoFrom.tempo || 100, wide: true }).catch(() => null); },
+      draw: async (el) => { fullTune = await renderNotation(el, abc, { shift, key: homeKey(t), meter: t.meter, tempo: this.tempo() || 100, wide: true }).catch(() => null); },
       play: async (onEnded) => {
         if (!fullTune) return null;
         try {
@@ -301,8 +305,8 @@ export class ExerciseSheet extends View {
         : t.abc ? html`<button class="link-btn" id="x-edit-abc" @click=${() => this.editNotation()}>Edit</button>` : nothing}</div>
       ${t.fromTune && !prog ? html`<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: tap <b>+ Warm-up</b> on a tune’s card in Today, or <b>Add a warm-up</b> under its chart.</p>` : nothing}
       ${t.vary || t.abc || prog ? this.notationCard() : html`<button class="ghost-btn" id="x-add-abc" @click=${() => this.editNotation()}>${raw(ICON.plus)}<span>Add notation</span></button>`}
-      ${planItem?.warmup && !prog && chartFor(this.tempoFrom) // (it has a chart, so it's the tune it's a warm-up for) — in the tune's key
-        ? html`<div class="x-tune-chart" id="x-tune-chart"><ws-chart .tune=${this.tempoFrom as Tune} .compact=${true} .startKey=${todayItem(this.tempoFrom)?.key ?? (planItem.form ? planItem.overKey ?? null : null)}></ws-chart></div>` : nothing}
+      ${planItem && this.forTune && !prog && chartFor(this.forTune) // (a warm-up: its tune's chart, in the tune's key)
+        ? html`<div class="x-tune-chart" id="x-tune-chart"><ws-chart .tune=${this.forTune} .compact=${true} .startKey=${todayItem(this.forTune)?.key ?? (planItem.form ? planItem.overKey ?? null : null)}></ws-chart></div>` : nothing}
       ${this.todayKeysPart()}
       <label class="field">
         <span class="field-label">How to practice it</span>
@@ -310,8 +314,8 @@ export class ExerciseSheet extends View {
       </label>
       ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => this.edit({ level: l }))}
 
-      ${isNew ? nothing : this.tempoFrom !== t
-        ? html`<div data-item-id=${this.tempoFrom.id}>${tempoRow(this.tempoFrom, () => this.openMetronome())}<p class="fine">As a warm-up it’s played at ${this.tempoFrom.name}’s tempo.</p></div>`
+      ${isNew ? nothing : this.forTune
+        ? html`<div data-item-id=${t.id}>${tempoRow({ id: t.id, tempo: this.tempo() }, () => this.openMetronome(), 'warm-up tempo')}<p class="fine">It started at ${this.forTune.name}’s tempo; changing one doesn’t change the other.</p></div>`
         : html`<div data-item-id=${t.id}>${tempoRow(t, () => this.openMetronome())}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
       ${isNew || !canRecord() ? nothing : this.takes()}
       <ws-exercise-settings .sheet=${this}></ws-exercise-settings>
@@ -327,7 +331,7 @@ export class ExerciseSheet extends View {
   }
   // Opening the metronome leaves this sheet; it comes back afterwards.
   openMetronome() {
-    this.goTo(() => openMetronome({ itemId: this.t.id, back: this.back }));
+    this.goTo(() => openMetronome({ itemId: this.t.id, pid: this.warmPid(), back: this.back }));
   }
   // The notation in the key and type shown, drawn again when that changes.
   async drawNotation() {
@@ -337,7 +341,7 @@ export class ExerciseSheet extends View {
     if (!el || !abc || (what === this.drawn && el === this.drawnIn)) return;
     this.drawn = what;
     this.drawnIn = el;
-    this.tune = await renderNotation(el, abc, { shift: this.shift(), key: homeKey(this.t), meter: this.t.meter, tempo: this.tempoFrom.tempo || 100 })
+    this.tune = await renderNotation(el, abc, { shift: this.shift(), key: homeKey(this.t), meter: this.t.meter, tempo: this.tempo() || 100 })
       .catch(() => { el.innerHTML = '<span class="fine">Couldn’t show this notation.</span>'; return null; });
   }
 
@@ -345,7 +349,7 @@ export class ExerciseSheet extends View {
     const t = this.t, prog = this.prog, planItem = this.planItem;
     const todayKeys = this.todayKeys, root = this.previewRoot;
     const bass = this.bassMine();
-    const today = planItem?.form ? `Today: through ${this.tempoFrom.name}’s form, in ${kn(planItem.overKey)} — bend it to the changes, or take off from it.`
+    const today = planItem?.form ? `Today: through ${this.forTune?.name ?? 'its tune'}’s form, in ${kn(planItem.overKey)} — bend it to the changes, or take off from it.`
       : planItem?.over ? `Today: over ${overLabel(planItem.over)}${planItem.overKey != null ? ` in ${kn(planItem.overKey)}` : ''} — play it in ${todayKeys.map((k, i) => `${rootName(k)}${planItem.parts?.[i] ? ` (its first ${planItem.parts[i]} chords)` : ''}`).join(', then ')}`
       : prog ? `Today: ${prog.name} in ${rootName(root)} — ${progressionChords(prog, root)}`
       : t.vary && this.todayTypes().length ? `Today: ${exerciseKeysText(todayKeys, t, this.todayTypes())}`

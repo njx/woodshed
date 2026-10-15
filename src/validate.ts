@@ -43,6 +43,8 @@ function item(t: Raw, ids: Set<Id>): Item | null {
   t.due = isDate(t.due) ? t.due : null;
   t.tempo = int(Math.round(t.tempo), 10, 400);
   t.goalTempo = int(Math.round(t.goalTempo), 10, 400);
+  if (t.type === 'tune' && t.warmupTempo != null) t.warmupTempo = int(Math.round(t.warmupTempo), 10, 400);
+  if (t.warmupTempo == null) delete t.warmupTempo;
   if (t.type === 'exercise') {
     t.keys = keyList(t.keys, 11);
     t.keyMode = oneOf(t.keyMode, Object.keys(KEY_MODES), 'weak');
@@ -154,7 +156,7 @@ function session(x: Raw): PracticeSession | null {
 function plan(p: Raw, ids: Set<Id>): Plan | null {
   if (!p || typeof p !== 'object' || !isDate(p.date) || !Array.isArray(p.items)) return null;
   const pids = new Set<Id>();
-  p.items = p.items.filter((it: Raw) => it && ids.has(it.itemId)).map(({ warmup, ...it }: Raw) => ({
+  p.items = p.items.filter((it: Raw) => it && ids.has(it.itemId)).map(({ warmup, tempo, ...it }: Raw) => ({
     ...(ids.has(warmup) ? { warmup } : {}), // a warm-up for this tune
     ...it,
     pid: isId(it.pid) && !pids.has(it.pid) ? (pids.add(it.pid), it.pid) : (() => { const x = uid(); pids.add(x); return x; })(),
@@ -169,6 +171,7 @@ function plan(p: Raw, ids: Set<Id>): Plan | null {
     ...(typeof it.over === 'string' ? { over: str(it.over, 60) } : {}),
     ...(int(it.overKey, 0, 23) != null ? { overKey: it.overKey } : {}),
     ...(it.form ? { form: true } : {}), // an exercise through a tune's form (see warmups.js)
+    ...(ids.has(warmup) && int(Math.round(tempo), 10, 400) != null ? { tempo: Math.round(tempo) } : {}), // a warm-up's own
     ...(Array.isArray(it.parts) ? { parts: it.parts.slice(0, 12).map((n: Raw) => int(n, 1, 16)) } : {}),
     ...(['setup', 'changes'].includes(it.slot) ? { slot: it.slot } : {}),
   }));

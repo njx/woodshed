@@ -3,7 +3,7 @@ import { store } from '../store.js';
 import { LEVELS, PRIORITIES, TRANSPOSITIONS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, daysBetween, addDays } from '../dates.js';
 import { keyName } from '../keys.js';
-import { itemStats, itemById, isDue, planEntry } from '../practice.js';
+import { itemStats, itemById, isDue, planEntry, playTempo } from '../practice.js';
 import { ensurePlan } from '../plan.js';
 import { chartFor } from '../charts.js';
 import { chartToText, chartShift, usesSharps, progressions, noteName } from '../chords.js';
@@ -104,7 +104,7 @@ function planSummary() {
       new_key: !!it.alt,
       keys: it.keys?.map(rootName),
       ...(it.types?.length && t.vary ? { types: it.types.map((id) => typeLabel(t.vary!.kind, id)) } : {}),
-      tempo: t.tempo || null,
+      tempo: playTempo(t, it), // (a warm-up's own)
       ...(it.warmup ? { warm_up_for: itemById(it.warmup)?.name } : {}),
       ...(it.prog ? { progression: it.prog.name } : {}),
       played: !!e,

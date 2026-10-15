@@ -3,7 +3,9 @@ import { store, seedState, migrate, SCHEMA_VERSION } from '../src/store.js';
 import { loadSeedCharts, chartFor, seedChart } from '../src/charts.js';
 import { nextWarmups, altWarmup, harmonyOf, warmupOf } from '../src/warmups.js';
 import { buildPlan, addWarmups, swapWarmup, setItemStatus, pickItem, tryWithTune, pickFocus, ensurePlan, dropOrphanWarmups, addToToday, todayItem, setTodayKeys, setTodayKey } from '../src/plan.js';
-import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion } from '../src/practice.js';
+import { markPlayed, unmarkPlayed, isPlanItemPlayed, isPlayedToday, deleteItem, rate, levelSuggestion, playTempo, itemById } from '../src/practice.js';
+import { exec } from '../src/commands/core.js';
+import { setWarmupTempo } from '../src/commands/index.js';
 import { tempoSuggestion } from '../src/tempo.js';
 import { chooseTypes } from '../src/theory.js';
 import { freezeToday } from './helpers.js';
@@ -363,6 +365,47 @@ describe('warm-up tempo', () => {
     const e = store.state.log.at(-1);
     expect(e).toMatchObject({ bpm: 132, warmup: tune.id });
     expect(tempoSuggestion(ex)).toBe(null); // a rough warm-up at 132 says nothing about 90
+  });
+});
+
+describe('a warm-up’s own tempo', () => {
+  const warm = (name) => {
+    addWarmups(byName(name));
+    return store.state.plan.items.filter((i) => i.warmup === byName(name).id).at(-1);
+  };
+  it('starts at its tune’s; changing the tune’s afterwards doesn’t change it', () => {
+    buildPlan(true);
+    const tune = byName('Autumn Leaves');
+    tune.tempo = 132;
+    const w = warm('Autumn Leaves');
+    tune.tempo = 150;
+    markPlayed(w.itemId, w);
+    expect(store.state.log.at(-1).bpm).toBe(132);
+  });
+  it('set for a warm-up: the tune’s stays as it was, and the tune’s next warm-ups start there', () => {
+    buildPlan(true);
+    const tune = byName('Autumn Leaves');
+    tune.tempo = 132;
+    const w = warm('Autumn Leaves');
+    exec(setWarmupTempo, { entry: w.pid, tempo: 100 });
+    expect(tune.tempo).toBe(132);
+    expect(playTempo(itemById(w.itemId), w)).toBe(100);
+    const next = warm('Autumn Leaves');
+    expect(next).not.toBe(w);
+    expect(playTempo(itemById(next.itemId), next)).toBe(100);
+  });
+  it('one made before the tune had a tempo takes the tune’s when it gets one', () => {
+    buildPlan(true);
+    const tune = byName('Autumn Leaves');
+    tune.tempo = null;
+    const w = warm('Autumn Leaves');
+    tune.tempo = 120;
+    expect(playTempo(itemById(w.itemId), w)).toBe(120);
+  });
+  it('only for a warm-up', () => {
+    buildPlan(true);
+    const it = store.state.plan.items.find((i) => !i.warmup);
+    expect(() => exec(setWarmupTempo, { entry: it.pid, tempo: 100 })).toThrow(/isn’t a warm-up/);
   });
 });
 

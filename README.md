@@ -191,7 +191,9 @@ keeps the screen awake, and plays through the iPhone's silent switch where Safar
 
 Each tune and exercise has a **working tempo** (and an optional goal). Opening the metronome from
 an item sets its tempo, and logging a session saves the tempo you played at, shown in the item's
-history. After you rate a session:
+history. A **warm-up** has its own tempo: it starts at its tune's, and from then on changing one
+doesn't change the other (the tune's later warm-ups start at the warm-up tempo you last set).
+After you rate a session:
 
 - **Solid twice in a row** at the working tempo → a suggestion to speed up about 5% (never past
   your goal; reaching the goal gets a 🎉).

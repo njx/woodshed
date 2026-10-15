@@ -85,18 +85,35 @@ test('started from a card, the metronome can be stopped from the Today circle', 
   await expect(page.locator('#today-metro')).not.toHaveClass(/\blive\b/);
 });
 
-test('a warm-up’s tempo is its tune’s', async ({ page, ui }) => {
+test('a warm-up’s tempo starts at its tune’s; then changing one doesn’t change the other', async ({ page, ui }) => {
   await ui.start();
-  await page.locator('[data-add-warm]').first().click();
-  await page.locator('.pick-list [data-pick]').first().click();
-  const warm = page.locator('.card', { has: page.locator('.bucket', { hasText: 'Warm-up' }) }).first();
-  const tuneName = (await warm.locator('.style').textContent()).replace(/^for /, '');
-  await warm.locator('.tempo-chip').click();
-  await expect(page.locator('.sheet .eyebrow')).toContainText(tuneName); // the tune's metronome
-  for (let i = 0; i < 2; i++) await page.click('[data-step="5"]');
+  // A tune with a tempo, then a warm-up for it.
+  const tune = page.locator('.card:not(.b-exercise)', { has: page.locator('[data-add-warm]') }).first();
+  const tuneName = await tune.locator('h2').textContent();
+  await tune.locator('.tempo-chip').click();
+  await page.click('[data-step="5"]');
   await ui.backdrop();
-  const tune = page.locator('.card:not(.b-exercise)', { hasText: tuneName });
-  await expect(warm.locator('.tempo-chip')).toContainText(await tune.locator('.tempo-chip').textContent());
+  const bpm = Number(await tune.locator('.tempo-chip').textContent());
+  await tune.locator('[data-add-warm]').click();
+  await page.locator('.pick-list [data-pick]').first().click();
+  const warm = page.locator('.card', { has: page.locator('.style', { hasText: `for ${tuneName}` }) }).first();
+  await expect(warm.locator('.tempo-chip')).toHaveText(String(bpm));
+  // The warm-up's: its own metronome, and its tune's stays.
+  await warm.locator('.tempo-chip').click();
+  await expect(page.locator('.sheet .eyebrow')).toContainText(`warm-up for ${tuneName}`);
+  for (let i = 0; i < 2; i++) await page.click('[data-step="-5"]');
+  await ui.backdrop();
+  await expect(warm.locator('.tempo-chip')).toHaveText(String(bpm - 10));
+  await expect(tune.locator('.tempo-chip')).toHaveText(String(bpm));
+  // The tune's: the warm-up's stays.
+  await tune.locator('.tempo-chip').click();
+  await page.click('[data-step="5"]');
+  await ui.backdrop();
+  await expect(tune.locator('.tempo-chip')).toHaveText(String(bpm + 5));
+  await expect(warm.locator('.tempo-chip')).toHaveText(String(bpm - 10));
+  // In the warm-up's details too.
+  await warm.locator('h2').click();
+  await expect(page.locator('.sheet .tempo-row')).toContainText(`${bpm - 10} bpm warm-up tempo`);
 });
 
 test('the metronome stops when the app goes into the background, and offers to start again', async ({ page, ui }) => {

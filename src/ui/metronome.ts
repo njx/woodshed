@@ -1,5 +1,5 @@
 import { store, save } from '../store.js';
-import { itemById } from '../practice.js';
+import { itemById, playTempo } from '../practice.js';
 import { todayItem } from '../plan.js';
 import { chartChords } from '../bass.js';
 import { metronome, takeAwayStop } from '../metronome.js';
@@ -9,24 +9,29 @@ import * as cmd from '../commands/index.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { View, html, nothing, live, raw, openSheetView, segButtons } from './lit.js';
 import type { Click } from '../metronome.js';
-import type { Id, Item } from '../types.js';
+import type { Id, Item, PlanItem } from '../types.js';
 import type { tempoSuggestion } from '../tempo.js';
 
 // Metronome sheet. Opened for a tune or exercise (opts.itemId), its tempo is that item's working
-// tempo: changing it here changes the item's.
-export function openMetronome(opts: { itemId?: Id | null; back?: () => void } = {}) {
+// tempo: changing it here changes the item's. For a warm-up in today's set (opts.pid), the
+// warm-up's own tempo.
+export function openMetronome(opts: { itemId?: Id | null; pid?: Id; back?: () => void } = {}) {
   const ms = metronome.state;
   // Opened without an item (the Today circle) while it's running for one: that's the metronome
   // that's on, so it opens as that item's (and can be stopped).
-  const itemId = opts.itemId ?? (ms.running ? ms.itemId : null);
+  const running = opts.itemId == null && ms.running;
+  const itemId = running ? ms.itemId : opts.itemId ?? null;
+  const pid = running ? ms.pid : opts.pid;
   const el = document.createElement('ws-metronome') as MetronomeSheet;
   el.item = itemId ? itemById(itemId) ?? null : null;
+  el.warmup = (pid && store.state.plan?.items.find((i) => i.pid === pid && i.itemId === itemId && i.warmup)) || null; // (one gone since: the item's own)
   openSheetView(el, () => { render(); opts.back?.(); });
 }
 
 @customElement('ws-metronome')
 export class MetronomeSheet extends View {
   @property({ attribute: false }) item: Item | null = null;
+  @property({ attribute: false }) warmup: PlanItem | null = null; // a warm-up in today's set (item is the exercise)
   @state() bpm = 100;
   @state() beats = 4;
   private taps: number[] = [];
@@ -36,8 +41,7 @@ export class MetronomeSheet extends View {
   connectedCallback() {
     super.connectedCallback();
     const s = store.state.settings, ms = metronome.state;
-    const sameItem = ms.running && ms.itemId === (this.item?.id ?? null);
-    this.bpm = sameItem ? ms.bpm : this.item?.tempo || (ms.running ? ms.bpm : s.metroBpm || 100);
+    this.bpm = this.mine() ? ms.bpm : this.tempo() || (ms.running ? ms.bpm : s.metroBpm || 100);
     this.beats = s.metroBeats || 4;
     this.unsubscribe = metronome.subscribe(() => this.requestUpdate());
     // Light up the beat that's sounding.
@@ -53,8 +57,14 @@ export class MetronomeSheet extends View {
     cancelAnimationFrame(this.raf ?? 0);
     this.unsubscribe?.();
   }
-  // Running for this (its item, or none).
-  mine() { return metronome.state.running && metronome.state.itemId === (this.item?.id ?? null); }
+  // Running for this (its item, or none; and the same warm-up, or not one).
+  mine() { const ms = metronome.state; return ms.running && ms.itemId === (this.item?.id ?? null) && ms.pid === this.warmup?.pid; }
+  tempo() { return this.item ? playTempo(this.item, this.warmup) : null; }
+  // Its tempo changed: the item's working tempo, or the warm-up's own.
+  saveTempo(bpm: number) {
+    if (this.warmup) perform(cmd.setWarmupTempo, { entry: this.warmup.pid, tempo: bpm });
+    else perform(cmd.updateItem, { item: this.item!.id, tempo: bpm, tempo_today: true });
+  }
   bassOn() { return this.mine() && !!metronome.state.bass; }
   // The bass, as it is while it's running for this; otherwise as set (for a tune with a chart).
   bassWanted() { return this.mine() ? this.bassOn() : !!store.state.settings.metroBass && !!this.chartBass(); }
@@ -69,7 +79,7 @@ export class MetronomeSheet extends View {
     this.bpm = clampBpm(b);
     store.state.settings.metroBpm = this.bpm;
     if (this.mine()) metronome.setBpm(this.bpm); // (not one running for something else)
-    if (this.item) perform(cmd.updateItem, { item: this.item.id, tempo: this.bpm, tempo_today: true });
+    if (this.item) this.saveTempo(this.bpm);
     else save(); // (the metronome's own tempo, above)
   }
   setBeats(n: number) {
@@ -88,10 +98,10 @@ export class MetronomeSheet extends View {
   }
   startWith(bass: boolean) {
     const item = this.item, settings = store.state.settings;
-    if (item && !item.tempo) perform(cmd.updateItem, { item: item.id, tempo: this.bpm, tempo_today: true });
+    if (item && !this.tempo()) this.saveTempo(this.bpm);
     const cb = bass ? this.chartBass() : null;
     metronome.start({
-      bpm: this.bpm, itemId: item?.id ?? null, click: settings.bassClick, countIn: settings.bassCountIn,
+      bpm: this.bpm, itemId: item?.id ?? null, pid: this.warmup?.pid, click: settings.bassClick, countIn: settings.bassCountIn,
       beats: cb ? cb.beats : this.beats,
       bass: cb ? { chords: cb.chords, owner: `chart:${item!.id}`, label: item!.name } : null, // (a chart's bass: item is a tune)
     });
@@ -106,7 +116,7 @@ export class MetronomeSheet extends View {
     const item = this.item;
     const running = this.mine();
     return html`
-      <p class="eyebrow">Metronome${item ? ` · ${item.name}` : ''}</p>
+      <p class="eyebrow">Metronome${item ? ` · ${item.name}` : ''}${this.warmup ? ` · warm-up for ${itemById(this.warmup.warmup!)?.name ?? 'a tune'}` : ''}</p>
       <div class="metro-dots" id="m-dots">${Array.from({ length: this.beats }, (_, i) => html`<i class=${i === 0 && this.beats > 1 ? 'accent' : ''}></i>`)}</div>
       <div class="metro-bpm">
         ${[-5, -1].map((d) => html`<button data-step=${d} aria-label="${-d} slower" @click=${() => this.setBpm(this.bpm + d)}>−${-d}</button>`)}
@@ -123,7 +133,8 @@ export class MetronomeSheet extends View {
         <button class="ghost-btn" id="m-tap" @click=${() => this.tap()}>Tap tempo</button>
         <button class="primary-btn metro-go ${running ? 'on' : ''}" id="m-go" @click=${() => this.go()}>${raw(running ? ICON.skip : ICON.play)}<span>${running ? 'Stop' : 'Start'}</span></button>
       </div>
-      ${item ? html`
+      ${item && this.warmup ? html`<p class="fine">The warm-up’s own tempo: it started at its tune’s, and changing one doesn’t change the other.</p>`
+      : item ? html`
         <div class="setting">
           <div><b>Goal tempo</b><span>Optional. Suggestions to speed up stop here.</span></div>
           <input class="goal-input" id="m-goal" type="number" inputmode="numeric" min=${MIN_BPM} max=${MAX_BPM} placeholder="—" .value=${live(String(item.goalTempo || ''))}
@@ -201,7 +212,7 @@ export class MetroPill extends View {
     const item = s.itemId ? itemById(s.itemId) : null;
     const what = s.bass ? `Bass · ${s.bass.label}` : item ? item.name : 'bpm';
     return html`<div class="metro-pill" ?hidden=${!s.running}>${s.running ? html`
-      <button class="mp-open" aria-label="Open metronome" @click=${() => openMetronome({ itemId: s.itemId })}><i class="mp-dot"></i><b>${s.bpm}</b><span>${what}</span></button>
+      <button class="mp-open" aria-label="Open metronome" @click=${() => openMetronome({ itemId: s.itemId, pid: s.pid })}><i class="mp-dot"></i><b>${s.bpm}</b><span>${what}</span></button>
       <button class="mp-stop" aria-label="Stop metronome" @click=${() => metronome.stop()}>${raw(ICON.skip)}</button>` : nothing}</div>`;
   }
 }
@@ -220,11 +231,11 @@ export function tempoSuggestionPart(t: Item, sug: ReturnType<typeof tempoSuggest
 }
 
 // Its working tempo (and goal), opening the metronome.
-export function tempoRow(t: Item, open: () => void) {
+export function tempoRow(t: Pick<Item, 'id' | 'tempo' | 'goalTempo'>, open: () => void, what = 'working tempo') {
   return html`
     <div class="field-label row-label"><span>Tempo</span></div>
     <button class="tempo-row" data-metro=${t.id} @click=${(e: Event) => { e.stopPropagation(); open(); }}>
-      <span class="tr-main">${t.tempo ? html`<b>${t.tempo} bpm</b> working tempo` : 'No tempo yet'}${t.goalTempo ? ` · goal ${t.goalTempo}` : ''}</span>
+      <span class="tr-main">${t.tempo ? html`<b>${t.tempo} bpm</b> ${what}` : 'No tempo yet'}${t.goalTempo ? ` · goal ${t.goalTempo}` : ''}</span>
       <span class="tr-open">${raw(ICON.metro)}Metronome</span>
     </button>`;
 }

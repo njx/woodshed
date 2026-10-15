@@ -2,7 +2,7 @@ import { store } from '../store.js';
 import { BUCKETS, RATINGS, SHIFTS, LEVELS, TRANSPOSITIONS, CATEGORIES } from '../constants.js';
 import { dateStr, niceDate } from '../dates.js';
 import {
-  itemStats, itemById, planEntry, isPlanItemPlayed, tempoSource,
+  itemStats, itemById, planEntry, isPlanItemPlayed, playTempo,
   levelSuggestion, overdue,
 } from '../practice.js';
 import { ensurePlan } from '../plan.js';
@@ -189,7 +189,7 @@ export class Card extends View {
           <span class="style">${it.warmup ? `for ${itemById(it.warmup)?.name || 'a tune'}` : t.type === 'exercise' ? CATEGORIES[t.category] || '' : t.style}</span>
           ${late ? html`<em class="late">overdue</em>` : nothing}
           ${priBadge(t.priority)}
-          <span class="card-tools">${this.noteChip(t)}${this.recChip(t)}${this.tempoChip(tempoSource(t, it))}</span>
+          <span class="card-tools">${this.noteChip(t)}${this.recChip(t)}${this.tempoChip(t, it)}</span>
         </div>
         ${chip !== nothing ? name : nothing}
         <div class="card-actions">
@@ -256,15 +256,16 @@ export class Card extends View {
   record(t: Item) {
     const item = this.item;
     const text = t.type === 'exercise'
-      ? takeLabel(t, item.keys || [], item.types || null, item.prog || null, tempoSource(t, item).tempo)
+      ? takeLabel(t, item.keys || [], item.types || null, item.prog || null, playTempo(t, item))
       : [item.key != null && `In ${kn(item.key)}`, t.tempo && `${t.tempo} bpm`].filter(Boolean).join(' · ');
     openRecorder({ itemId: t.id, text, back: render });
   }
-  // Its tempo (a warm-up's is its tune's), opening the metronome.
-  tempoChip(t: Item) {
-    const open = (e: Event) => { e.stopPropagation(); openMetronome({ itemId: t.id }); };
-    return t.tempo
-      ? html`<button class="tempo-chip" aria-label="Tempo ${t.tempo} bpm, open metronome" @click=${open}>${raw(ICON.quarter)}<span>${t.tempo}</span></button>`
+  // Its tempo (a warm-up's own), opening the metronome.
+  tempoChip(t: Item, it: PlanItem) {
+    const open = (e: Event) => { e.stopPropagation(); openMetronome({ itemId: t.id, pid: it.warmup ? it.pid : undefined }); };
+    const bpm = playTempo(t, it);
+    return bpm
+      ? html`<button class="tempo-chip" aria-label="Tempo ${bpm} bpm, open metronome" @click=${open}>${raw(ICON.quarter)}<span>${bpm}</span></button>`
       : html`<button class="tempo-chip empty" aria-label="Set a tempo" @click=${open}>${raw(ICON.metro)}</button>`;
   }
 }
