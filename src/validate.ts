@@ -202,6 +202,7 @@ function settings(s: Raw): Settings {
   if (s.metroBeats != null) s.metroBeats = int(s.metroBeats, 1, 12) ?? 4;
   if (s.bassClick != null) s.bassClick = oneOf(s.bassClick, ['all', 'twofour', 'off'], 'twofour');
   if (s.metroBass != null) s.metroBass = !!s.metroBass;
+  if (s.bassCountIn != null) s.bassCountIn = int(s.bassCountIn, 0, 2) ?? 1;
   return s;
 }
 

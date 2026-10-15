@@ -75,7 +75,7 @@ export class ChartView extends View {
     if (!chords.length) return;
     const loop = this.loop;
     const label = loop ? `${t.name} · ${loop.name}` : t.name;
-    metronome.start({ bpm: t.tempo || store.state.settings.metroBpm || 120, beats, itemId: t.id, bass: { chords, owner: this.owner, label, loop }, click: store.state.settings.bassClick });
+    metronome.start({ bpm: t.tempo || store.state.settings.metroBpm || 120, beats, itemId: t.id, bass: { chords, owner: this.owner, label, loop }, click: store.state.settings.bassClick, countIn: store.state.settings.bassCountIn });
   }
   setLoop(l: BassLoop | null) {
     this.loop = l;

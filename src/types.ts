@@ -235,6 +235,8 @@ export interface Settings {
   metroBpm?: number;
   metroBeats?: number;
   bassClick?: 'all' | 'twofour' | 'off';
+  /** Bars of clicks before the walking bass comes in (0–2; 1 if not set). */
+  bassCountIn?: number;
   /** The metronome for a tune with a chart plays a walking bass through it. */
   metroBass?: boolean;
 }

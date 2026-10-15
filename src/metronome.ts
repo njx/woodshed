@@ -15,7 +15,8 @@ export interface BassLoop { from: number; to: number; name: string }
 /** A walking bass: its chords, who started it (e.g. 'chart:<id>'), what it's through, and any loop. */
 export interface Bass { chords: BassChord[]; owner: string; label: string; loop?: BassLoop | null }
 export interface MetronomeState { running: boolean; bpm: number; beats: number; beat: number; itemId: Id | null; bass: Bass | null; click: Click }
-export interface MetronomeStart { bpm?: number; beats?: number; itemId?: Id | null; bass?: Bass | null; click?: Click }
+/** countIn: bars of clicks before a bass starting comes in (0–2; 1 if not given). */
+export interface MetronomeStart { bpm?: number; beats?: number; itemId?: Id | null; bass?: Bass | null; click?: Click; countIn?: number }
 /** A click scheduled, for the visuals: its audio time, beat in the bar, and beat in the bass line (or null). */
 interface Scheduled { time: number; beat: number; at: number | null }
 
@@ -31,6 +32,7 @@ const state: MetronomeState = { running: false, bpm: 100, beats: 4, beat: 0, ite
 let line: WalkingLine | BassNote[] = [];
 let lineAt = 0;
 let countIn = 0; // beats of clicks still to come before the bass comes in
+let countInBars = 1; // (as last started)
 let bassSamples: Samples | null = null; // the recorded bass, once loaded (the synth until then)
 let audio: Audio | null = null; // the shared audio, while running (see audio.ts)
 let ctx: AudioContext | null = null; // (its context)
@@ -48,13 +50,14 @@ export const metronome = {
     return () => listeners.delete(fn);
   },
   // Must be called from a tap, so the phone allows audio.
-  start({ bpm, beats, itemId, bass = null, click }: MetronomeStart = {}) {
+  start({ bpm, beats, itemId, bass = null, click, countIn: bars = 1 }: MetronomeStart = {}) {
     if (bpm) state.bpm = clampBpm(bpm);
     if (beats) state.beats = beats;
     if (itemId !== undefined) state.itemId = itemId; // null: not for an item
     if (click) state.click = click;
-    // A bass starting (not just the same one changing key or loop) comes in after a bar of clicks.
-    countIn = bass && !(state.running && state.bass?.owner === bass.owner) ? state.beats : 0;
+    // A bass starting (not just the same one changing key or loop) comes in after the count-in.
+    countInBars = bars;
+    countIn = bass && !(state.running && state.bass?.owner === bass.owner) ? state.beats * bars : 0;
     state.bass = bass;
     line = bass ? walkingLine(bass.chords) : [];
     lineAt = 0;
@@ -212,10 +215,10 @@ function click(time: number, accent: boolean) {
 
 // In the background the phone slows the timer down, so the clicks would drift: stop, and keep
 // what it was doing so the app can offer to start it again (takeAwayStop).
-let stoppedAway: Pick<MetronomeState, 'bpm' | 'beats' | 'itemId' | 'bass' | 'click'> | null = null;
+let stoppedAway: Pick<MetronomeState, 'bpm' | 'beats' | 'itemId' | 'bass' | 'click'> & { countIn: number } | null = null;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && state.running) {
-    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId, bass: state.bass, click: state.click };
+    stoppedAway = { bpm: state.bpm, beats: state.beats, itemId: state.itemId, bass: state.bass, click: state.click, countIn: countInBars };
     metronome.stop();
   }
 });

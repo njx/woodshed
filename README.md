@@ -127,7 +127,7 @@ Start it with **Bass** under a tune's chart (in the key shown, lighting up the b
 long as the notes under it), the chords typed for it (a bar each), or a Through the changes
 progression (a bar a chord) — in the key shown, or by turning on **Walking bass** in a tune's
 metronome (a setting: Start then plays through its chart, in today's key; turned on or off while
-it's running, there and then). It comes in after a bar of clicks to count in, then plays round and round at the tune's (or exercise's) tempo:
+it's running, there and then). It comes in after a bar of clicks to count in (or two, or none: **Count-in**, under the bass in the metronome), then plays round and round at the tune's (or exercise's) tempo:
 each chord starts on its root, and its last beat leads into the next root by a half step (below or
 above) or a step. In between are shapes a bass player uses, with the chord's own 3rd and 5th: in a
 bar of four 1 2 3 5, 1 2 ♭3 3 into a root a 4th up (and the same down into one a 4th below), 1 3 5

@@ -206,7 +206,8 @@ export class ExerciseSheet extends View {
     const beats = Number(String(this.t.meter || '4/4').split('/')[0]) || 4;
     metronome.start({
       bpm: this.tempoFrom.tempo || 100, beats: this.prog ? 4 : beats, itemId: this.tempoFrom.id,
-      bass: { chords, owner: this.bassOwner, label: this.prog ? this.prog.name : this.t.name }, click: store.state.settings.bassClick,
+      bass: { chords, owner: this.bassOwner, label: this.prog ? this.prog.name : this.t.name },
+      click: store.state.settings.bassClick, countIn: store.state.settings.bassCountIn,
     });
   }
 

@@ -86,6 +86,16 @@ describe('metronome', () => {
     expect(bassTimes()[0] - u).toBeGreaterThan(1.9);
   });
 
+  it('counts in as many bars as asked: none, one or two', async () => {
+    for (const [bars, after] of [[0, 0], [1, 2], [2, 4]]) {
+      metronome.stop();
+      clicks.length = 0; plucks.length = 0;
+      metronome.start({ bpm: 120, beats: 4, bass: bass(`n${bars}`), click: 'all', countIn: bars });
+      await run(4.6);
+      expect(bassTimes()[0] - clicks[0][0]).toBeCloseTo(after); // (from the first beat)
+    }
+  });
+
   it('keeps the bass going round, a new line each time', async () => {
     metronome.start({ bpm: 240, beats: 4, bass: bass('a') }); // a beat each 0.25 s
     await run(1 + 8 * 0.25 * 6); // the count-in, then six times round

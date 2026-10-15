@@ -25,12 +25,13 @@ interface SettingsInput {
   swing?: Settings['swing'];
   walking_bass?: boolean;
   bass_click?: NonNullable<Settings['bassClick']>;
+  count_in?: number;
   a4?: number;
 }
 const KEYS: Record<keyof SettingsInput, keyof Settings> = {
   exercises: 'exercises', hone: 'hone', learn: 'learn', fresh: 'fresh', focus_tunes: 'focusTunes', focus_exercises: 'focusExercises',
   tune_order: 'tuneOrder', exercise_focus: 'exerciseFocus', priority: 'priority', new_keys: 'newKeys', instruments: 'instruments',
-  view: 'view', listen: 'listen', sound: 'sound', swing: 'swing', walking_bass: 'metroBass', bass_click: 'bassClick', a4: 'a4',
+  view: 'view', listen: 'listen', sound: 'sound', swing: 'swing', walking_bass: 'metroBass', bass_click: 'bassClick', count_in: 'bassCountIn', a4: 'a4',
 };
 const count = (what: string): Field<number> => f.opt(f.int(`${what} a day (0–8)`));
 
@@ -51,6 +52,7 @@ export const changeSettings = command<SettingsInput>({
     swing: f.opt(f.oneOf(ids(SWING), 'The feel notation plays with')),
     walking_bass: f.opt(f.bool('The metronome for a tune with a chart plays a walking bass through it')),
     bass_click: f.opt(f.oneOf(['all', 'twofour', 'off'] as const, 'With the walking bass, the click on every beat, on 2 and 4, or off')),
+    count_in: f.opt(f.int('Bars of clicks before the walking bass comes in (0–2)')),
     a4: f.opt(f.int('The tuner’s A, in Hz (430–450)')),
   },
   run(a, { note }) {
@@ -61,7 +63,8 @@ export const changeSettings = command<SettingsInput>({
     for (const [k, v] of Object.entries(a) as [keyof SettingsInput, unknown][]) {
       if (v == null) continue;
       const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(n)));
-      (s as unknown as Record<string, unknown>)[KEYS[k]] = typeof v === 'number' ? (k === 'a4' ? clamp(v, 430, 450) : clamp(v, 0, 8)) : v;
+      const [lo, hi] = k === 'a4' ? [430, 450] : k === 'count_in' ? [0, 2] : [0, 8];
+      (s as unknown as Record<string, unknown>)[KEYS[k]] = typeof v === 'number' ? clamp(v, lo, hi) : v;
     }
     if (a.instruments && !s.instruments.includes(s.view)) s.view = s.instruments[0];
     // What applies to today's set straight away.

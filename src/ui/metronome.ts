@@ -91,7 +91,7 @@ export class MetronomeSheet extends View {
     if (item && !item.tempo) perform(cmd.updateItem, { item: item.id, tempo: this.bpm, tempo_today: true });
     const cb = bass ? this.chartBass() : null;
     metronome.start({
-      bpm: this.bpm, itemId: item?.id ?? null, click: settings.bassClick,
+      bpm: this.bpm, itemId: item?.id ?? null, click: settings.bassClick, countIn: settings.bassCountIn,
       beats: cb ? cb.beats : this.beats,
       bass: cb ? { chords: cb.chords, owner: `chart:${item!.id}`, label: item!.name } : null, // (a chart's bass: item is a tune)
     });
@@ -134,15 +134,16 @@ export class MetronomeSheet extends View {
     `;
   }
   // The walking bass, for a tune with a chart (or while it's playing): on or off — set for Start
-  // (after a bar of clicks to count in), or while it's running, there and then — and with it, the
-  // click on every beat, on 2 and 4, or off.
+  // (after the count-in), or while it's running, there and then — and with it, the click on every
+  // beat, on 2 and 4, or off, and how many bars to count in (for the next start).
   bass() {
     const on = this.bassWanted();
     if (!this.chartBass() && !this.bassOn()) return nothing;
     const settings = store.state.settings;
     const click = metronome.state.bass ? metronome.state.click : settings.bassClick || 'twofour';
+    const countIn = settings.bassCountIn ?? 1;
     return html`
-      <div class="setting"><div><b>Walking bass</b><span>${this.bassOn() ? `Through ${metronome.state.bass!.label}, round and round` : 'Through its chart, after a bar to count in'}</span></div>
+      <div class="setting"><div><b>Walking bass</b><span>${this.bassOn() ? `Through ${metronome.state.bass!.label}, round and round` : `Through its chart${countIn ? `, after ${countIn === 1 ? 'a bar' : `${countIn} bars`} to count in` : ''}`}</span></div>
         <div class="seg" id="m-bass-seg">${segButtons([['off', 'Off'], ['on', 'On']] as const, on ? 'on' : 'off', (v) => {
           perform(cmd.changeSettings, { walking_bass: v === 'on' });
           if (this.mine() && (v === 'on') !== this.bassOn()) this.startWith(v === 'on'); // (running: the click carries on)
@@ -152,6 +153,11 @@ export class MetronomeSheet extends View {
         <div class="seg" id="m-click">${segButtons([['all', 'Every beat'], ['twofour', '2 & 4'], ['off', 'Off']] as const, click, (v: Click) => {
           perform(cmd.changeSettings, { bass_click: v });
           metronome.setClick(v);
+          this.requestUpdate();
+        })}</div></div>
+      <div class="setting"><div><b>Count-in</b><span>Clicks before the bass comes in</span></div>
+        <div class="seg" id="m-count-in">${segButtons([[0, 'None'], [1, '1 bar'], [2, '2 bars']] as const, countIn, (v: number) => {
+          perform(cmd.changeSettings, { count_in: v });
           this.requestUpdate();
         })}</div></div>` : nothing}`;
   }

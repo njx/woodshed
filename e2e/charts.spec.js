@@ -129,6 +129,10 @@ test('a walking bass is a mode of the metronome: from the chart, lighting up the
   await expect(page.locator('#m-click .on')).toHaveText('2 & 4');
   await page.click('#m-click [data-v="all"]');
   await expect.poll(async () => (await ui.saved()).state.settings.bassClick).toBe('all');
+  // How many bars it counts in (for the next start): one, unless changed.
+  await expect(page.locator('#m-count-in .on')).toHaveText('1 bar');
+  await page.click('#m-count-in [data-v="2"]');
+  await expect.poll(async () => (await ui.saved()).state.settings.bassCountIn).toBe(2);
   // Bass off: the click carries on.
   await page.click('#m-bass-seg [data-v="off"]');
   await expect(page.locator('#m-click')).toHaveCount(0);
