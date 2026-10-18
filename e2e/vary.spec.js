@@ -152,6 +152,7 @@ test('a new exercise’s notation is drawn again when its card comes back @narro
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.click('#add');
+  await ui.setting('vary');
   await page.click('#x-vary [data-vary="scale"]');
   await expect(page.locator('#x-notation svg').first()).toBeVisible();
   await page.click('#x-vary [data-vary=""]'); // (no notation to show)

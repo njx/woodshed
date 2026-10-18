@@ -10,7 +10,7 @@ import type { ExerciseSheet } from './exercise.js';
 import type { Category, KeyMode, Priority, Shape, Vary } from '../types.js';
 
 // An exercise's settings, in its sheet (<ws-exercise-settings>): a row for each, opening a panel
-// with its controls over the sheet; a new exercise shows the controls themselves, all at once.
+// with its controls over the sheet (a new exercise's too, as it will be once it's added).
 // Changes go through the sheet (its edit, keysChanged and varyChanged), which shows what follows.
 
 type PanelKey = 'harmony' | 'kind' | 'vary' | 'keys' | 'level' | 'priority';
@@ -40,7 +40,7 @@ export class ExerciseSettings extends View {
   }
   shown(k: PanelKey) {
     const t = this.t;
-    if (k === 'harmony') return !this.sheet.isNew && !t.vary && !t.fromTune;
+    if (k === 'harmony') return !t.vary && !t.fromTune;
     if (k === 'vary') return !t.fromTune;
     if (k === 'keys') return !t.fromTune && t.keyMode !== 'none'; // (No key is a choice in Each session)
     return true;
@@ -59,7 +59,6 @@ export class ExerciseSettings extends View {
   render() {
     const t = this.t;
     const keys = (Object.keys(PANEL_LABELS) as PanelKey[]).filter((k) => this.shown(k));
-    if (this.sheet.isNew) return keys.map((k) => html`<label class="field-label">${PANEL_LABELS[k]}</label>${this.panelBody(k)}`);
     const row = (key: PanelKey) => ({ key, label: PANEL_LABELS[key], value: this.panelValue(key) });
     const help = helpParts('x-tunes-help', TUNES_HELP);
     return html`${settingRows([

@@ -217,10 +217,18 @@ test('add a tune: its name, then its settings all at once; Add tune adds it @nar
   await page.click('#save-new'); // no name yet: stays open
   await expect(page.locator('#toast')).toContainText('Give the tune a name');
   await page.fill('#f-name', 'A Tune Of My Own');
+  // Its settings as rows, as in a tune's details.
+  await ui.setting('level');
   await page.locator('[data-field="level"] button').nth(1).click();
+  await ui.panelDone();
+  await ui.setting('keys');
   await page.locator('#keygrids [data-k]').nth(3).click();
+  await ui.panelDone();
+  await ui.setting('style');
   await page.fill('#f-style', 'Hard bop');
   await page.locator('#f-style').blur();
+  await ui.panelDone();
+  await expect(page.locator('.sheet [data-open="style"] .set-value')).toHaveText('Hard bop');
   await page.click('#save-new');
   await expect(page.locator('#toast')).toContainText('Added A Tune Of My Own');
   await expect.poll(async () => (await ui.saved()).state.items.find((t) => t.name === 'A Tune Of My Own'))

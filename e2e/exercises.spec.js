@@ -23,10 +23,16 @@ test('write a new exercise with the keypad', async ({ page, ui }) => {
   const count = await page.locator('#tune-list .row').count();
   await page.click('#add');
   await page.fill('#x-name', 'Cannonball lick');
+  // Its settings as rows, as in an exercise's details.
+  await ui.setting('kind');
   await page.click('[data-cat="lick"]');
+  await ui.panelDone();
+  await expect(page.locator('.sheet [data-open="kind"] .set-value')).toHaveText('Lick');
+  await ui.setting('keys');
   await page.click('[data-mode="fixed"]');
   await page.click('[data-fixed="0"]');
   await page.click('[data-fixed="5"]');
+  await ui.panelDone();
   await page.click('#x-save');
   await expect(page.locator('#tune-list .row')).toHaveCount(count + 1);
 
@@ -102,7 +108,9 @@ test('a new lick can get its notation straight away @narrow', async ({ page, ui 
   await page.click('[data-lib="exercises"]');
   const count = await page.locator('#tune-list .row').count();
   await page.click('#add');
+  await ui.setting('kind');
   await page.click('[data-cat="lick"]');
+  await ui.panelDone();
   await page.click('#x-add-abc'); // no name yet
   await expect(page.locator('#ne-pad')).toBeVisible();
   await page.locator('.ne-opts').scrollIntoViewIfNeeded();
@@ -222,7 +230,9 @@ test('a lick can be written in any key (A minor, say), keeping its notes when th
   // A new lick, written in A minor: its keys read as minor.
   await ui.backdrop();
   await page.click('#add');
+  await ui.setting('kind');
   await page.click('[data-cat="lick"]');
+  await ui.panelDone();
   await page.click('#x-add-abc');
   await page.selectOption('#ne-home', '21');
   await page.click('#ne-pad [data-note="A"]');

@@ -87,9 +87,7 @@ export class TuneSheet extends View {
         <span class="field-label">Notes</span>
         <textarea id="f-notes" rows="2" placeholder="Tricky bars, ideas…" .value=${live(t.notes)} @input=${(e: Event) => this.edit({ notes: (e.target as HTMLTextAreaElement).value })}></textarea>
       </label>
-      ${isNew
-        ? (Object.keys(PANEL_LABELS) as PanelKey[]).map((k) => html`<label class="field-label">${PANEL_LABELS[k]}</label>${this.panelBody(k)}`)
-        : settingRows((Object.keys(PANEL_LABELS) as PanelKey[]).map((key) => ({ key, label: PANEL_LABELS[key], value: this.panelValue(key) })), (k) => (this.panel = k as PanelKey))}
+      ${settingRows((Object.keys(PANEL_LABELS) as PanelKey[]).map((key) => ({ key, label: PANEL_LABELS[key], value: this.panelValue(key) })), (k) => (this.panel = k as PanelKey))}
       ${isNew ? nothing : html`<div id="listen">${this.listen()}</div>`}
       ${isNew ? html`<button class="primary-btn" id="save-new" @click=${() => this.add()}>Add tune</button>` : this.history()}
       ${this.panel ? subPanel(PANEL_LABELS[this.panel], this.panelBody(this.panel), () => (this.panel = null)) : nothing}
