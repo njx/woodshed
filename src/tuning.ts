@@ -1,5 +1,5 @@
 import { store } from './store.js';
-import { constraints } from './media.js';
+import { openMic } from './media.js';
 import { detectPitch, noteOf } from './pitch.js';
 import { acquireAudio, onAudioReset, matchSampleRate, type Audio } from './audio.js';
 import { keepAwake } from './keepawake.js';
@@ -51,7 +51,8 @@ export const tuner = {
       // keeps clicking).
       audio = acquireAudio('record');
       releaseAwake = keepAwake();
-      const s = await navigator.mediaDevices.getUserMedia({ audio: constraints('audio').audio });
+      // The phone's own mic (or the recorder's), not earbuds': theirs would take them off playing.
+      const s = await openMic();
       if (mine !== gen || !st.running) return s.getTracks().forEach((tr) => tr.stop()); // stopped meanwhile
       stream = s;
       // The recorder taking the mic (or the phone) can end this one: listen again.

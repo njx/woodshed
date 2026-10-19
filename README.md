@@ -265,7 +265,9 @@ it is (green within 5 cents); underneath, a trace of the last 10 seconds shows h
 — useful for long tones, where it shows the pitch sagging as a breath runs out. Notes are named as
 written for the transposition you're viewing (B♭, E♭, F), with concert pitch underneath. The
 reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.ts`),
-which finds the fundamental even when overtones are louder, as they often are on sax.
+which finds the fundamental even when overtones are louder, as they often are on sax. It listens
+with the phone's own mic (or the one picked in the recorder), not earbuds', so with earbuds in the
+metronome keeps playing in them.
 
 **Mini tuner** (in the tuner's top corner) keeps it listening while you go through today's set: the
 Tuner circle at the top of Today shows the note — green when in tune; when you're sharp its top half

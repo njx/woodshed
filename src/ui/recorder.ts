@@ -4,7 +4,7 @@ import { store, save, flush } from '../store.js';
 import { itemById } from '../practice.js';
 import { entryById, findItemByName, linkableItems } from '../diary.js';
 import * as cmd from '../commands/index.js';
-import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving, TakeWriter } from '../media.js';
+import { canRecord, pickMime, constraints, saveClip, fmtDuration, playOnSpeaker, whileSaving, TakeWriter, listMics, trackMic, wantedMic } from '../media.js';
 import { mediaDelete } from '../db.js';
 import { ICON, render, toast, closeSheet } from './shell.js';
 import { holdAudio } from '../audiosession.js';
@@ -237,15 +237,11 @@ export class RecorderSheet extends View {
     // Switched camera or audio/video (or closed) while this one was starting: let it go.
     if (gen !== this.streamGen || this.isClosed) return s.getTracks().forEach((tr) => tr.stop());
     this.stream = s;
-    // With headphones in, the phone may switch to their mic; the phone's own is usually better for
-    // an instrument (and lets the metronome play in the earbuds). Mic names show once allowed.
-    // The mic is remembered by name too: iOS can give mics new ids (e.g. after asking for
-    // permission again), and the old id would quietly fall back to the earbuds' mic.
+    // The mic picked, or the phone's own rather than earbuds' (see wantedMic). Mic names show once
+    // allowed; it's remembered by name too.
     if (!this.mics.length) {
       this.mics = await listMics();
-      const want = settings.recordMicLabel
-        ? this.mics.find((m) => m.label === settings.recordMicLabel)
-        : this.mics.find((m) => /iphone|ipad|built-?in|internal/i.test(m.label)); // first time: the phone's own
+      const want = wantedMic(this.mics);
       if (want && this.mics.length > 1 && want.id !== trackMic(s) && gen === this.streamGen && !this.isClosed) {
         settings.recordMic = want.id;
         settings.recordMicLabel = want.label;
@@ -471,13 +467,3 @@ export class RecorderSheet extends View {
   }
 }
 
-async function listMics() {
-  try {
-    const all = await navigator.mediaDevices.enumerateDevices();
-    return all.filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
-      .map((d, i) => ({ id: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
-  } catch {
-    return [];
-  }
-}
-const trackMic = (s: MediaStream | null) => s?.getAudioTracks()[0]?.getSettings?.().deviceId || null;

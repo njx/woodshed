@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store } from '../src/store.js';
 import { mediaPut, mediaGet, mediaKeys, partPut, partTakes, _resetDb } from '../src/db.js';
-import { pickMime, constraints, orphanIds, cleanupMedia, strayClips, mediaStats, fmtDuration, fmtSize, TakeWriter, recoverTakes, saveClip } from '../src/media.js';
+import { pickMime, constraints, orphanIds, cleanupMedia, strayClips, mediaStats, fmtDuration, fmtSize, TakeWriter, recoverTakes, saveClip, openMic } from '../src/media.js';
 import { addEntry, todoText } from '../src/diary.js';
 import { tune, setState, freezeToday } from './helpers.js';
 
@@ -108,6 +108,39 @@ describe('takes stored as they’re recorded', () => {
     addEntry({ text: 'take', media: [clip] });
     expect(await recoverTakes(() => { throw new Error('not again'); })).toEqual([]);
     expect(await partTakes()).toEqual([]);
+  });
+});
+
+describe('the mic for listening (the tuner)', () => {
+  // A phone with earbuds in: before the mic's allowed, no names; the default is the earbuds'.
+  function phone({ allowed = false } = {}) {
+    const opened = [];
+    const mic = (id) => ({ getTracks: () => [{ stop() {} }], getAudioTracks: () => [{ getSettings: () => ({ deviceId: id }) }] });
+    vi.stubGlobal('navigator', { mediaDevices: {
+      enumerateDevices: async () => [
+        { kind: 'audioinput', deviceId: 'buds', label: allowed || opened.length ? 'AirPods Pro' : '' },
+        { kind: 'audioinput', deviceId: 'phone', label: allowed || opened.length ? 'iPhone Microphone' : '' },
+      ],
+      getUserMedia: async (c) => { const id = c.audio.deviceId?.exact ?? null; opened.push(id); return mic(id ?? 'buds'); },
+    } });
+    return opened;
+  }
+  afterEach(() => vi.unstubAllGlobals());
+  it('is the phone’s own, not the earbuds’ (which would take the metronome off them)', async () => {
+    const opened = phone({ allowed: true });
+    await openMic();
+    expect(opened).toEqual(['phone']);
+  });
+  it('the first time (no names until it’s allowed): the default, then the phone’s own', async () => {
+    const opened = phone();
+    await openMic();
+    expect(opened).toEqual([null, 'phone']);
+  });
+  it('or the one picked in the recorder', async () => {
+    store.state.settings.recordMicLabel = 'AirPods Pro';
+    const opened = phone({ allowed: true });
+    await openMic();
+    expect(opened).toEqual(['buds']);
   });
 });
 

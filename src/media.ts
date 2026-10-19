@@ -34,6 +34,39 @@ export function constraints(kind: Clip['kind'], facingMode = 'user', mic: string
   return { audio, video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
 }
 
+// The mics there are (named once the mic's been allowed), and the one a stream has.
+export async function listMics(): Promise<{ id: string; label: string }[]> {
+  try {
+    const all = await navigator.mediaDevices.enumerateDevices();
+    return all.filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d, i) => ({ id: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
+  } catch {
+    return [];
+  }
+}
+export const trackMic = (s: MediaStream | null): string | null => s?.getAudioTracks()[0]?.getSettings?.().deviceId || null;
+// Of those, the mic to listen with: the one picked in the recorder (found by name: iOS can give
+// mics new ids, and the old id would quietly fall back to the earbuds'), or else the phone's own.
+// With earbuds in, the phone would switch to their mic: worse for an instrument, and it takes the
+// earbuds off playing, so the metronome goes to the speaker.
+export function wantedMic<M extends { label: string }>(mics: M[]): M | undefined {
+  const s = store.state.settings;
+  return s.recordMicLabel ? mics.find((m) => m.label === s.recordMicLabel) : mics.find((m) => /iphone|ipad|built-?in|internal/i.test(m.label));
+}
+// The mic, opened for listening (the tuner): that one, or the phone's default if it isn't there.
+export async function openMic(): Promise<MediaStream> {
+  const open = (id: string | null) => navigator.mediaDevices.getUserMedia({ audio: constraints('audio', 'user', id).audio });
+  const want = async () => { const mics = await listMics(); return mics.length > 1 ? wantedMic(mics)?.id ?? null : null; };
+  const first = await want();
+  const s = await open(first).catch((err) => (first && err.name !== 'NotAllowedError' ? open(null) : Promise.reject(err)));
+  if (first) return s;
+  // (The first time, mics are named only once it's allowed: then the one wanted, if it's another.)
+  const id = await want();
+  if (!id || id === trackMic(s)) return s;
+  s.getTracks().forEach((tr) => tr.stop());
+  return open(id).catch(() => open(null));
+}
+
 // Recordings being saved (the file, then the note): an update mustn't reload the app meanwhile.
 let saving = 0;
 export const savingMedia = (): boolean => saving > 0;
