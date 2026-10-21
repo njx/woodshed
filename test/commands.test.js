@@ -9,7 +9,7 @@ import { freezeToday, tune, setState } from './helpers.js';
 beforeEach(() => {
   freezeToday();
   setState([tune({ id: 'a', name: 'Solar', keys: [12], level: 1 }), tune({ id: 'b', name: 'Stella', keys: [10], level: 2 })], {
-    settings: { instruments: ['bb', 'c'], view: 'bb', hone: 1, learn: 1, fresh: 0, exercises: 0 },
+    settings: { instruments: ['bb', 'c'], view: 'bb', tunes: 2, exercises: 0 },
   });
   buildPlan();
   invalidateUndo();
@@ -139,7 +139,7 @@ describe('commands', () => {
   it('say what they did', () => {
     const it = store.state.plan.items.find((i) => i.itemId === 'b');
     expect(exec(removeFromToday, { entry: it.pid }).notes).toEqual(['Took Stella out of today’s set']);
-    expect(exec(changeSettings, { hone: 2, tune_order: 'group' }).notes).toEqual(['Settings: hone, tune order']);
+    expect(exec(changeSettings, { tunes: 3, tune_order: 'group' }).notes).toEqual(['Settings: tunes, tune order']);
   });
 
   it('log practice the way the card’s ✓ does, once', () => {

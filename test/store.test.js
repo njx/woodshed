@@ -31,7 +31,16 @@ describe('migration', () => {
     expect(s.log[0]).toMatchObject({ itemId: 'a' });
     expect(s.log[0].tuneId).toBeUndefined();
     expect(s.plan.items[0]).toMatchObject({ itemId: 'a', bucket: 'hone' });
-    expect(s.settings).toMatchObject({ view: 'bb', listen: 'apple', hone: 1 }); // v8: one hone tune
+    expect(s.settings).toMatchObject({ view: 'bb', listen: 'apple', tunes: 4 });
+  });
+
+  it('v13: the hone / learn / new numbers become a number of tunes (focus ones in it)', () => {
+    const v12 = migrate(v1());
+    Object.assign(v12, { version: 12, settings: { ...v12.settings, hone: 1, learn: 2, fresh: 0 } });
+    delete v12.settings.tunes;
+    const s = migrate(v12);
+    expect(s.settings.tunes).toBe(3);
+    for (const k of ['hone', 'learn', 'fresh']) expect(s.settings[k]).toBeUndefined();
   });
 
   it('adds starter exercises to version 2 data once', () => {

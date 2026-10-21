@@ -1,11 +1,10 @@
 import { store } from '../store.js';
 import { RATINGS } from '../constants.js';
-import { randomOf } from '../util.js';
 import { VARY, chooseTypes } from '../theory.js';
 import { itemStats, itemById, isPlanItemPlayed, planEntry, markPlayed as logPlayed, unmarkPlayed as unlog, rate, todaysEntry } from '../practice.js';
 import { clampBpm } from '../tempo.js';
 import {
-  ensurePlan, addToToday as addItem, todayItem, setTodayKeys, setTodayKey, refreshTypes, typeCounts, makePlanItem, pickItem, pickFocus,
+  ensurePlan, addToToday as addItem, todayItem, setTodayKeys, setTodayKey, refreshTypes, typeCounts, makePlanItem, pickItem, pickTune, pickFocus,
   excludedIds, swapWarmup, dropOrphanWarmups, buildPlan, addWarmups as addTuneWarmups, addWarmup as addOneWarmup, tryWithTune as tryThrough,
 } from '../plan.js';
 import { command, f, CommandError } from './core.js';
@@ -196,11 +195,11 @@ export const newSet = command<Record<string, never>>({
 
 export const oneMoreTune = command<Record<string, never>>({
   name: 'one_more_tune',
-  description: "Add one more tune to today's set, picked by the app from any group.",
+  description: "Add one more tune to today's set, picked by the app (as it picks the day's tunes).",
   fields: {},
   run(_, { note }) {
     ensurePlan();
-    const t = pickItem(randomOf(['fresh', 'learn', 'hone'] as const), excludedIds(), itemStats());
+    const t = pickTune(store.state.plan!, excludedIds(), itemStats());
     if (!t) throw new CommandError('No more tunes to suggest');
     store.state.plan!.items.push(makePlanItem(t, itemStats()));
     dropOrphanWarmups();

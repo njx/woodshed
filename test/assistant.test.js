@@ -13,7 +13,7 @@ beforeEach(() => {
   stella = tune({ name: 'Stella by Starlight', style: 'Standard', level: 2, keys: [10] }); // B♭
   scale = tune({ type: 'exercise', name: 'Major scale', category: 'scale', keyMode: 'weak', keysPerSession: 2, keys: [], abc: 'C D E F |' });
   setState([solar, stella, scale, tune({ name: 'Naima', style: 'Ballad', level: 0 })], {
-    settings: { instruments: ['bb', 'c'], view: 'bb', hone: 1, learn: 1, fresh: 0, exercises: 0 },
+    settings: { instruments: ['bb', 'c'], view: 'bb', tunes: 2, exercises: 0 },
     log: [entry(stella.id, '2026-09-01', { key: 10, rating: 'solid', bpm: 120 })],
   });
   endGroup();

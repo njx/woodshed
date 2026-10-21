@@ -19,15 +19,15 @@ test('settings: instruments, the daily mix, tune order, picking, recordings serv
   // The daily mix: steppers, then rebuild.
   const before = (await ui.saved()).state.settings;
   await page.locator('.stepper[data-key="exercises"] [data-d="-1"]').click();
-  await page.locator('.stepper[data-key="fresh"] [data-d="1"]').click();
+  await page.locator('.stepper[data-key="tunes"] [data-d="1"]').click();
   await expect(page.locator('.stepper[data-key="exercises"] output')).toHaveText(String(before.exercises - 1));
   await page.click('[data-setting="tuneOrder"] [data-v="group"]');
   await expect(page.locator('[data-setting="tuneOrder"] [data-v="group"]')).toHaveClass(/\bon\b/);
   await page.click('[data-setting="listen"] [data-v="spotify"]');
   await expect.poll(async () => {
     const s = (await ui.saved()).state.settings;
-    return [s.exercises, s.fresh, s.tuneOrder, s.listen];
-  }).toEqual([before.exercises - 1, before.fresh + 1, 'group', 'spotify']);
+    return [s.exercises, s.tunes, s.tuneOrder, s.listen];
+  }).toEqual([before.exercises - 1, before.tunes + 1, 'group', 'spotify']);
   // A picking choice: its row shows what it's set to.
   await page.click('[data-open="priority"]');
   const pick = page.locator('.choice-list [data-pick]').last();
@@ -37,6 +37,8 @@ test('settings: instruments, the daily mix, tune order, picking, recordings serv
   await page.click('#rebuild');
   await expect(page.locator('#toast')).toContainText('Today’s set rebuilt');
   await expect(page.locator('.tab[data-tab="today"]')).toHaveClass(/\bon\b/);
+  await expect(page.locator('.card:not(.b-exercise)')).toHaveCount(before.tunes + 1);
+  await expect(page.locator('.card.b-exercise')).toHaveCount(before.exercises - 1);
 });
 
 test('a backup: export, change something, import it back; reset everything', async ({ page, ui }) => {

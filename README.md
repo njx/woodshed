@@ -3,15 +3,15 @@
 A phone-friendly practice planner for working through a list of jazz tunes. It started as an
 interactive version of a "300 Tunes" spreadsheet. Ideas not built yet are in [IDEAS.md](IDEAS.md).
 
-Each day it hands you a short set of tunes to play:
+Each day it hands you a short set of tunes to play (4 by default), mixing:
 
 - **Hone**: tunes you're proficient at or have mastered, to keep them sharp
 - **Learn**: tunes you're familiar with, to get them under your fingers
-- **New**: one tune you don't know yet
+- **New**: tunes you don't know yet
 
 A tune or exercise is **Focus**, **On** or **Off** (at the top of its details). Focus puts it first
-in your set, on top of the regular mix: up to 3 focus tunes and 2 focus exercises a day (Settings →
-*Daily mix*), taking turns, least recently played first; one turned on today is in today's set
+in your set: up to 2 focus tunes a day, counted in the number of tunes, and 2 focus exercises on top
+of the exercises (Settings → *Daily mix*), taking turns, least recently played first; one turned on today is in today's set
 straight away. The Focus filter in the library shows how many there are. Swipe a Focus card left to skip
 it for just today. On (the default) means it can be picked for the set (and, for an exercise,
 offered as a warm-up). Off leaves it out of the pool for now, to work from a smaller set of tunes
@@ -314,8 +314,14 @@ which don't cover it. The Anthropic console has the official numbers.
 - **A practice day runs until 4am,** so a late session that crosses midnight counts as one day: the
   set, ratings, tempos and diary notes all stay with the evening you started.
 
-- **The daily mix** (Settings → Daily mix): by default 2 exercises and 4 tunes — 1 to hone
-  (proficient or mastered), 2 you're learning, 1 new — plus focus tunes (up to 3 a day). The tunes come in a
+- **The daily mix** (Settings → Daily mix): by default 2 exercises and 4 tunes, focus tunes
+  included (up to 2 of them). The rest of the tunes are picked by priority and how overdue they are,
+  mixing hone, learn and new: each place goes to a group, pulled by its most pressing tune's priority
+  (a critical one that's due pulls hardest; one played recently, hardly at all), less for each tune
+  already from that group today and
+  for each of the last few days one came up — then to a tune in it. So with two focus tunes and four
+  a day, you get the two plus two others, usually from different groups, and a different pair of
+  groups from one day to the next. The tunes come in a
   **mixed-up order** each day (focus tunes first), or **by group** (hone, learn, new) if you prefer;
   either way you can play them in any order.
 

@@ -6,7 +6,7 @@ test('first run picks instruments and builds a set @narrow', async ({ page, ui }
   await page.click('.welcome .chip[data-ins="bb"]');
   await page.click('#ins-done');
   await expect(page.locator('.welcome')).toHaveCount(0);
-  // Two exercises up top, then the tunes (1 hone, 2 learn, 1 new, mixed up); no warm-ups till asked for.
+  // Two exercises up top, then four tunes (mixed up); no warm-ups till asked for.
   await expect(page.locator('.card:not(.b-exercise)')).toHaveCount(4);
   const buckets = await page.$$eval('.card .bucket', (bs) => bs.map((b) => b.textContent));
   expect(buckets).toHaveLength(6);

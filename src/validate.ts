@@ -186,7 +186,7 @@ function plan(p: Raw, ids: Set<Id>): Plan | null {
 
 function settings(s: Raw): Settings {
   s = { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
-  for (const k of ['exercises', 'hone', 'learn', 'fresh', 'focusTunes', 'focusExercises'] as const) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
+  for (const k of ['exercises', 'tunes', 'focusTunes', 'focusExercises'] as const) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
   s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x: Raw) => has(TRANSPOSITIONS, x));
   if (!s.instruments.length) s.instruments = ['c'];
   if (!s.instruments.includes(s.view)) s.view = s.instruments[0];

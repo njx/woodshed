@@ -33,7 +33,7 @@ import type { State, Exercise, Tune } from './types.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 const STATE_KEY = 'state';
 const COPIES_KEY = 'copies';
 const MAX_COPIES = 3;
@@ -181,6 +181,14 @@ export function migrate(s: Raw): State {
       if ((t.type || 'tune') === 'tune' && t.chart && !t.chartEdited) t.chart = seedChart(t) ?? t.chart;
     }
     s.version = 12;
+  }
+  if (s.version < 13) {
+    // v13: so many hone, learn and new tunes a day becomes a number of tunes, focus ones included
+    // (picked by priority, mixing the groups): those numbers' total.
+    const st = s.settings;
+    if (st && ['hone', 'learn', 'fresh'].some((k) => st[k] != null)) st.tunes = Math.min(8, (st.hone ?? 1) + (st.learn ?? 2) + (st.fresh ?? 1)) || 1;
+    if (st) for (const k of ['hone', 'learn', 'fresh']) delete st[k];
+    s.version = 13;
   }
   return normalize(s);
 }

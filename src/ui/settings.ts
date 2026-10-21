@@ -16,12 +16,12 @@ import { View, mount, html, nothing, live, raw, settingRows, segButtons, stepper
 import type { ListenService, Settings, Transposition } from '../types.js';
 
 // The settings changed with a stepper, with a choice in a sheet, and with a segmented control.
-type CountKey = 'exercises' | 'hone' | 'learn' | 'fresh' | 'focusTunes' | 'focusExercises';
+type CountKey = 'exercises' | 'tunes' | 'focusTunes' | 'focusExercises';
 type ChoiceKey = 'exerciseFocus' | 'priority' | 'newKeys';
 type SegKey = 'tuneOrder' | 'listen';
 // Their names in change_settings (see commands/settings.ts).
 const SNAKE: Record<CountKey | ChoiceKey | SegKey, string> = {
-  exercises: 'exercises', hone: 'hone', learn: 'learn', fresh: 'fresh', focusTunes: 'focus_tunes', focusExercises: 'focus_exercises',
+  exercises: 'exercises', tunes: 'tunes', focusTunes: 'focus_tunes', focusExercises: 'focus_exercises',
   exerciseFocus: 'exercise_focus', priority: 'priority', newKeys: 'new_keys', tuneOrder: 'tune_order', listen: 'listen',
 };
 interface Choice<K extends ChoiceKey> {
@@ -138,13 +138,11 @@ export class SettingsView extends View {
       </section>
 
       <section class="panel">
-        <ws-heading label="Daily mix" help="Focus tunes and exercises come first, on top of this mix: up to these numbers a day, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>."></ws-heading>
+        <ws-heading label="Daily mix" help="Focus tunes come first, up to their number, then the rest of the tunes: the most pressing by priority and how overdue they are, mixing tunes to hone (proficient &amp; mastered), to learn (familiar) and new ones, across the day and from day to day. Focus exercises come on top of the exercises. Focus ones take turns, the ones played least recently first. Changes apply to tomorrow’s set, or tap <b>Rebuild today’s set</b>."></ws-heading>
         ${stepper('exercises', 'Exercises', 'Scales, arpeggios, patterns, licks')}
-        ${stepper('hone', 'Hone', 'Proficient & mastered tunes')}
-        ${stepper('learn', 'Learn', 'Tunes you’re familiar with')}
-        ${stepper('fresh', 'New', 'Tunes you don’t know yet')}
-        ${stepper('focusTunes', 'Focus tunes', 'At most, a day; they take turns')}
-        ${stepper('focusExercises', 'Focus exercises', 'At most, a day; they take turns')}
+        ${stepper('tunes', 'Tunes', 'Focus tunes included')}
+        ${stepper('focusTunes', 'Focus tunes', 'At most, of those; they take turns')}
+        ${stepper('focusExercises', 'Focus exercises', 'At most, on top; they take turns')}
         <div class="setting"><div><b>Tune order</b><span>Mixed up each day, or hone, then learn, then new</span></div>
           ${seg('tuneOrder', [['mixed', 'Mixed'], ['group', 'By group']])}</div>
         <button class="ghost-btn" id="rebuild" @click=${() => { if (perform(cmd.newSet, {}, { quiet: true })) { goTo('today'); toast('Today’s set rebuilt'); } }}>${raw(ICON.shuffle)}<span>Rebuild today’s set</span></button>

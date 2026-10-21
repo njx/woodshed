@@ -76,10 +76,8 @@ export const CYCLE_OF_FOURTHS = [0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7];
 
 export const DEFAULT_SETTINGS: Settings = {
   exercises: 2,
-  hone: 1,
-  learn: 2,
-  fresh: 1,
-  focusTunes: 3, // focus tunes a day, at most (they take turns: least recently played first)
+  tunes: 4, // tunes a day, focus ones included; the rest by priority, mixing the groups
+  focusTunes: 2, // focus tunes a day, at most (they take turns: least recently played first)
   focusExercises: 2, // and focus exercises
   priority: 'some',
   newKeys: 'mastered', // 'mastered' | 'proficient' | 'never'

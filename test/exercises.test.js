@@ -67,10 +67,12 @@ describe('exercises in the daily set', () => {
       ...Array.from({ length: 6 }, () => tune({ level: 1 })),
       ...Array.from({ length: 3 }, () => tune({ level: 0 })),
     ];
-    setState(items, { settings: { tuneOrder: 'group' } });
+    setState(items);
     buildPlan();
     const plan = store.state.plan.items;
-    expect(plan.map((i) => i.bucket)).toEqual(['exercise', 'exercise', 'hone', 'learn', 'learn', 'fresh']);
+    expect(plan.map((i) => i.bucket).slice(0, 2)).toEqual(['exercise', 'exercise']);
+    expect(plan.slice(2).every((i) => i.bucket !== 'exercise')).toBe(true);
+    expect(plan).toHaveLength(6);
     for (const i of plan.slice(0, 2)) expect(i.keys).toHaveLength(3);
   });
 
