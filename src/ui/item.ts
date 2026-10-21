@@ -20,7 +20,7 @@ import { ICON, ui, render, toast, perform, haptic, closeSheet, goTo, kn, openMen
 import * as cmd from '../commands/index.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
-  View, html, nothing, live, raw, openSheetView, segButtons, settingRows, subPanel, statusControl, levelSuggestionPart,
+  View, html, nothing, live, raw, openSheetView, segButtons, settingRows, subPanel, statusControl, todayPart, levelSuggestionPart,
 } from './lit.js';
 import type { ExerciseOpts } from './exercise.js';
 import type { Id, Key, Priority, Tune } from '../types.js';
@@ -78,7 +78,7 @@ export class TuneSheet extends View {
         .value=${live(t.name)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLElement).blur(); } }}
         @input=${(e: Event) => this.rename(e.target as HTMLTextAreaElement)}></textarea>
       ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => this.edit({ status: st }), (b) => this.menu(b))}
-      ${!isNew && inToday(t) ? html`<p class="in-today">${raw(ICON.check)}In today’s set</p>` : nothing}
+      ${isNew ? nothing : todayPart(inToday(t) ? 'In today’s set' : null, () => this.addToToday())}
       ${isNew ? nothing : this.todayKey()}
       ${isNew ? nothing : levelSuggestionPart(levelSuggestion(t), (l) => this.edit({ level: l }))}
       ${isNew ? nothing : html`<div data-item-id=${t.id}>${tempoRow(t, () => openMetronome({ itemId: t.id, back: this.back }))}${tempoSuggestionPart(t, tempoSuggestion(t), () => this.requestUpdate())}</div>`}
@@ -110,12 +110,16 @@ export class TuneSheet extends View {
     if (!this.tune.name.trim()) { this.querySelector<HTMLElement>('#f-name')!.focus(); return toast('Give the tune a name'); }
     closeSheet(); // adds it
   }
-  // ⋯: add to today, swap or take it out (from its card), delete.
+  addToToday() {
+    const t = this.tune;
+    if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`);
+    this.refresh();
+  }
+  // ⋯: swap or take it out (from its card), delete.
   menu(anchor: HTMLElement) {
     const t = this.tune;
     const card = this.pid && store.state.plan?.items.find((i) => i.pid === this.pid && !isPlanItemPlayed(i));
     openMenu(anchor, [
-      !inToday(t) && { label: 'Add to today’s set', fn: () => { if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`); this.refresh(); } },
       card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
       card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
       { label: 'Delete tune', danger: true, fn: () => {

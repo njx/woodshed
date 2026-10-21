@@ -426,7 +426,7 @@ describe('the bass over part of a chart', () => {
 
 describe('focus', () => {
   it('a few focus tunes a day, taking turns (least recently played first); one turned on today is in', () => {
-    store.state.settings.focusTunes = 2;
+    store.state.settings.tunes = 4; // (half of them focus ones, at most)
     const tunes = store.state.items.filter((t) => t.type === 'tune' && chartFor(t)).slice(0, 4);
     for (const t of tunes) t.focus = true;
     // The first two were played lately; the others never.
@@ -441,7 +441,7 @@ describe('focus', () => {
     expect(focus()).toHaveLength(3);
   });
   it('one not picked today can be added to today, as a focus item', () => {
-    store.state.settings.focusTunes = 1;
+    store.state.settings.tunes = 2;
     const tunes = store.state.items.filter((t) => t.type === 'tune').slice(0, 3);
     for (const t of tunes) t.focus = true;
     buildPlan(true);
@@ -452,7 +452,7 @@ describe('focus', () => {
     expect(store.state.plan.focusSkipped).not.toContain(out.id);
   });
   it('one swaps for another focus one (of the same kind) not in the set', () => {
-    store.state.settings.focusTunes = 1;
+    store.state.settings.tunes = 2;
     const tunes = store.state.items.filter((t) => t.type === 'tune').slice(0, 3);
     for (const t of tunes) t.focus = true;
     buildPlan(true);

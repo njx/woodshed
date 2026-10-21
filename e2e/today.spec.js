@@ -231,8 +231,38 @@ test('cards show just the name and chips; explanations are behind ⓘ @narrow', 
   await expect(text).toBeHidden();
   await btn.click();
   await expect(text).toBeVisible();
-  await expect(text).toContainText('Focus tunes and exercises come first');
+  await expect(text).toContainText('Focus tunes come first, up to half the tunes');
   await btn.click();
   await expect(text).toBeHidden();
   await ui.expectNoSideScroll();
+});
+
+test('a tune or exercise swiped right in the library goes into today’s set (with Undo); its details have a button for it @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.fill('#q', 'Autumn Leaves');
+  const row = page.locator('#tune-list .row', { hasText: 'Autumn Leaves' }).first();
+  await expect(row.locator('.today-mark')).toHaveCount(0);
+  await ui.swipe(row, 160);
+  await expect(page.locator('#toast')).toContainText('Added Autumn Leaves to today’s set');
+  await expect(row.locator('.today-mark')).toHaveCount(1);
+  await expect(page.locator('.sheet')).toHaveCount(0); // (a swipe, not a tap)
+  await ui.swipe(row, 160);
+  await expect(page.locator('#toast')).toContainText('already in today’s set');
+  await ui.tab('today');
+  await expect(page.locator('.card h2', { hasText: /^Autumn Leaves$/ })).toHaveCount(1);
+  // Undo, from the library.
+  await ui.tab('tunes');
+  await page.fill('#q', '');
+  const name = await page.locator('#tune-list .row').filter({ hasNot: page.locator('.today-mark') }).first().locator('.row-main b').textContent();
+  await page.fill('#q', name);
+  const other = page.locator('#tune-list .row').first();
+  await ui.swipe(other, 160);
+  await expect(other.locator('.today-mark')).toHaveCount(1);
+  await page.click('#toast button');
+  await expect(other.locator('.today-mark')).toHaveCount(0);
+  // From its details: the button, then it says so.
+  await other.click();
+  await page.click('#add-today');
+  await expect(page.locator('.sheet .in-today')).toHaveText('In today’s set');
 });

@@ -281,7 +281,7 @@ const ACTION_W = 78;
 let openWrap: HTMLElement | null = null;
 export function closeSwipes(): void {
   if (!openWrap) return;
-  const card = openWrap.querySelector<HTMLElement>('.card')!; // (a .card-wrap holds its card)
+  const card = openWrap.querySelector<HTMLElement>('.card, .row')!; // (a .card-wrap holds its card)
   card.style.transform = '';
   openWrap.classList.remove('open');
   openWrap.style.setProperty('--pull', '0px');

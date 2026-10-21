@@ -63,17 +63,27 @@ describe('daily set', () => {
     expect(fresh).toBeGreaterThan(60); // (40 if all pulled the same)
   });
 
-  it('counts focus tunes in the number, up to the focus maximum', () => {
+  it('gives focus tunes up to half the places (rounded up), taking turns; the rest go to the groups', () => {
     const items = library();
     for (const i of [0, 7, 13]) items[i].focus = true;
-    setState(items, { settings: { tunes: 4, focusTunes: 2 } });
+    const focusIn = (tunes) => {
+      setState(items, { settings: { tunes } });
+      buildPlan();
+      expect(store.state.plan.items).toHaveLength(tunes);
+      return buckets(store.state.plan).filter((b) => b === 'focus').length;
+    };
+    expect(focusIn(4)).toBe(2);
+    expect(focusIn(3)).toBe(2);
+    expect(focusIn(2)).toBe(1);
+    expect(focusIn(1)).toBe(1);
+    expect(focusIn(8)).toBe(3); // (all there are)
+  });
+
+  it('fills up with focus tunes when there are no others to pick', () => {
+    const items = Array.from({ length: 5 }, () => tune({ level: 1, focus: true }));
+    setState(items, { settings: { tunes: 4 } });
     buildPlan();
-    expect(buckets(store.state.plan).filter((b) => b === 'focus')).toHaveLength(2);
-    expect(store.state.plan.items).toHaveLength(4);
-    // More focus tunes allowed than the number: just the number.
-    setState(items, { settings: { tunes: 2, focusTunes: 3 } });
-    buildPlan();
-    expect(buckets(store.state.plan)).toEqual(['focus', 'focus']);
+    expect(buckets(store.state.plan)).toEqual(['focus', 'focus', 'focus', 'focus']);
   });
 
   it('mixes the tunes up by default, in an order that holds for the day', () => {

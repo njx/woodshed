@@ -33,7 +33,7 @@ import type { State, Exercise, Tune } from './types.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 const STATE_KEY = 'state';
 const COPIES_KEY = 'copies';
 const MAX_COPIES = 3;
@@ -189,6 +189,11 @@ export function migrate(s: Raw): State {
     if (st && ['hone', 'learn', 'fresh'].some((k) => st[k] != null)) st.tunes = Math.min(8, (st.hone ?? 1) + (st.learn ?? 2) + (st.fresh ?? 1)) || 1;
     if (st) for (const k of ['hone', 'learn', 'fresh']) delete st[k];
     s.version = 13;
+  }
+  if (s.version < 14) {
+    // v14: no number of focus tunes: they take up to half the day's tunes.
+    if (s.settings) delete s.settings.focusTunes;
+    s.version = 14;
   }
   return normalize(s);
 }

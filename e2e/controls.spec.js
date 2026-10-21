@@ -293,7 +293,7 @@ test('a warm-up for a tune: Pick for me adds the next one @narrow', async ({ pag
   await ui.tab('tunes');
   await page.fill('#q', 'Autumn Leaves');
   await page.locator('.row', { hasText: 'Autumn Leaves' }).first().click();
-  await ui.menu('Add to today’s set');
+  await page.click('#add-today');
   await ui.backdrop();
   await ui.tab('today');
   const tune = page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) });

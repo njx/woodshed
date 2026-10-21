@@ -9,6 +9,7 @@ import { chartFor } from '../charts.js';
 import './chart.js'; // (<ws-chart>)
 import './exercise-settings.js'; // (<ws-exercise-settings>)
 import type { ExerciseSettings } from './exercise-settings.js';
+import { itemRow } from './tunes.js';
 import { swapInToday, removeFromToday } from './today.js';
 import { pickTune } from './pickers.js';
 import { harmonyOf } from '../warmups.js';
@@ -28,7 +29,7 @@ import { SOUNDS } from '../sounds.js';
 import { metronome } from '../metronome.js';
 import { customElement, state } from 'lit/decorators.js';
 import {
-  View, html, nothing, live, raw, openSheetView, statusControl, levelSuggestionPart, helpParts,
+  View, html, nothing, live, raw, openSheetView, statusControl, todayPart, levelSuggestionPart, helpParts,
   type TemplateResult, priBadge } from './lit.js';
 import type { TuneObject } from 'abcjs';
 import type { Exercise, Id, Item, ItemStats, Key, PlanItem, Progression, Tune } from '../types.js';
@@ -297,9 +298,8 @@ export class ExerciseSheet extends View {
         .value=${live(t.name)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLElement).blur(); } }}
         @input=${(e: Event) => this.rename(e.target as HTMLTextAreaElement)}></textarea>
       ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => this.edit({ status: st }), (b) => this.menu(b))}
-      ${isNew ? nothing : planItem?.warmup
-        ? html`<p class="in-today">${raw(ICON.check)}In today’s set, as a warm-up for ${itemById(planItem.warmup)?.name || 'a tune'}</p>`
-        : inToday(t) ? html`<p class="in-today">${raw(ICON.check)}In today’s set</p>` : nothing}
+      ${isNew ? nothing : todayPart(planItem?.warmup ? `In today’s set, as a warm-up for ${itemById(planItem.warmup)?.name || 'a tune'}`
+        : inToday(t) ? 'In today’s set' : null, () => this.addToToday())}
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? html`<button class="link-btn" id="x-to-pattern" @click=${() => this.toPattern()}>Edit pattern</button>`
         : t.abc ? html`<button class="link-btn" id="x-edit-abc" @click=${() => this.editNotation()}>Edit</button>` : nothing}</div>
@@ -509,12 +509,16 @@ export class ExerciseSheet extends View {
     if (!this.t.name.trim()) { this.querySelector<HTMLElement>('#x-name')!.focus(); return toast('Give the exercise a name'); }
     closeSheet(); // adds it
   }
-  // ⋯: add to today, swap or take it out (from its card), try it through a tune, delete.
+  addToToday() {
+    const t = this.t;
+    if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`);
+    this.refresh();
+  }
+  // ⋯: swap or take it out (from its card), try it through a tune, delete.
   menu(anchor: HTMLElement) {
     const t = this.t, planItem = this.planItem;
     const card = this.opts.pid && planItem?.pid === this.opts.pid && !isPlanItemPlayed(planItem) ? planItem : null;
     openMenu(anchor, [
-      !planItem?.warmup && !inToday(t) && { label: 'Add to today’s set', fn: () => { if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`); this.refresh(); } },
       card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
       card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
       !t.solo && { label: 'Try it through a tune…', fn: () => this.goTo(() => pickTune(t, { back: this.back })) },
@@ -533,12 +537,8 @@ export class ExerciseSheet extends View {
 export function exerciseRow(t: Exercise, stats: Map<Id, ItemStats>): TemplateResult {
   const s = stats.get(t.id);
   const mode = t.keyMode === 'none' ? 'No key' : `${t.keysPerSession} key${t.keysPerSession > 1 ? 's' : ''} · ${KEY_MODES[t.keyMode].label.toLowerCase()}`;
-  return html`
-  <li class="row ${t.off ? 'off' : ''}" data-id=${t.id} role="button" tabindex="0">
-    <div class="row-main">
+  return itemRow(t, html`
       <b>${t.focus ? html`<span class="focus-mark" title="Focus">${raw(ICON.focus)}</span>` : nothing}${t.name}${t.abc ? html` <span class="has-abc" title="Has notation">♪</span>` : nothing}${t.off ? html` <span class="off-mark">off</span>` : nothing}</b>
-      <span class="row-sub">${CATEGORIES[t.category] || 'Other'} · ${mode} · ${ago(s?.last)}</span>
-    </div>
-    ${priBadge(t.priority)}
-  </li>`;
+      <span class="row-sub">${CATEGORIES[t.category] || 'Other'} · ${mode} · ${ago(s?.last)}</span>`,
+  priBadge(t.priority));
 }

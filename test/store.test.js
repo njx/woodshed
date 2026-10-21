@@ -40,7 +40,7 @@ describe('migration', () => {
     delete v12.settings.tunes;
     const s = migrate(v12);
     expect(s.settings.tunes).toBe(3);
-    for (const k of ['hone', 'learn', 'fresh']) expect(s.settings[k]).toBeUndefined();
+    for (const k of ['hone', 'learn', 'fresh', 'focusTunes']) expect(s.settings[k]).toBeUndefined(); // (v14: focus tunes, up to half)
   });
 
   it('adds starter exercises to version 2 data once', () => {

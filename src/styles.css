@@ -276,7 +276,21 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
   min-height: 60px; padding: 10px 14px;
   border-bottom: 1px solid var(--line); cursor: pointer;
 }
-.row:last-child { border-bottom: 0; }
+.row-wrap:last-child .row { border-bottom: 0; }
+/* A library row swipes right to add it to today's set (see tunes.ts), like a card in Today. */
+.row-wrap { position: relative; --reveal: 0; }
+.row-wrap .row {
+  position: relative; background: var(--surface); touch-action: pan-y;
+  user-select: none; -webkit-user-select: none; transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+}
+.row-wrap .row.dragging { transition: none; }
+.row-wrap .swipe-bg { border-radius: 0; }
+.row-wrap[data-dir="right"] .swipe-bg { background: var(--good-soft); color: var(--good); }
+.row-wrap[data-dir="right"] .bg-right { opacity: 1; }
+.row-wrap.armed .swipe-bg span { transform: scale(1.08); }
+.swipe-bg svg { width: 18px; height: 18px; }
+.today-mark { display: inline-flex; color: var(--good); }
+.today-mark svg { width: 16px; height: 16px; }
 .row:active { background: var(--surface-2); }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .row-main b { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1056,6 +1070,8 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .add-today { margin-top: 10px; }
 .in-today { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--good); }
 .in-today svg { width: 16px; height: 16px; }
+.add-today { margin-top: 10px; }
+.add-today svg { width: 15px; height: 15px; }
 
 /* Notation full screen: black on white, sideways; turned for you when the phone is upright. */
 .notation-full { position: fixed; inset: 0; z-index: 60; background: #fff; color: #111; overflow: hidden; }

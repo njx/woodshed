@@ -108,7 +108,7 @@ test('today’s card names the scale or chord for each key, and the log keeps it
 test('change today’s keys and types for an exercise, even after playing it @narrow', async ({ page, ui }) => {
   await ui.start();
   await openExercise(page, ui, 'Seventh-chord arpeggios');
-  await ui.menu('Add to today’s set');
+  await page.click('#add-today');
   await ui.backdrop();
   await ui.tab('today');
   const card = page.locator('.card', { hasText: 'Seventh-chord arpeggios' }).filter({ hasNot: page.locator('.bucket', { hasText: 'Warm-up' }) });

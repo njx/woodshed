@@ -325,7 +325,7 @@ test('add an exercise or tune to today’s set from its details', async ({ page,
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.locator('#tune-list .row', { hasText: 'Chromatic scale' }).click();
-  await ui.menu('Add to today’s set');
+  await page.click('#add-today');
   await expect(page.locator('#toast')).toContainText('Added Chromatic scale to today’s set');
   await expect(page.locator('.in-today')).toHaveText('In today’s set');
   await ui.backdrop();
@@ -414,7 +414,7 @@ test('add a tune to today’s set from its details', async ({ page, ui }) => {
   await ui.tab('tunes');
   await page.fill('#q', 'Killer Joe');
   await page.locator('#tune-list .row').first().click();
-  await ui.menu('Add to today’s set');
+  await page.click('#add-today');
   await expect(page.locator('.in-today')).toHaveText('In today’s set');
   await ui.backdrop();
   await ui.tab('today');

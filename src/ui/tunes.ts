@@ -1,7 +1,9 @@
 import { store } from '../store.js';
 import { ago } from '../dates.js';
 import { itemStats, isDue } from '../practice.js';
-import { ICON, ui, saveUi, keysText, switchView } from './shell.js';
+import { ICON, ui, saveUi, keysText, switchView, attachSwipe, perform, toast, type SwipeCard } from './shell.js';
+import { inToday } from '../plan.js';
+import * as cmd from '../commands/index.js';
 import { openItem } from './item.js';
 import { openExercise, exerciseRow } from './exercise.js';
 import { CATEGORIES, TRANSPOSITIONS } from '../constants.js';
@@ -13,19 +15,28 @@ type Stats = Map<Id, ItemStats>;
 // A library filter, for one kind of item.
 interface Filter<T extends Item> { id: string; label: string; fn: (t: T, stats: Stats) => boolean | undefined }
 
+// A row in a list of tunes or exercises: swiped right (in the library) it's added to today's set,
+// which it then says.
+export function itemRow(t: Item, main: TemplateResult, end: unknown): TemplateResult {
+  const today = inToday(t);
+  return html`
+  <li class="row-wrap">
+    <div class="swipe-bg" aria-hidden="true"><span class="bg-right">${raw(today ? ICON.check : ICON.plus)}${today ? 'In today’s set' : 'Add to today'}</span></div>
+    <div class="row ${t.off ? 'off' : ''}" data-id=${t.id} role="button" tabindex="0">
+      <div class="row-main">${main}</div>
+      ${today ? html`<span class="today-mark" title="In today’s set">${raw(ICON.check)}</span>` : nothing}
+      ${end}
+    </div>
+  </li>`;
+}
 // A tune's row in the library.
 export function tuneRow(t: Tune, stats: Stats): TemplateResult {
   const s = stats.get(t.id);
   const keys = keysText(t);
-  return html`
-  <li class="row ${t.off ? 'off' : ''}" data-id=${t.id} role="button" tabindex="0">
-    <div class="row-main">
+  return itemRow(t, html`
       <b>${t.focus ? html`<span class="focus-mark" title="Focus">${raw(ICON.focus)}</span>` : nothing}${t.name}${t.mine ? html` <span class="mine">mine</span>` : nothing}${t.off ? html` <span class="off-mark">off</span>` : nothing}</b>
-      <span class="row-sub">${keys ? html`<span class="row-key">${keys}</span> · ` : nothing}${t.style} · ${ago(s?.last)}${s?.count ? ` · ${s.count}×` : ''}</span>
-    </div>
-    ${pips(t.level)}
-    ${priBadge(t.priority)}
-  </li>`;
+      <span class="row-sub">${keys ? html`<span class="row-key">${keys}</span> · ` : nothing}${t.style} · ${ago(s?.last)}${s?.count ? ` · ${s.count}×` : ''}</span>`,
+  html`${pips(t.level)}${priBadge(t.priority)}`);
 }
 export const FILTERS: Filter<Tune>[] = [
   { id: 'all', label: 'All', fn: () => true },
@@ -83,7 +94,7 @@ export class LibraryView extends View {
       .sort((a, b) => (SORTS[ui.sort] || SORTS.priority).fn(a, b, stats));
     // How many are focused, next to the Focus filter (more than a day's worth take turns).
     const focused = items.filter((t) => t.focus).length;
-    const max = store.state.settings[exercises ? 'focusExercises' : 'focusTunes'];
+    const s = store.state.settings, max = exercises ? s.focusExercises : Math.ceil(s.tunes / 2);
     const focusCount = focused ? html` <span class="count ${focused > max ? 'over' : ''}" title=${focused > max ? `${max} a day, taking turns` : ''}>${focused}</span>` : nothing;
     const view = TRANSPOSITIONS[store.state.settings.view];
     const multi = store.state.settings.instruments.length > 1;
@@ -114,11 +125,27 @@ export class LibraryView extends View {
         </label>
       </div>
       <ul class="list" id="tune-list" @click=${(e: Event) => {
-        const row = (e.target as HTMLElement).closest<HTMLElement>('.row');
-        if (row) openItem(row.dataset.id!); // (every row has its item's id)
+        const row = (e.target as HTMLElement).closest<SwipeCard>('.row');
+        if (row && !row._swiped) openItem(row.dataset.id!); // (every row has its item's id)
       }}>${list.length
         ? list.map((t) => (t.type === 'exercise' ? exerciseRow(t, stats) : tuneRow(t, stats)))
         : html`<li class="empty">Nothing matches.</li>`}</ul>
     `;
+  }
+  // Each row swipes right to add it to today's set (rows are reused for other items as the list
+  // changes: what's swiped is read as the swipe starts).
+  updated() {
+    for (const row of this.querySelectorAll<SwipeCard & { _swipe?: boolean }>('#tune-list .row')) {
+      if (row._swipe) continue;
+      row._swipe = true;
+      attachSwipe(row, () => ({ right: () => this.addToToday(row.dataset.id!) }));
+    }
+  }
+  addToToday(id: Id) {
+    const t = store.state.items.find((x) => x.id === id);
+    if (!t) return;
+    if (inToday(t)) return toast(`${t.name} is already in today’s set`);
+    perform(cmd.addToToday, { item: id }, { undo: true });
+    this.requestUpdate();
   }
 }

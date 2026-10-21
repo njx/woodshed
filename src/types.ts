@@ -217,10 +217,8 @@ export interface PracticeSession { id: Id; date: DateStr; start: number; end: nu
 
 export interface Settings {
   exercises: number;
-  /** Tunes a day, focus ones included (see plan.ts fillTunes). */
+  /** Tunes a day, focus ones included (up to half of them: see plan.ts syncFocus, fillTunes). */
   tunes: number;
-  /** Focus tunes a day, at most (of those). */
-  focusTunes: number;
   focusExercises: number;
   priority: string;
   newKeys: 'mastered' | 'proficient' | 'never';

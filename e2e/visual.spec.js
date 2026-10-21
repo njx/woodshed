@@ -106,7 +106,7 @@ test('pickers: a warm-up for a tune, a tune for an exercise @visual @narrow', as
   await ui.tab('tunes');
   await page.fill('#q', 'Autumn Leaves');
   await page.locator('.row', { hasText: 'Autumn Leaves' }).first().click();
-  await ui.menu('Add to today’s set');
+  await page.click('#add-today');
   await ui.backdrop();
   await ui.tab('today');
   await page.locator('.card', { has: page.locator('h2', { hasText: /^Autumn Leaves$/ }) }).locator('[data-add-warm]').click();
