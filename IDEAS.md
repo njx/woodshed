@@ -106,6 +106,9 @@ of the note keys, a one-row beats-per-bar, narrow-phone wrapping fixes. Still op
 - **Progress**: three practice-time tiles could be one (the average one was asked for).
 - **The notation editor's** time signature and sound in a small Options row.
 - **Toasts** over a sheet just opened (e.g. after adding a warm-up).
+- **Simplify a tune's details again** (M, pinned). It's grown: status, today's key, tempo, chart
+  with bass and loop, warm-ups, notes, settings rows, recordings, history. Take a pass at what's
+  shown first and what can go behind a row or the ⋯ menu (Add to today's set is out in the open now).
 
 ## Code health (from the review)
 
