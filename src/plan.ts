@@ -77,62 +77,69 @@ export function pickItem(bucket: Bucket, exclude: Set<Id>, stats: Stats): Item |
   return null;
 }
 
-// ---------- Today's tunes (Settings → Daily mix: so many tunes, focus ones included) ----------
-// Focus tunes take up to half the places (rounded up: see syncFocus), and the rest if there's no
-// other tune to pick. After the focus tunes, each place goes to a group (hone, learn, new), then a tune in it (by
-// weightFor: priority and how overdue). A group's pull is its most pressing tune's priority (one
-// played recently counts for little), less for each of today's tunes already from it and for each
-// of the last few days one came up — so the groups mix, within a day and across days, but a
-// critical tune still gets in. (Picking from all tunes at once would mostly pick new ones: the
-// starting list has hundreds.)
-const TUNE_GROUPS = ['hone', 'learn', 'fresh'] as const;
+// ---------- Today's tunes and exercises (Settings → Daily mix: so many of each) ----------
+// Focus ones take up to half the places (rounded up: see syncFocus), and the rest if there's
+// nothing else to pick. After them, each place goes to a group — for a tune hone, learn or new; for
+// an exercise its kind (scale, arpeggio…) — then to one in it (by weightFor: priority and how
+// overdue). A group's pull is its most pressing one's priority (one played recently counts for
+// little), less for each of today's already from it and for each of the last few days one came
+// up — so the groups mix, within a day and across days, but a critical one still gets in.
+// (Picking from all tunes at once would mostly pick new ones: the starting list has hundreds.)
 const RECENT_DAYS = 6;
+type Kind = Item['type'];
+const groupOf = (t: Item): string => (t.type === 'tune' ? bucketOf(t) : t.category || 'other');
 
 function priorityWeight(t: Item): number {
   const pw = (PRIORITY_WEIGHTS as Partial<Record<string, number[]>>)[store.state.settings.priority] || PRIORITY_WEIGHTS.some;
   return pw[(t.priority || 3) - 1];
 }
-function pull(t: Item, stats: Stats, group: Bucket): number {
+function pull(t: Item, stats: Stats): number {
   if (stats.get(t.id)?.last === dateStr()) return 0;
-  if (group === 'fresh') return priorityWeight(t);
+  if (bucketOf(t) === 'fresh') return priorityWeight(t);
   const o = overdue(t, stats);
   return priorityWeight(t) * (o < 0.5 ? 0.05 : o < 1 ? 0.5 : 1);
 }
-// Days of the last few a tune from each group was played (as they stand now).
-function recentGroups(): Record<string, number> {
+// Days of the last few one from each group was played (as they stand now).
+function recentGroups(kind: Kind): Map<string, number> {
   const today = dateStr(), from = addDays(today, -RECENT_DAYS);
-  const days: Record<string, Set<string>> = { hone: new Set(), learn: new Set(), fresh: new Set() };
+  const days = new Map<string, Set<string>>();
   for (const e of store.state.log) {
     if (e.date >= today || e.date < from || e.warmup) continue;
     const t = itemById(e.itemId);
-    if (t?.type === 'tune') days[bucketOf(t)]?.add(e.date);
+    if (t?.type !== kind) continue;
+    const g = groupOf(t);
+    if (!days.has(g)) days.set(g, new Set());
+    days.get(g)!.add(e.date);
   }
-  return Object.fromEntries(Object.entries(days).map(([g, d]) => [g, d.size]));
+  return new Map([...days].map(([g, d]) => [g, d.size]));
 }
-const tunePool = (g: Bucket, exclude: Set<Id>) => store.state.items.filter((t) => t.type === 'tune' && !t.focus && !t.off && bucketOf(t) === g && !exclude.has(t.id));
+// (Exercises that take their chords from a tune only come up as warm-ups.)
+const pickPool = (kind: Kind, exclude: Set<Id>) => store.state.items.filter((t) => t.type === kind && !t.focus && !t.off
+  && !(t.type === 'exercise' && t.fromTune) && !exclude.has(t.id));
+const inSetOf = (plan: Plan, kind: Kind) => plan.items.filter((i) => !i.warmup && itemById(i.itemId)?.type === kind);
 
-// One more tune for today's set (plan), not one of `exclude`; null if there are none.
-export function pickTune(plan: Plan, exclude: Set<Id>, stats: Stats): Item | null {
-  const recent = recentGroups();
-  const already = (g: Bucket) => plan.items.filter((i) => !i.warmup && i.bucket === g).length;
-  const groups = TUNE_GROUPS.map((g) => {
-    const pool = tunePool(g, exclude);
-    const best = Math.max(0, ...pool.map((t) => pull(t, stats, g)));
-    return { g, pool, w: best * 0.3 ** already(g) / (1 + 0.5 * recent[g]) };
-  }).filter((x) => x.pool.length);
+// One more tune or exercise for today's set (plan), not one of `exclude`; null if there are none.
+export function pickNext(plan: Plan, kind: Kind, exclude: Set<Id>, stats: Stats): Item | null {
+  const recent = recentGroups(kind);
+  const today = inSetOf(plan, kind).map((i) => groupOf(itemById(i.itemId)!)); // (focus ones too)
+  const byGroup = new Map<string, Item[]>();
+  for (const t of pickPool(kind, exclude)) byGroup.set(groupOf(t), [...(byGroup.get(groupOf(t)) || []), t]);
+  const groups = [...byGroup].map(([g, pool]) => ({
+    pool, w: Math.max(...pool.map((t) => pull(t, stats))) * 0.3 ** today.filter((x) => x === g).length / (1 + 0.5 * (recent.get(g) || 0)),
+  }));
   const group = weightedPick(groups, (x) => x.w) || randomOf(groups);
   if (!group) return null;
-  return weightedPick(group.pool, (t) => weightFor(t, stats, group.g)) || randomOf(group.pool);
+  return weightedPick(group.pool, (t) => weightFor(t, stats, bucketOf(t))) || randomOf(group.pool);
 }
-const tunesIn = (plan: Plan) => plan.items.filter((i) => !i.warmup && itemById(i.itemId)?.type === 'tune').length
-  + (plan.focusSkipped || []).filter((id) => itemById(id)?.type === 'tune' && itemById(id)!.focus).length; // (a focus one skipped today keeps its place)
-// Today's set up to the number of tunes (after its focus ones; more of those if there's nothing
-// else).
-function fillTunes(plan: Plan, exclude: Set<Id>, stats: Stats): void {
-  const want = store.state.settings.tunes ?? 4;
-  for (let n = tunesIn(plan); n < want; n++) {
-    const t = pickTune(plan, exclude, stats);
-    if (!t) return addFocus(plan, 'tune', want - n, stats);
+export const pickTune = (plan: Plan, exclude: Set<Id>, stats: Stats) => pickNext(plan, 'tune', exclude, stats);
+// Today's set up to the number of tunes or exercises (after its focus ones; more of those if
+// there's nothing else). A focus one skipped today keeps its place.
+function fill(plan: Plan, kind: Kind, exclude: Set<Id>, stats: Stats): void {
+  const s = store.state.settings, want = (kind === 'tune' ? s.tunes : s.exercises) ?? 0;
+  const skipped = (plan.focusSkipped || []).filter((id) => itemById(id)?.type === kind && itemById(id)!.focus).length;
+  for (let n = inSetOf(plan, kind).length + skipped; n < want; n++) {
+    const t = pickNext(plan, kind, exclude, stats);
+    if (!t) return addFocus(plan, kind, want - n, stats);
     exclude.add(t.id);
     plan.items.push(makePlanItem(t, stats));
   }
@@ -292,7 +299,7 @@ export function orderPlan(plan: Plan = store.state.plan!): void {
 }
 
 // After the exercise setting changes: picks today's exercises again (keeping played ones,
-// focus exercises, and the tunes), then applies the setting.
+// focus ones, and the tunes), then applies the setting.
 export function refreshExercises(): void {
   const plan = store.state.plan;
   if (!plan || plan.date !== dateStr()) return buildPlan(); // made with the current setting
@@ -301,18 +308,10 @@ export function refreshExercises(): void {
 }
 
 function repickExercises(plan: Plan) {
-  const stats = itemStats();
   const drop = (it: PlanItem) => it.bucket === 'exercise' && !it.warmup && !isPlanItemPlayed(it); // warm-ups you added stay
   plan.items = plan.items.filter((it) => !drop(it));
   delete plan.dayKeys;
-  const exclude = excludedIds();
-  const have = plan.items.filter((it) => it.bucket === 'exercise' && !it.warmup).length;
-  for (let i = have; i < (store.state.settings.exercises ?? 0); i++) {
-    const t = pickItem('exercise', exclude, stats);
-    if (!t) break;
-    exclude.add(t.id);
-    plan.items.push(makePlanItem(t, stats));
-  }
+  fill(plan, 'exercise', excludedIds(), itemStats());
   applyExerciseFocus(plan);
   save();
 }
@@ -397,13 +396,6 @@ export function buildPlan(keepPlayed = false): void {
   const kept = prev ? prev.items.filter((it) => isPlanItemPlayed(it)) : [];
   const exclude = new Set(prev ? [...prev.skipped, ...prev.items.map((i) => i.itemId)] : []);
   const items = [...kept];
-  // So many exercises (Settings → Daily mix); the tunes below, after the focus ones.
-  for (let i = kept.filter((it) => !it.warmup && it.bucket === 'exercise').length; i < (state.settings.exercises ?? 0); i++) {
-    const t = pickItem('exercise', exclude, stats);
-    if (!t) break;
-    exclude.add(t.id);
-    items.push(makePlanItem(t, stats));
-  }
   state.plan = {
     date: today,
     withExercises: true,
@@ -412,8 +404,9 @@ export function buildPlan(keepPlayed = false): void {
     focusSkipped: prev?.focusSkipped || [],
     ...(prev?.dayKeys ? { dayKeys: prev.dayKeys } : {}),
   } as Plan; // (its mode is set by applyExerciseFocus, below)
-  syncFocus();
-  fillTunes(state.plan, exclude, stats);
+  syncFocus(); // (the focus ones first, then the rest of the exercises and tunes)
+  fill(state.plan, 'exercise', exclude, stats);
+  fill(state.plan, 'tune', exclude, stats);
   applyExerciseFocus(state.plan);
   save();
 }
@@ -440,8 +433,7 @@ export function setItemStatus(t: Item, status: ItemStatus): void {
   setFocus(t, status === 'focus');
 }
 
-// Focus items are in every day's set (exercises on top of the mix; tunes among the number of
-// tunes) unless skipped for today.
+// Focus items are in every day's set (among the day's number of each) unless skipped for today.
 export function syncFocus(): void {
   const plan = store.state.plan!;
   plan.focusSkipped ||= [];
@@ -452,9 +444,9 @@ export function syncFocus(): void {
     if (t.focus) it.bucket = 'focus';
     else if (it.bucket === 'focus') it.bucket = bucketOf(t);
   }
-  // Up to half the tunes (rounded up), and the number of focus exercises (Settings), taking turns.
+  // Up to half the day's tunes and exercises (rounded up), taking turns.
   const s = store.state.settings;
-  for (const [type, max] of [['tune', Math.ceil((s.tunes ?? 4) / 2)], ['exercise', s.focusExercises ?? 2]] as const) {
+  for (const [type, max] of [['tune', Math.ceil((s.tunes ?? 4) / 2)], ['exercise', Math.ceil((s.exercises ?? 2) / 2)]] as const) {
     // (Ones taken out for today count: their place isn't filled by another.)
     const inSet = plan.items.filter((i) => i.bucket === 'focus' && !i.warmup && itemById(i.itemId)?.type === type).length
       + plan.focusSkipped.filter((id) => itemById(id)?.type === type && itemById(id)!.focus).length;
@@ -478,14 +470,7 @@ export function ensurePlan(): void {
   }
   // A set made before exercises existed (e.g. earlier today, before an update): add them once.
   if (!plan.withExercises) {
-    const stats = itemStats();
-    const exclude = excludedIds();
-    for (let i = 0; i < (store.state.settings.exercises ?? 0); i++) {
-      const t = pickItem('exercise', exclude, stats);
-      if (!t) break;
-      exclude.add(t.id);
-      plan.items.push(makePlanItem(t, stats));
-    }
+    fill(plan, 'exercise', excludedIds(), itemStats());
     plan.withExercises = true;
     save();
   }

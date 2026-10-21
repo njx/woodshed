@@ -94,7 +94,7 @@ export class LibraryView extends View {
       .sort((a, b) => (SORTS[ui.sort] || SORTS.priority).fn(a, b, stats));
     // How many are focused, next to the Focus filter (more than a day's worth take turns).
     const focused = items.filter((t) => t.focus).length;
-    const s = store.state.settings, max = exercises ? s.focusExercises : Math.ceil(s.tunes / 2);
+    const max = Math.ceil(store.state.settings[exercises ? 'exercises' : 'tunes'] / 2);
     const focusCount = focused ? html` <span class="count ${focused > max ? 'over' : ''}" title=${focused > max ? `${max} a day, taking turns` : ''}>${focused}</span>` : nothing;
     const view = TRANSPOSITIONS[store.state.settings.view];
     const multi = store.state.settings.instruments.length > 1;

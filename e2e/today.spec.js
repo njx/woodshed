@@ -231,7 +231,7 @@ test('cards show just the name and chips; explanations are behind ⓘ @narrow', 
   await expect(text).toBeHidden();
   await btn.click();
   await expect(text).toBeVisible();
-  await expect(text).toContainText('Focus tunes come first, up to half the tunes');
+  await expect(text).toContainText('Focus exercises and tunes come first, up to half of each');
   await btn.click();
   await expect(text).toBeHidden();
   await ui.expectNoSideScroll();

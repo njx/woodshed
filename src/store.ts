@@ -33,7 +33,7 @@ import type { State, Exercise, Tune } from './types.js';
 //   sessions: practice time [{ id, date, start, end (ms), away? }]; timing: id of the running one
 //             or null (see practicetime.js); greetedOn: the day the welcome was last shown
 //   settings: see DEFAULT_SETTINGS
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 const STATE_KEY = 'state';
 const COPIES_KEY = 'copies';
 const MAX_COPIES = 3;
@@ -194,6 +194,11 @@ export function migrate(s: Raw): State {
     // v14: no number of focus tunes: they take up to half the day's tunes.
     if (s.settings) delete s.settings.focusTunes;
     s.version = 14;
+  }
+  if (s.version < 15) {
+    // v15: nor of focus exercises: they take up to half the day's exercises.
+    if (s.settings) delete s.settings.focusExercises;
+    s.version = 15;
   }
   return normalize(s);
 }

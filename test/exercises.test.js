@@ -76,6 +76,35 @@ describe('exercises in the daily set', () => {
     for (const i of plan.slice(0, 2)) expect(i.keys).toHaveLength(3);
   });
 
+  it('focus exercises take up to half the exercises (rounded up), taking turns', () => {
+    const items = [
+      ...Array.from({ length: 3 }, () => exercise({ focus: true })),
+      ...Array.from({ length: 4 }, () => exercise()),
+    ];
+    const focusIn = (exercises) => {
+      setState(items, { settings: { exercises, tunes: 0 } });
+      buildPlan();
+      expect(store.state.plan.items).toHaveLength(exercises);
+      return store.state.plan.items.filter((i) => i.bucket === 'focus').length;
+    };
+    expect(focusIn(2)).toBe(1);
+    expect(focusIn(4)).toBe(2);
+    expect(focusIn(1)).toBe(1);
+  });
+
+  it('mix the kinds: rarely two of one kind while others have exercises', () => {
+    const kinds = ['scale', 'arpeggio', 'pattern', 'lick'];
+    const items = kinds.flatMap((category) => Array.from({ length: 3 }, () => exercise({ category })));
+    let doubled = 0;
+    for (let n = 0; n < 120; n++) {
+      setState(items, { settings: { exercises: 2, tunes: 0 } });
+      buildPlan();
+      const [a, b] = store.state.plan.items.map((i) => items.find((x) => x.id === i.itemId).category);
+      if (a === b) doubled++;
+    }
+    expect(doubled).toBeLessThan(18); // (about 22 if picked from all twelve alike)
+  });
+
   it('logs every key practiced', () => {
     const x = exercise();
     setState([x]);

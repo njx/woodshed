@@ -219,7 +219,6 @@ export interface Settings {
   exercises: number;
   /** Tunes a day, focus ones included (up to half of them: see plan.ts syncFocus, fillTunes). */
   tunes: number;
-  focusExercises: number;
   priority: string;
   newKeys: 'mastered' | 'proficient' | 'never';
   instruments: Transposition[];

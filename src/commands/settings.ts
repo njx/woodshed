@@ -13,7 +13,7 @@ const ids = <T extends object>(table: T) => Object.keys(table) as (keyof T & str
 
 // The settings that can be changed (snake_case for the assistant; Settings has them in camelCase).
 interface SettingsInput {
-  exercises?: number; tunes?: number; focus_exercises?: number;
+  exercises?: number; tunes?: number;
   tune_order?: Settings['tuneOrder'];
   exercise_focus?: Settings['exerciseFocus'];
   priority?: 'off' | 'some' | 'strong';
@@ -29,7 +29,7 @@ interface SettingsInput {
   a4?: number;
 }
 const KEYS: Record<keyof SettingsInput, keyof Settings> = {
-  exercises: 'exercises', tunes: 'tunes', focus_exercises: 'focusExercises',
+  exercises: 'exercises', tunes: 'tunes',
   tune_order: 'tuneOrder', exercise_focus: 'exerciseFocus', priority: 'priority', new_keys: 'newKeys', instruments: 'instruments',
   view: 'view', listen: 'listen', sound: 'sound', swing: 'swing', walking_bass: 'metroBass', bass_click: 'bassClick', count_in: 'bassCountIn', a4: 'a4',
 };
@@ -39,9 +39,8 @@ export const changeSettings = command<SettingsInput>({
   name: 'change_settings',
   description: "Change the app's settings. Every field is optional: null leaves it unchanged. The daily mix (how many exercises and tunes a day) applies from tomorrow's set unless today's is picked again (new_set).",
   fields: {
-    exercises: count('Exercises'),
+    exercises: count('Exercises: focus ones first (up to half of them, taking turns), the rest picked by priority and how overdue, mixing the kinds (scales, arpeggios, patterns, licks…);'),
     tunes: count('Tunes: focus ones first (up to half of them, taking turns), the rest picked by priority and how overdue, mixing hone, learn and new;'),
-    focus_exercises: count('Focus exercises, at most, on top of the exercises,'),
     tune_order: f.opt(f.oneOf(['mixed', 'group'] as const, "Today's tunes mixed up, or by group (hone, learn, new)")),
     exercise_focus: f.opt(f.oneOf(['own', 'day'] as const, 'own: each exercise picks its own keys; day: a key or two of the day for every exercise that picks by weak keys or at random')),
     priority: f.opt(f.oneOf(['off', 'some', 'strong'] as const, 'How much priority matters when picking tunes that are due')),

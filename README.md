@@ -10,8 +10,8 @@ Each day it hands you a short set of tunes to play (4 by default), mixing:
 - **New**: tunes you don't know yet
 
 A tune or exercise is **Focus**, **On** or **Off** (at the top of its details). Focus puts it first
-in your set, taking turns, least recently played first: focus tunes take up to half the day's tunes
-(two of four), and 2 focus exercises come on top of the exercises (Settings → *Daily mix*); one turned on today is in today's set
+in your set, taking turns, least recently played first: focus tunes and exercises take up to half the day's
+tunes and exercises (two of four; one of two). One turned on today is in today's set
 straight away. The Focus filter in the library shows how many there are. Swipe a Focus card left to skip
 it for just today. On (the default) means it can be picked for the set (and, for an exercise,
 offered as a warm-up). Off leaves it out of the pool for now, to work from a smaller set of tunes
@@ -315,9 +315,11 @@ which don't cover it. The Anthropic console has the official numbers.
 - **A practice day runs until 4am,** so a late session that crosses midnight counts as one day: the
   set, ratings, tempos and diary notes all stay with the evening you started.
 
-- **The daily mix** (Settings → Daily mix): by default 2 exercises and 4 tunes, focus tunes
-  included (up to half of them, or more if there's nothing else to pick). The rest of the tunes are picked by priority and how overdue they are,
-  mixing hone, learn and new: each place goes to a group, pulled by its most pressing tune's priority
+- **The daily mix** (Settings → Daily mix): by default 2 exercises and 4 tunes, focus ones
+  included (up to half of each, or more if there's nothing else to pick). The rest of the
+  exercises are picked the same way as the tunes, with their kind (scale, arpeggio, pattern, lick…)
+  as the group, so a day's are usually of different kinds. The rest of the tunes are picked by
+  priority and how overdue they are, mixing hone, learn and new: each place goes to a group, pulled by its most pressing tune's priority
   (a critical one that's due pulls hardest; one played recently, hardly at all), less for each tune
   already from that group today and
   for each of the last few days one came up — then to a tune in it. So with two focus tunes and four
