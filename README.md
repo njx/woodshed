@@ -176,8 +176,8 @@ While it runs, the app keeps moving the session's end up to now — every half m
 when it's hidden. Switching to another app for a while (to play along in Quartet, say) carries on the
 same session when you come back within an hour, counting the time away. If you're away longer, the
 timer has stopped at the moment the app was last seen; **Count since then** puts the time away back
-in, or **Start again** starts a new session — and if that was a slip, a **+ time** button beside the
-timer still counts the time between, joining the two into one session. Sessions count toward the
+in, or **Start again** starts a new session — and if that was a slip, **Add to earlier session** beside
+the timer still counts the time between, joining the two into one session. Sessions count toward the
 practice day they started on (which runs until 4am).
 
 Progress shows practice time for the last 7 and 30 days, the average on the days you practiced, and per day in *Recent sessions* and the

@@ -315,7 +315,7 @@ export class Timer extends View {
     const start = (label: string, aria?: string) => html`<button class="pill-btn" id="pt-start" aria-label=${aria ?? nothing} @click=${() => perform(cmd.startPractice, {})}>${raw(ICON.play)}${label}</button>`;
     // Started again after it stopped while away: the time between can still be counted.
     const g = awayGap();
-    const gap = g ? html`<button class="pill-btn" id="pt-gap" aria-label="Count the ${fmtDuration(g.ms)} away too" @click=${() => { countGap(); cmd.dataChanged(); render(); }}>${raw(ICON.plus)}${fmtDuration(g.ms)}</button>` : nothing;
+    const gap = g ? html`<button class="pill-btn" id="pt-gap" aria-label="Add to earlier session (counting the ${fmtDuration(g.ms)} between)" @click=${() => { countGap(); cmd.dataChanged(); render(); }}>${raw(ICON.plus)}Add to earlier session</button>` : nothing;
     if (running()) {
       return bar('on', html`<span class="pt-dot" aria-hidden="true"></span>Practicing · <b id="pt-clock">${fmtClock(total)}</b> today`,
         html`${gap}<button class="pill-btn" id="pt-end" aria-label="End practice" @click=${() => perform(cmd.endPractice, {})}>${raw(ICON.stop)}End</button>`);

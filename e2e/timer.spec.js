@@ -57,7 +57,8 @@ test('started again by mistake instead of counting the time away: it can still b
   await page.reload();
   await page.click('#pt-start'); // Start again
   const gap = page.locator('#pt-gap');
-  await expect(gap).toHaveText('1 h 10 min');
+  await expect(gap).toHaveText('Add to earlier session');
+  await expect(gap).toHaveAttribute('aria-label', /1 h 10 min between/);
   await ui.expectNoSideScroll();
   await gap.click();
   await expect(gap).toHaveCount(0);
