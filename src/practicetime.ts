@@ -1,4 +1,4 @@
-import type { DateStr } from './types.js';
+import type { DateStr, PracticeSession as Session } from './types.js';
 import { store, save, flush } from './store.js';
 import { today } from './dates.js';
 import { uid } from './util.js';
@@ -10,10 +10,13 @@ import { uid } from './util.js';
 // the app is hidden. So if the app is closed or the phone sleeps, the session ends when the app
 // was last seen. Coming back soon (say, after playing along in another app) carries on the same
 // session, counting the time away; after longer, the timer has stopped at that point (marked
-// `away`), and the time away can still be counted (countTimeAway).
+// `away`), and the time away can still be counted (countTimeAway) — or, once the timer's been
+// started again, the time between (countGap).
+//
+// "Soon" is up to an hour: time out in a backing-track app is practice too.
 
 export const HEARTBEAT_MS = 30 * 1000;
-export const AWAY_MS = 15 * 60 * 1000; // away longer than this: the timer stops when last seen
+export const AWAY_MS = 60 * 60 * 1000; // away longer than this: the timer stops when last seen
 const MAX_AWAY_MS = 4 * 3600 * 1000; // the time away can be counted up to this long after
 
 const sessions = () => (store.state.sessions ||= []);
@@ -71,6 +74,24 @@ export function countTimeAway(now = Date.now()) {
   store.state.timing = s.id;
   save();
   return s;
+}
+
+// Started again after the timer stopped while away (Start tapped, not Count since then): the time
+// between the stopped session and today's next one, which can still be counted. Null if none.
+export function awayGap(now = Date.now()): { ms: number; before: Session; after: Session } | null {
+  const day = sessions().filter((s) => s.date === today(new Date(now)));
+  const after = day.at(-1), before = day.at(-2);
+  if (!after || !before?.away || after.start < before.end || after.start - before.end > MAX_AWAY_MS) return null;
+  return { ms: after.start - before.end, before, after };
+}
+// Count it: the two become one session, from the first's start.
+export function countGap(now = Date.now()) {
+  const gap = awayGap(now);
+  if (!gap) return null;
+  gap.after.start = gap.before.start;
+  store.state.sessions = sessions().filter((s) => s !== gap.before);
+  save();
+  return gap.after;
 }
 
 // Milliseconds practiced on a practice day (the running session up to now).

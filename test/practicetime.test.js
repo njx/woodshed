@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { store, normalize } from '../src/store.js';
 import {
-  startPractice, endPractice, heartbeat, running, awayStop, countTimeAway, autoStart, practicedMs,
+  startPractice, endPractice, heartbeat, running, awayStop, countTimeAway, awayGap, countGap, autoStart, practicedMs,
   practicedByDay, fmtDuration, fmtClock, AWAY_MS,
 } from '../src/practicetime.js';
 import { setState } from './helpers.js';
@@ -51,6 +51,34 @@ describe('practice timer', () => {
     expect(running()).not.toBe(null);
     expect(awayStop(back)).toBe(null);
     expect(practicedMs('2026-10-06', back)).toBe(back - at(20));
+  });
+
+  it('keeps going through up to an hour away (a backing track in another app)', () => {
+    startPractice(at(20));
+    open(at(20), at(20, 10));
+    expect(heartbeat(at(21, 5))).toBe(null); // back after 55 minutes
+    expect(practicedMs('2026-10-06', at(21, 5))).toBe(65 * MIN);
+    expect(AWAY_MS).toBe(60 * MIN);
+  });
+
+  it('started again after it stopped while away: the time between can still be counted, as one session', () => {
+    startPractice(at(20));
+    open(at(20), at(20, 30));
+    expect(heartbeat(at(21, 45))).toBe('stopped'); // away 75 minutes
+    expect(awayGap(at(21, 45))).toBe(null); // (Count since then is offered instead)
+    startPractice(at(21, 46)); // Start again, by mistake
+    const gap = awayGap(at(22));
+    expect(gap.ms).toBe(76 * MIN);
+    countGap(at(22));
+    expect(store.state.sessions).toHaveLength(1);
+    expect(running().start).toBe(at(20));
+    expect(practicedMs('2026-10-06', at(22))).toBe(2 * 60 * MIN);
+    expect(awayGap(at(22))).toBe(null);
+    // And after that session's ended too.
+    endPractice(at(22));
+    open(at(22), at(22));
+    startPractice(at(22, 1)); // (an ordinary new session: not after a stop while away)
+    expect(awayGap(at(22, 5))).toBe(null);
   });
 
   it('only offers to count the time away on the same day', () => {

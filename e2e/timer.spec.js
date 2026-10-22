@@ -29,10 +29,11 @@ test('after the app was closed a while, the timer has stopped, and the time away
   await ui.start();
   await page.click('#pt-start');
   await expect.poll(async () => (await ui.saved()).state.timing).not.toBe(null);
-  // As if the app was last seen 40 minutes ago, 10 minutes into practice.
+  // As if the app was last seen 70 minutes ago, 10 minutes into practice (under an hour away, it
+  // would have carried on).
   await ui.editSaved((s) => {
     const x = s.sessions[0];
-    x.end = Date.now() - 40 * 60000;
+    x.end = Date.now() - 70 * 60000;
     x.start = x.end - 10 * 60000;
   });
   await page.reload();
@@ -41,7 +42,27 @@ test('after the app was closed a while, the timer has stopped, and the time away
   await ui.expectNoSideScroll();
   await page.click('#pt-away');
   await expect(bar).toContainText('Practicing');
-  await expect(page.locator('#pt-clock')).toHaveText(/^50:/);
+  await expect(page.locator('#pt-clock')).toHaveText(/^1:20:/);
+});
+
+test('started again by mistake instead of counting the time away: it can still be counted @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#pt-start');
+  await expect.poll(async () => (await ui.saved()).state.timing).not.toBe(null);
+  await ui.editSaved((s) => {
+    const x = s.sessions[0];
+    x.end = Date.now() - 70 * 60000;
+    x.start = x.end - 10 * 60000;
+  });
+  await page.reload();
+  await page.click('#pt-start'); // Start again
+  const gap = page.locator('#pt-gap');
+  await expect(gap).toHaveText('1 h 10 min');
+  await ui.expectNoSideScroll();
+  await gap.click();
+  await expect(gap).toHaveCount(0);
+  await expect(page.locator('#pt-clock')).toHaveText(/^1:20:/);
+  await expect.poll(async () => (await ui.saved()).state.sessions.length).toBe(1);
 });
 
 test('the first open of a day greets you with Start practice @narrow', async ({ page, ui }) => {

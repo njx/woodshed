@@ -28,7 +28,7 @@ import { openAssistant } from './assistant.js';
 import { canRecord } from '../media.js';
 import { chartFor } from '../charts.js';
 import { greeted } from './greet.js';
-import { running, awayStop, countTimeAway, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
+import { running, awayStop, countTimeAway, awayGap, countGap, autoStart, practicedMs, fmtDuration, fmtClock } from '../practicetime.js';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { View, mount, html, nothing, raw, levelSuggestionPart, type TemplateResult, priBadge } from './lit.js';
@@ -297,7 +297,7 @@ function keyChip(it: PlanItem, t: Item): TemplateResult | typeof nothing {
 }
 
 // The practice timer: start, end (with undo), and after the app was closed a while, the choice
-// to count the time away too. It ticks while running.
+// to count the time away too (even once it's been started again). It ticks while running.
 @customElement('ws-timer')
 export class Timer extends View {
   private clock: ReturnType<typeof setInterval> | undefined;
@@ -313,9 +313,12 @@ export class Timer extends View {
     const total = practicedMs();
     const bar = (cls: string, text: TemplateResult, buttons: TemplateResult) => html`<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
     const start = (label: string, aria?: string) => html`<button class="pill-btn" id="pt-start" aria-label=${aria ?? nothing} @click=${() => perform(cmd.startPractice, {})}>${raw(ICON.play)}${label}</button>`;
+    // Started again after it stopped while away: the time between can still be counted.
+    const g = awayGap();
+    const gap = g ? html`<button class="pill-btn" id="pt-gap" aria-label="Count the ${fmtDuration(g.ms)} away too" @click=${() => { countGap(); cmd.dataChanged(); render(); }}>${raw(ICON.plus)}${fmtDuration(g.ms)}</button>` : nothing;
     if (running()) {
       return bar('on', html`<span class="pt-dot" aria-hidden="true"></span>Practicing · <b id="pt-clock">${fmtClock(total)}</b> today`,
-        html`<button class="pill-btn" id="pt-end" aria-label="End practice" @click=${() => perform(cmd.endPractice, {})}>${raw(ICON.stop)}End</button>`);
+        html`${gap}<button class="pill-btn" id="pt-end" aria-label="End practice" @click=${() => perform(cmd.endPractice, {})}>${raw(ICON.stop)}End</button>`);
     }
     const away = awayStop();
     if (away) {
@@ -323,7 +326,7 @@ export class Timer extends View {
       return bar('', html`<b>${fmtDuration(total)}</b> today. The timer stopped at ${at}, when the app was closed.`,
         html`<button class="pill-btn" id="pt-away" @click=${() => { countTimeAway(); cmd.dataChanged(); render(); }}>${raw(ICON.plus)}Count since then</button>${start('Start again')}`);
     }
-    if (total) return bar('', html`Practiced <b>${fmtDuration(total)}</b> today`, start('Resume'));
+    if (total) return bar('', html`Practiced <b>${fmtDuration(total)}</b> today`, html`${gap}${start('Resume')}`);
     return bar('', html`Practice timer`, start('Start', 'Start practice'));
   }
 }
