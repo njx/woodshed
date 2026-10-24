@@ -1,6 +1,6 @@
 import type { DateStr, PracticeSession as Session } from './types.js';
 import { store, save, flush } from './store.js';
-import { today } from './dates.js';
+import { today, addDays } from './dates.js';
 import { uid } from './util.js';
 
 // Practice time: sessions of { id, date (the practice day it started on), start, end (ms) }, in
@@ -112,6 +112,39 @@ export function practicedByDay(now = Date.now()): Map<DateStr, number> {
     m.set(s.date, (m.get(s.date) || 0) + end - s.start);
   }
   return m;
+}
+
+// ---------- Practice days ----------
+// A day counts (for the streak, days practiced, the heatmap) if something was marked played, the
+// timer ran a few minutes, or there was a lesson (a diary note marked as one). Its time is the
+// timer's plus the lesson's.
+
+const COUNTS_MS = 5 * 60 * 1000;
+// Lessons' time per day (0 for one with no time given).
+export function lessonsByDay(): Map<DateStr, number> {
+  const m = new Map<DateStr, number>();
+  for (const e of store.state.diary) if (e.lesson) m.set(e.date, (m.get(e.date) || 0) + (e.lessonMs || 0));
+  return m;
+}
+export function timeByDay(now = Date.now()): Map<DateStr, number> {
+  const m = practicedByDay(now);
+  for (const [d, ms] of lessonsByDay()) m.set(d, (m.get(d) || 0) + ms);
+  return m;
+}
+export function practiceDays(now = Date.now()): Set<DateStr> {
+  const days = new Set<DateStr>(store.state.log.map((e) => e.date));
+  for (const d of lessonsByDay().keys()) days.add(d);
+  for (const [d, ms] of practicedByDay(now)) if (ms >= COUNTS_MS) days.add(d);
+  return days;
+}
+// Days in a row, up to today (or, if today hasn't counted yet, yesterday).
+export function streak(now = Date.now()): number {
+  const days = practiceDays(now);
+  let d = today(new Date(now));
+  if (!days.has(d)) d = addDays(d, -1);
+  let n = 0;
+  for (; days.has(d); d = addDays(d, -1)) n++;
+  return n;
 }
 
 // "45 min", "1 h 5 min"; under a minute: "<1 min".

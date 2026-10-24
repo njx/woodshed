@@ -136,6 +136,9 @@ function diaryEntry(e: Raw, ids: Set<Id>): DiaryEntry | null {
   e.flag = oneOf(e.flag, ['remember', 'teacher'], null);
   e.done = !!e.done;
   if (e.take) e.take = true; else delete e.take;
+  if (e.lesson) e.lesson = true; else delete e.lesson;
+  e.lessonMs = e.lesson ? num(e.lessonMs, 0, 12 * 3600000) ?? undefined : undefined;
+  if (e.lessonMs == null) delete e.lessonMs;
   e.itemId = ids.has(e.itemId) ? e.itemId : null;
   e.media = (Array.isArray(e.media) ? e.media : [])
     .filter((c: Raw) => c && isId(c.id))

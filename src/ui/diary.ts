@@ -3,6 +3,7 @@ import { dateStr, niceDate } from '../dates.js';
 import { itemById } from '../practice.js';
 import { FLAGS, entryById, openTodos, diaryDays, todoText, findItemByName, linkableItems } from '../diary.js';
 import { canRecord, clipUrl, clipFile, fmtDuration, fmtSize, playOnSpeaker } from '../media.js';
+import { fmtDuration as practiceDuration } from '../practicetime.js';
 import { openRecorder } from './recorder.js';
 import { ICON, ui, render, goTo, toast, perform, closeSheet } from './shell.js';
 import * as cmd from '../commands/index.js';
@@ -11,13 +12,14 @@ import { View, mount, html, nothing, raw, openSheetView } from './lit.js';
 import type { Clip, DateStr, DiaryEntry, Id } from '../types.js';
 
 type Flag = NonNullable<DiaryEntry['flag']>;
-type Filter = 'all' | Flag;
+type Filter = 'all' | Flag | 'lesson';
 
 const FLAG_ICON: Record<Flag, string> = { remember: ICON.pin, teacher: ICON.teacher };
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'remember', label: 'To remember' },
   { id: 'teacher', label: 'For teacher' },
+  { id: 'lesson', label: 'Lessons' },
 ];
 
 const dayLabel = (d: DateStr) => {
@@ -25,6 +27,7 @@ const dayLabel = (d: DateStr) => {
   if (d === today) return 'Today';
   return niceDate(d, { weekday: 'short', month: 'short', day: 'numeric' });
 };
+const fmtMinutes = (ms: number) => practiceDuration(ms);
 const timeLabel = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 // ---------- Notes in a list ----------
@@ -39,14 +42,15 @@ export interface NoteRowOpts {
 export function noteRows(entries: DiaryEntry[], { showDate = false, back, onChange = render }: NoteRowOpts = {}) {
   return entries.map((e) => {
     const tune = e.itemId ? itemById(e.itemId) : null;
-    const meta = [showDate ? dayLabel(e.date) : timeLabel(e.at), tune?.name, e.flag ? FLAGS[e.flag].label : null].filter(Boolean);
+    const lesson = e.lesson ? `Lesson${e.lessonMs ? ` · ${fmtMinutes(e.lessonMs)}` : ''}` : null;
+    const meta = [showDate || e.lesson ? dayLabel(e.date) : timeLabel(e.at), lesson, tune?.name, e.flag ? FLAGS[e.flag].label : null].filter(Boolean);
     return html`
-    <li class="note ${e.flag ? `flag-${e.flag}` : ''} ${e.done ? 'done' : ''}" data-note=${e.id} @click=${() => openNote(e.id, { back })}>
+    <li class="note ${e.flag ? `flag-${e.flag}` : ''} ${e.lesson ? 'lesson' : ''} ${e.done ? 'done' : ''}" data-note=${e.id} @click=${() => openNote(e.id, { back })}>
       ${e.flag
         ? html`<button class="note-check ${e.done ? 'on' : ''}" data-done=${e.id} aria-label=${e.done ? 'Mark not done' : 'Mark done'} aria-pressed=${String(e.done)} @click=${(ev: Event) => { ev.stopPropagation(); toggleDone(e, onChange); }}>${raw(e.done ? ICON.check : FLAG_ICON[e.flag])}</button>`
-        : html`<span class="note-dot">${raw(e.media?.length ? (e.media.some((c) => c.kind === 'video') ? ICON.video : ICON.mic) : ICON.note)}</span>`}
+        : html`<span class="note-dot">${raw(e.lesson ? ICON.lesson : e.media?.length ? (e.media.some((c) => c.kind === 'video') ? ICON.video : ICON.mic) : ICON.note)}</span>`}
       <div class="note-body">
-        ${e.text ? html`<p>${e.text}</p>` : e.media?.length ? nothing : html`<p class="muted">(empty)</p>`}
+        ${e.text ? html`<p>${e.text}</p>` : e.media?.length ? nothing : html`<p class="muted">${e.lesson ? 'A lesson' : '(empty)'}</p>`}
         ${e.media?.length ? html`<div class="clip-pills">${e.media.map((c) => html`
           <button class="clip-pill ${c.kind}" data-play=${c.kind === 'audio' ? `${e.id}:${c.id}` : nothing} aria-label="Play ${c.kind} recording, ${fmtDuration(c.ms)}"
             @click=${(ev: Event) => { if (c.kind !== 'audio') return; ev.stopPropagation(); toggleListPlay(ev.currentTarget as HTMLElement); }}>
@@ -120,15 +124,16 @@ export function renderDiary(root: HTMLElement): void {
 export class DiaryView extends View {
   render() {
     const filter = (ui.diaryFilter || 'all') as Filter; // (set from FILTERS)
-    const flag = filter === 'all' ? null : filter;
+    const flag = filter === 'all' || filter === 'lesson' ? null : filter;
     const counts: Partial<Record<Filter, number>> = { remember: openTodos('remember').length, teacher: openTodos('teacher').length };
     const todos = flag ? openTodos(flag) : [];
+    const lessons = store.state.diary.filter((e) => e.lesson).length;
     return html`
       <header class="top">
         <div><p class="eyebrow">Practice notes</p><h1>Diary</h1></div>
         <div class="top-actions">
           ${canRecord() ? html`<button class="icon-btn" id="diary-rec" aria-label="Record" @click=${() => openRecorder({ flag })}>${raw(ICON.rec)}</button>` : nothing}
-          <button class="icon-btn accent" id="add-note" aria-label="Add a note" @click=${() => openNote(null, { flag })}>${raw(ICON.plus)}</button>
+          <button class="icon-btn accent" id="add-note" aria-label=${filter === 'lesson' ? 'Log a lesson' : 'Add a note'} @click=${() => openNote(null, { flag, lesson: filter === 'lesson' })}>${raw(ICON.plus)}</button>
         </div>
       </header>
       <div class="chips">${FILTERS.map((f) => html`<button class="chip ${filter === f.id ? 'on' : ''}" data-df=${f.id} @click=${() => { ui.diaryFilter = f.id; this.requestUpdate(); }}>${f.label}${counts[f.id] ? html` <span class="count">${counts[f.id]}</span>` : nothing}</button>`)}</div>
@@ -139,14 +144,21 @@ export class DiaryView extends View {
         </div>
         ${todos.length ? html`<ul class="notes panel-list">${noteRows(todos, { showDate: true })}</ul>` : nothing}
         <h3 class="section-label">Done</h3>` : nothing}
+      ${filter === 'lesson' ? html`
+        <div class="todo-head">
+          <span>${lessons ? `${lessons} lesson${lessons > 1 ? 's' : ''}` : 'No lessons yet'}</span>
+          <button class="pill-btn" id="add-lesson" @click=${() => openNote(null, { lesson: true })}>${raw(ICON.lesson)}Log a lesson</button>
+        </div>` : nothing}
       ${this.days(filter)}
     `;
   }
   days(filter: Filter) {
     // In a filtered view the open items are listed above, so the days below show only done ones.
-    const shown = diaryDays(filter === 'all' ? undefined : filter)
-      .map((d) => ({ ...d, entries: filter === 'all' ? d.entries : d.entries.filter((e) => e.done) }))
+    const lessons = filter === 'lesson';
+    const shown = diaryDays(filter === 'all' || lessons ? undefined : filter)
+      .map((d) => ({ ...d, played: lessons ? [] : d.played, entries: filter === 'all' ? d.entries : d.entries.filter((e) => (lessons ? e.lesson : e.done)) }))
       .filter((d) => d.entries.length || d.played.length);
+    if (lessons && !shown.length) return html`<p class="empty fine">A day you had a lesson counts as a practice day (it keeps your streak going). Log one with its time, and what you covered.</p>`;
     if (!shown.length) {
       return filter === 'all'
         ? html`<p class="empty">No notes yet. Jot down how practice went, what to work on, or questions for your teacher.</p>`
@@ -182,10 +194,10 @@ const START_WAIT_MS = 6000;
 
 // A note in the editor: a saved entry, or a new one (no id, time or recordings until it's saved).
 type NoteDraft = Pick<DiaryEntry, 'text' | 'flag' | 'itemId' | 'done' | 'date'> & Partial<DiaryEntry>;
-interface NoteOpts { flag?: Flag | null; itemId?: Id | null; back?: () => void }
+interface NoteOpts { flag?: Flag | null; itemId?: Id | null; lesson?: boolean; back?: () => void }
 
-// id null = new note. opts.itemId links a new note to a tune; opts.flag preselects a flag;
-// opts.back reopens whatever sheet the note was opened from.
+// id null = new note. opts.itemId links a new note to a tune; opts.flag preselects a flag, and
+// opts.lesson makes it a lesson; opts.back reopens whatever sheet the note was opened from.
 export function openNote(id: Id | null, opts: NoteOpts = {}): void {
   const isNew = !id;
   const e: NoteDraft | undefined = isNew ? { text: '', flag: opts.flag || null, itemId: opts.itemId || null, done: false, date: dateStr() } : entryById(id);
@@ -208,9 +220,17 @@ export class NoteSheet extends View {
   private urls: string[] = [];
   private done: boolean | undefined; // Done, as ticked (saved with the note)
   @state() flag: Flag | null = null; // its flag, as picked (saved with the note)
+  // A lesson (the day counts as a practice day): on its day, for so many minutes ('' not given).
+  @state() lesson = false;
+  @state() day: DateStr = dateStr();
+  @state() minutes = '';
   connectedCallback() {
     super.connectedCallback();
-    this.flag = this.entry.flag;
+    const e = this.entry;
+    this.flag = e.flag;
+    this.lesson = !!e.lesson || (this.isNew && !!this.opts.lesson);
+    this.day = e.date;
+    this.minutes = e.lessonMs ? String(Math.round(e.lessonMs / 60000)) : '';
   }
   private shut = false; // closed
 
@@ -220,15 +240,24 @@ export class NoteSheet extends View {
     const e = this.entry, isNew = this.isNew;
     const tuneName = e.itemId ? itemById(e.itemId)?.name || '' : '';
     return html`
-      <p class="eyebrow">${isNew ? 'New note' : dayLabel(e.date)}</p>
+      <p class="eyebrow">${isNew ? (this.lesson ? 'New lesson' : 'New note') : dayLabel(e.date)}</p>
       <div class="note-editor">
-        <textarea id="n-text" rows="5" placeholder="How did it go? What to work on next…" ?autofocus=${isNew} .value=${e.text}></textarea>
+        <textarea id="n-text" rows="5" placeholder=${this.lesson ? 'What you covered, what to work on…' : 'How did it go? What to work on next…'} ?autofocus=${isNew} .value=${e.text}></textarea>
         ${Recognition ? html`<button class="mic-btn ${this.listening ? 'on' : ''}" id="n-mic" aria-label="Dictate" @click=${() => this.dictate()}>${raw(ICON.mic)}</button>` : nothing}
       </div>
       ${Recognition ? nothing : html`<p class="fine">Tip: use the microphone on your keyboard to dictate.</p>`}
       <div class="flag-row">${(Object.entries(FLAGS) as [Flag, (typeof FLAGS)[Flag]][]).map(([k, f]) => html`
         <button class="flag-btn flag-${k} ${this.flag === k ? 'on' : ''}" data-flag=${k} aria-pressed=${String(this.flag === k)} @click=${() => { this.flag = this.flag === k ? null : k; }}>${raw(FLAG_ICON[k])}${f.label}</button>`)}
+        <button class="flag-btn flag-lesson ${this.lesson ? 'on' : ''}" id="n-lesson" aria-pressed=${String(this.lesson)} @click=${() => { this.lesson = !this.lesson; }}>${raw(ICON.lesson)}Lesson</button>
       </div>
+      ${this.lesson ? html`
+        <div class="lesson-row">
+          <label class="field"><span class="field-label">Day</span>
+            <input type="date" id="n-day" .value=${this.day} max=${dateStr()} @change=${(ev: Event) => { this.day = (ev.target as HTMLInputElement).value || this.day; }}></label>
+          <label class="field"><span class="field-label">Minutes</span>
+            <input type="number" id="n-minutes" inputmode="numeric" min="0" max="720" placeholder="Optional" .value=${this.minutes} @input=${(ev: Event) => { this.minutes = (ev.target as HTMLInputElement).value; }}></label>
+        </div>
+        <p class="fine">A lesson day counts as a practice day: it keeps your streak going, and its time counts in Progress.</p>` : nothing}
       <label class="field">
         <span class="field-label">Tune (optional)</span>
         <input id="n-tune" list="n-tunes" .value=${tuneName} placeholder="Which tune or exercise is this about?" autocomplete="off">
@@ -245,7 +274,7 @@ export class NoteSheet extends View {
         </li>`)}</ul>` : nothing}
       ${canRecord() ? html`<button class="ghost-btn rec-start" id="n-record" @click=${() => this.record()}>${raw(ICON.rec)}<span>${e.media?.length ? 'Record another' : 'Record audio or video'}</span></button>` : nothing}
       ${!isNew && this.flag ? html`<label class="done-toggle"><input type="checkbox" id="n-done" .checked=${this.done ?? e.done} @change=${(ev: Event) => { this.done = (ev.target as HTMLInputElement).checked; }}> Done</label>` : nothing}
-      <button class="primary-btn" id="n-save" @click=${() => this.saveNote()}>${isNew ? 'Save note' : 'Done'}</button>
+      <button class="primary-btn" id="n-save" @click=${() => this.saveNote()}>${isNew ? (this.lesson ? 'Save lesson' : 'Save note') : 'Done'}</button>
       ${isNew ? nothing : html`<button class="danger-btn" id="n-delete" @click=${() => this.deleteNote()}>Delete note</button>`}
     `;
   }
@@ -276,15 +305,16 @@ export class NoteSheet extends View {
     const e = this.entry;
     const tune = findItemByName(this.querySelector<HTMLInputElement>('#n-tune')!.value);
     const text = this.text.value;
-    if (!text.trim() && !(media ?? e.media)?.length) return false;
-    if (this.isNew) return !!perform(cmd.addNote, { text, ...(this.flag ? { flag: this.flag } : {}), ...(tune ? { item: tune.id } : {}) });
+    if (!text.trim() && !(media ?? e.media)?.length && !this.lesson) return false;
+    const lesson = this.lesson ? { lesson: true, lesson_minutes: Number(this.minutes) || 0, date: this.day } : { lesson: false };
+    if (this.isNew) return !!perform(cmd.addNote, { text, ...(this.flag ? { flag: this.flag } : {}), ...(tune ? { item: tune.id } : {}), ...(this.lesson ? lesson : {}) });
     return !!perform(cmd.updateNote, {
-      note: e.id!, text, flag: this.flag ?? 'none', item: tune?.id || null,
+      note: e.id!, text, flag: this.flag ?? 'none', item: tune?.id || null, ...lesson,
       ...(this.done != null ? { done: this.done } : {}), ...(media ? { media } : {}),
     });
   }
   saveNote() {
-    if (!this.text.value.trim() && !this.entry.media?.length) {
+    if (!this.text.value.trim() && !this.entry.media?.length && !this.lesson) {
       if (this.isNew) return this.text.focus();
       return toast('A note needs some text — or delete it');
     }

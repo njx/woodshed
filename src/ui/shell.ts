@@ -119,7 +119,7 @@ export function haptic(): void {
 // ---------- Small view helpers ----------
 
 type IconName = 'tuner' | 'check' | 'swap' | 'shuffle' | 'plus' | 'key' | 'skip' | 'focus' | 'search' | 'play' | 'out'
-  | 'pin' | 'teacher' | 'mic' | 'share' | 'rec' | 'video' | 'quarter' | 'ask' | 'send' | 'stop' | 'metro' | 'note';
+  | 'pin' | 'teacher' | 'lesson' | 'mic' | 'share' | 'rec' | 'video' | 'quarter' | 'ask' | 'send' | 'stop' | 'metro' | 'note';
 // (The second lot are added below, as the module loads.)
 export const ICON = {
   tuner: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 16l3.5-6"/><circle cx="12" cy="16" r="1.4"/></svg>',
@@ -380,6 +380,7 @@ export function attachSwipe(card: SwipeCard, opts: () => SwipeOpts): void {
 // Banner suggesting a level change, shown on played cards and in the detail sheet.
 Object.assign(ICON, {
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3.5L7 20z"/></svg>',
+  lesson: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9.5 12 5l10 4.5-10 4.5zM6 11.3V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.7M22 9.5V15"/></svg>',
   teacher: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
   mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 7.5 12 3.5l4 4M6 11v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-8"/></svg>',

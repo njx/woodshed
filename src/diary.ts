@@ -5,8 +5,9 @@ import { itemById } from './practice.js';
 import type { Clip, DateStr, DiaryEntry, Id, Item } from './types.js';
 
 // Practice diary. Entries:
-//   { id, date, at, text, flag: null | 'remember' | 'teacher', done, itemId?, media? }
-// media: recorded clips (see media.js). A note with a recording doesn't need text.
+//   { id, date, at, text, flag: null | 'remember' | 'teacher', done, itemId?, media?, lesson?, lessonMs? }
+// media: recorded clips (see media.js). A note with a recording doesn't need text, nor does a
+// lesson (a note marked as one: the day counts as a practice day, see practicetime.ts).
 // Flagged entries work as a to-do list until marked done.
 
 // The item a note is about, from the name typed in its "which tune" field. Matches tunes and
@@ -31,10 +32,13 @@ export const FLAGS = {
 type Flag = keyof typeof FLAGS;
 
 // take: made by the recorder (its text is just a label), so deleting the recording deletes it.
-export function addEntry({ text = '', flag = null, itemId = null, date = dateStr(), media = [], take = false }: {
-  text?: string; flag?: Flag | null; itemId?: Id | null; date?: DateStr; media?: Clip[]; take?: boolean;
+export function addEntry({ text = '', flag = null, itemId = null, date = dateStr(), media = [], take = false, lesson = false, lessonMs }: {
+  text?: string; flag?: Flag | null; itemId?: Id | null; date?: DateStr; media?: Clip[]; take?: boolean; lesson?: boolean; lessonMs?: number;
 }): DiaryEntry {
-  const e: DiaryEntry = { id: uid(), date, at: Date.now(), text: text.trim(), flag, done: false, itemId, media, ...(take ? { take: true } : {}) };
+  const e: DiaryEntry = {
+    id: uid(), date, at: Date.now(), text: text.trim(), flag, done: false, itemId, media, ...(take ? { take: true } : {}),
+    ...(lesson ? { lesson: true, ...(lessonMs ? { lessonMs } : {}) } : {}),
+  };
   store.state.diary.push(e);
   return e;
 }

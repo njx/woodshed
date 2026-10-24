@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store } from '../src/store.js';
 import { exec, undo, canUndo, invalidateUndo, dataChanged, beginGroup, endGroup, CommandError, command, f, readInput } from '../src/commands/core.js';
-import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, COMMANDS } from '../src/commands/index.js';
+import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, addNote, updateNote, COMMANDS } from '../src/commands/index.js';
 import { running, startPractice as startTimer } from '../src/practicetime.js';
 import { buildPlan, ensurePlan } from '../src/plan.js';
 import { freezeToday, tune, setState } from './helpers.js';
@@ -134,6 +134,18 @@ describe('commands', () => {
     expect(store.state.items[0].recordings).toEqual([{ artist: 'Miles', album: 'Walkin' }]);
     exec(removeRecording, { tune: 'a', artist: 'Miles' });
     expect(store.state.items[0].recordings).toEqual([]);
+  });
+
+  it('log a lesson as a diary note: on a day (not one to come), with its time, and with no text needed', () => {
+    const { added } = exec(addNote, { text: '', lesson: true, lesson_minutes: 45, date: '2026-10-04' }).result;
+    expect(store.state.diary.find((e) => e.id === added)).toMatchObject({ date: '2026-10-04', lesson: true, lessonMs: 45 * 60000 });
+    expect(() => exec(addNote, { text: 'x', lesson: true, date: '2026-10-07' })).toThrow(/hasn’t happened/);
+    expect(() => exec(addNote, { text: '' })).toThrow(/needs some text/);
+    exec(updateNote, { note: added, lesson_minutes: 60 });
+    expect(store.state.diary.find((e) => e.id === added).lessonMs).toBe(60 * 60000);
+    exec(updateNote, { note: added, lesson: false });
+    expect(store.state.diary.find((e) => e.id === added)).not.toHaveProperty('lesson');
+    expect(store.state.diary.find((e) => e.id === added)).not.toHaveProperty('lessonMs');
   });
 
   it('say what they did', () => {

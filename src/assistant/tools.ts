@@ -1,7 +1,7 @@
-import { running, practicedMs, practicedByDay } from '../practicetime.js';
+import { running, practicedMs, timeByDay, practiceDays, streak, lessonsByDay } from '../practicetime.js';
 import { store } from '../store.js';
 import { LEVELS, PRIORITIES, TRANSPOSITIONS, CATEGORIES, KEY_MODES } from '../constants.js';
-import { dateStr, daysBetween, addDays } from '../dates.js';
+import { dateStr, daysBetween } from '../dates.js';
 import { keyName } from '../keys.js';
 import { itemStats, itemById, isDue, planEntry, playTempo } from '../practice.js';
 import { ensurePlan } from '../plan.js';
@@ -222,14 +222,12 @@ export const QUERIES: Command[] = [
   }),
   query<Record<string, never>>({
     name: 'get_practice_stats',
-    description: 'Overall practice picture: streak, recent days, practice time (minutes per day, from the practice timer), sessions per key in the last 30 days (keys as written for the current instrument) and how familiar each key is, repertoire by level, and what was played in the last week.',
+    description: 'Overall practice picture: streak and days practiced (days with something played, the timer run, or a lesson), recent days, practice time (minutes per day: the practice timer plus lessons), lessons (minutes, by day), sessions per key in the last 30 days (keys as written for the current instrument) and how familiar each key is, repertoire by level, and what was played in the last week.',
     fields: {},
     run: () => {
       const log = store.state.log;
       const today = dateStr();
-      const days = new Set(log.map((e) => e.date));
-      let streak = 0;
-      for (let d = days.has(today) ? today : addDays(today, -1); days.has(d); d = addDays(d, -1)) streak++;
+      const days = practiceDays();
       const fam = keyFamiliarity();
       const sess = keySessions(30);
       const tunes = store.state.items.filter((t) => t.type === 'tune');
@@ -239,12 +237,13 @@ export const QUERIES: Command[] = [
         (lastWeek[e.date] ||= []).push(itemById(e.itemId)?.name);
       }
       return {
-        streak_days: streak,
+        streak_days: streak(),
         days_practiced_last_30: [...days].filter((d) => daysBetween(d, today) < 30).length,
         keys: [...Array(12).keys()].map((r) => ({ key: rootName(r), sessions_30d: sess[r], familiarity: Math.round(fam[r] * 10) / 10 })),
         tunes_by_level: Object.fromEntries(([3, 2, 1, 0] as const).map((l) => [levelLabel(l), tunes.filter((t) => (t.level ?? 0) === l).length])),
         last_7_days: lastWeek,
-        minutes_practiced_by_day: Object.fromEntries([...practicedByDay()].filter(([d]) => daysBetween(d, today) < 30).sort().map(([d, ms]) => [d, Math.round(ms / 60000)])),
+        minutes_practiced_by_day: Object.fromEntries([...timeByDay()].filter(([d]) => daysBetween(d, today) < 30).sort().map(([d, ms]) => [d, Math.round(ms / 60000)])),
+        lessons_by_day: Object.fromEntries([...lessonsByDay()].filter(([d]) => daysBetween(d, today) < 30).sort().map(([d, ms]) => [d, Math.round(ms / 60000)])),
       };
     },
   }),
@@ -261,8 +260,9 @@ export const QUERIES: Command[] = [
       if (a.flag) list = list.filter((e) => e.flag === a.flag);
       if (a.open_todos_only) list = list.filter((e) => e.flag && !e.done);
       return list.slice(0, a.limit || 30).map((e) => ({
-        id: e.id, date: e.date, text: e.text || '(recording)', flag: e.flag, done: e.done,
+        id: e.id, date: e.date, text: e.text || (e.lesson ? '(lesson)' : '(recording)'), flag: e.flag, done: e.done,
         about: e.itemId ? itemById(e.itemId)?.name : null, recordings: e.media?.length || 0,
+        ...(e.lesson ? { lesson: true, lesson_minutes: e.lessonMs ? Math.round(e.lessonMs / 60000) : null } : {}),
       }));
     },
   }),

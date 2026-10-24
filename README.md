@@ -181,7 +181,9 @@ the timer still counts the time between, joining the two into one session. Sessi
 practice day they started on (which runs until 4am).
 
 Progress shows practice time for the last 7 and 30 days, the average on the days you practiced, and per day in *Recent sessions* and the
-heatmap. The assistant sees it too.
+heatmap, with lessons' time (see Diary). A day counts toward the streak and *days practiced* when you
+marked something played, ran the timer five minutes or more, or had a lesson. The assistant sees it
+too.
 
 ## Metronome and tempo
 
@@ -360,6 +362,12 @@ Flag a note **Remember** or **Ask teacher** and it becomes a to-do until you tic
 - **Remember** items show at the top of the Today screen.
 - **Ask teacher** items collect under the diary's "For teacher" filter, where **Share list** sends
   the open ones as plain text (or copies them) before a lesson.
+
+A day you had a lesson — even one you didn't practice — can be logged as one: **Lesson** in the note
+editor (or **Log a lesson** under the diary's *Lessons* filter), with the day it was and, if you
+like, how many minutes and what you covered. A lesson day counts as a practice day: it keeps your
+streak going, counts in *days practiced*, shows on the Progress heatmap (with a dot) and in *Recent
+sessions*, and its minutes count in your practice time.
 
 Notes save automatically when you close the editor, however you close it.
 

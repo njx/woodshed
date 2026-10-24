@@ -3,9 +3,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { store, normalize } from '../src/store.js';
 import {
   startPractice, endPractice, heartbeat, running, awayStop, countTimeAway, awayGap, countGap, autoStart, practicedMs,
-  practicedByDay, fmtDuration, fmtClock, AWAY_MS,
+  practicedByDay, fmtDuration, fmtClock, AWAY_MS, timeByDay, practiceDays, streak,
 } from '../src/practicetime.js';
-import { setState } from './helpers.js';
+import { addEntry } from '../src/diary.js';
+import { setState, entry, tune } from './helpers.js';
 
 const MIN = 60000;
 const at = (h, m = 0, day = 6) => new Date(2026, 9, day, h, m).getTime(); // Oct `day`, 2026, local
@@ -113,5 +114,35 @@ describe('practice timer', () => {
     expect(fmtDuration(120 * MIN)).toBe('2 h');
     expect(fmtClock(245000)).toBe('4:05');
     expect(fmtClock(3729000)).toBe('1:02:09');
+  });
+});
+
+describe('practice days', () => {
+  const lesson = (date, ms) => addEntry({ text: 'Lesson', date, lesson: true, ...(ms ? { lessonMs: ms } : {}) });
+  it('a lesson day counts toward the streak, with or without its time', () => {
+    const t = tune();
+    setState([t], { log: [entry(t.id, '2026-10-03'), entry(t.id, '2026-10-05')] });
+    lesson('2026-10-04');
+    expect(streak(at(20))).toBe(3); // the 3rd–5th (today, the 6th, not played yet)
+    lesson('2026-10-06', 45 * MIN);
+    expect(streak(at(20))).toBe(4);
+    expect([...practiceDays(at(20))].sort()).toEqual(['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06']);
+  });
+
+  it('a lesson’s time counts in the day’s time, with the timer’s', () => {
+    startPractice(at(9));
+    endPractice(at(9, 20));
+    lesson('2026-10-06', 45 * MIN);
+    expect(timeByDay(at(20)).get('2026-10-06')).toBe(65 * MIN);
+    expect(practicedMs('2026-10-06', at(20))).toBe(20 * MIN); // (the timer's own: what it shows)
+  });
+
+  it('a day with only the timer counts, from five minutes', () => {
+    startPractice(at(9, 0, 4));
+    endPractice(at(9, 20, 4));
+    startPractice(at(9, 0, 5));
+    endPractice(at(9, 2, 5));
+    expect(practiceDays(at(20)).has('2026-10-04')).toBe(true);
+    expect(practiceDays(at(20)).has('2026-10-05')).toBe(false);
   });
 });

@@ -387,6 +387,7 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .cell.h2 { background: var(--heat-2); }
 .cell.h3 { background: var(--heat-3); }
 .cell.h4 { background: var(--heat-4); }
+.cell.lesson { background-image: radial-gradient(circle, var(--learn) 0 26%, transparent 30%); } /* a lesson that day */
 .cell.future { background: transparent; }
 .cell.today { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
 .cell.sel { box-shadow: 0 0 0 2px var(--ink); }
@@ -606,7 +607,8 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .mic-btn svg { width: 19px; height: 19px; }
 .mic-btn.on { background: var(--danger); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 25%, transparent); } }
-.flag-row { display: flex; gap: 8px; margin-top: 12px; }
+.flag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.flag-row .flag-btn { white-space: nowrap; padding: 0 10px; } /* (on a small phone, Lesson goes on a line of its own) */
 .flag-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px;
   border-radius: 12px; background: var(--surface-2); font-size: 14px; font-weight: 600; color: var(--ink-2);
@@ -614,6 +616,10 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .flag-btn svg { width: 17px; height: 17px; }
 .flag-btn.flag-remember.on { background: var(--accent); color: var(--accent-ink); }
 .flag-btn.flag-teacher.on { background: var(--learn); color: #fff; }
+.flag-btn.flag-lesson.on { background: var(--good); color: #fff; }
+.lesson-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.lesson-row .field { margin: 0; }
+.note.lesson .note-dot { color: var(--good); }
 .done-toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-weight: 600; }
 .done-toggle input { width: 22px; height: 22px; accent-color: var(--good); }
 .sheet-body > .field { margin-top: 4px; }

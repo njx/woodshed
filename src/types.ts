@@ -208,6 +208,9 @@ export interface DiaryEntry {
   done: boolean;
   /** A take: a recording made from an item, rather than a note. */
   take?: boolean;
+  /** A lesson that day (it counts as a practice day), and how long it was. */
+  lesson?: true;
+  lessonMs?: number;
   itemId: Id | null;
   media: Clip[];
 }

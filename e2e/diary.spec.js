@@ -74,3 +74,32 @@ test('a note ticked Done stays done when its flag changes @narrow', async ({ pag
   await page.click('#n-save');
   await expect.poll(async () => (await ui.saved()).state.diary.find((e) => e.text === 'Learn the bridge of Stella')).toMatchObject({ flag: 'teacher', done: true });
 });
+
+test('a lesson: logged for a day, with its time; the day counts toward the streak and in Progress @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('diary');
+  await page.click('[data-df="lesson"]');
+  await expect(page.locator('.empty')).toContainText('counts as a practice day');
+  await page.click('#add-lesson');
+  await expect(page.locator('#n-lesson')).toHaveAttribute('aria-pressed', 'true');
+  const yesterday = await page.evaluate(() => { const d = new Date(Date.now() - 864e5 - 4 * 36e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  await page.fill('#n-day', yesterday);
+  await page.fill('#n-minutes', '45');
+  await page.fill('#n-text', 'ii–V licks in all keys; Body and Soul bridge');
+  await ui.expectNoSideScroll();
+  await page.click('#n-save');
+  const row = page.locator('.note.lesson');
+  await expect(row).toContainText('Lesson · 45 min');
+  await expect.poll(async () => (await ui.saved()).state.diary[0]).toMatchObject({ date: yesterday, lesson: true, lessonMs: 45 * 60000 });
+
+  // A lesson with nothing written is fine too.
+  await page.click('#add-lesson');
+  await page.click('#n-save');
+  await expect(page.locator('.note.lesson')).toHaveCount(2);
+  await expect(page.locator('.note.lesson').first()).toContainText('A lesson');
+
+  await ui.tab('progress');
+  await expect(page.locator('.tile').first()).toContainText('2'); // yesterday and today: two days in a row
+  await expect(page.locator(`.cell[data-d="${yesterday}"]`)).toHaveClass(/\blesson\b/);
+  await expect(page.locator('.sessions')).toContainText('Lesson (45 min)');
+});

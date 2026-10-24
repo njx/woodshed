@@ -1,9 +1,9 @@
 import { store, flush } from '../store.js';
-import { dateStr, addDays, niceDate } from '../dates.js';
+import { dateStr, niceDate } from '../dates.js';
 import { ensurePlan } from '../plan.js';
 import { itemById } from '../practice.js';
 import { openTodos } from '../diary.js';
-import { timedToday } from '../practicetime.js';
+import { timedToday, streak } from '../practicetime.js';
 import * as cmd from '../commands/index.js';
 import { ICON, goTo, perform } from './shell.js';
 import { customElement } from 'lit/decorators.js';
@@ -33,12 +33,6 @@ function hello(h = new Date().getHours()) {
 }
 
 // Days in a row with something played, up to yesterday.
-function streak() {
-  const days = new Set(store.state.log.map((e) => e.date));
-  let n = 0;
-  for (let d = addDays(dateStr(), -1); days.has(d); d = addDays(d, -1)) n++;
-  return n;
-}
 
 function planLines() {
   ensurePlan();
