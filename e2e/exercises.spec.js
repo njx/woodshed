@@ -185,13 +185,13 @@ test('try an exercise through a tune: it goes before the tune, with the tune’s
   await page.click('[data-lib="exercises"]');
   // Technical ones aren't for tunes.
   await page.locator('#tune-list .row', { hasText: 'Long tones' }).click();
-  await expect(page.locator('#x-tunes')).not.toBeChecked();
+  await expect(page.locator('[data-open="use"] .set-value')).toHaveText('On its own');
   await page.click('#item-menu');
   await expect(page.locator('.menu-pop button', { hasText: 'Try it through a tune' })).toHaveCount(0);
   await page.mouse.click(5, 5); // (closes the menu)
   await ui.backdrop();
   await page.locator('#tune-list .row', { hasText: 'Cross-arpeggios' }).click();
-  await expect(page.locator('#x-tunes')).toBeChecked();
+  await expect(page.locator('[data-open="use"] .set-value')).toHaveText('Either');
   await ui.menu('Try it through a tune');
   // Pick the tune: today's first, or search.
   await expect(page.locator('.sheet .section-label').first()).toHaveText('In today’s set');
@@ -440,4 +440,31 @@ test('a warm-up opened from today says what it’s for, and has full screen', as
   await expect(page.locator('.menu-pop button', { hasText: 'Take out of today’s set' })).toHaveCount(1);
   await page.mouse.click(5, 5);
   await expect(page.locator('#x-full')).toBeVisible();
+});
+
+test('an exercise that only goes with a tune: not in a key on its own; it goes into today with one @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await ui.tab('tunes');
+  await page.click('[data-lib="exercises"]');
+  await page.locator('#tune-list .row', { hasText: 'Cross-arpeggios' }).click();
+  await expect(page.locator('#add-today')).toHaveText('Add to today’s set');
+  await ui.setting('use');
+  await page.click('.sub-panel [data-field="use"] [data-v="tunes"]');
+  await expect(page.locator('#x-use-hint')).toContainText('never in a key on its own');
+  await ui.panelDone();
+  await expect(page.locator('[data-open="use"] .set-value')).toHaveText('With a tune');
+  await expect(page.locator('.sheet [data-open="keys"]')).toHaveCount(0); // (a tune's keys)
+  await expect.poll(async () => (await ui.saved()).state.items.find((x) => x.name === 'Cross-arpeggios').tunesOnly).toBe(true);
+  // Its button picks the tune, and it goes in before it.
+  await expect(page.locator('#add-today')).toHaveText('Try it through a tune…');
+  await page.click('#add-today');
+  await page.fill('#pick-q', 'blue bossa');
+  await page.locator('.pick-list [data-pick]:visible').click();
+  await expect(page.locator('#toast')).toContainText('with Cross-arpeggios before it');
+  await ui.backdrop();
+  // Swiped in the library: the same.
+  await ui.tab('tunes');
+  await page.fill('#q', 'Cross-arpeggios');
+  await ui.swipe(page.locator('#tune-list .row').first(), 160);
+  await expect(page.locator('#pick-q')).toBeVisible();
 });

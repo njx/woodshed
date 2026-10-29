@@ -17,6 +17,10 @@ const KEY_MODE_IDS = Object.keys(KEY_MODES) as KeyMode[];
 
 // What can be set on a tune or exercise. The same for a new one, one being changed, and one still
 // being made in its sheet (not in the library yet: see applyItem).
+// How an exercise is used: in a key on its own and with tunes, on its own only, or only with a tune.
+const USES = ['either', 'own', 'tunes'] as const;
+type Use = (typeof USES)[number];
+
 export interface ItemFields {
   name?: string;
   style?: string;
@@ -33,7 +37,7 @@ export interface ItemFields {
   key_mode?: KeyMode;
   keys_per_session?: number;
   category?: Category;
-  use_with_tunes?: boolean;
+  use?: Use;
   vary?: Vary['kind'] | 'none';
   types?: string[];
   shape?: Shape;
@@ -62,7 +66,7 @@ const itemFields = (): { [K in keyof ItemFields]-?: Field<NonNullable<ItemFields
   key_mode: f.opt(f.oneOf(KEY_MODE_IDS, 'Exercises: weak = weakest keys; fourths/chromatic continue around; random; fixed = only `keys`; none = no key (played as written)')),
   keys_per_session: f.opt(f.int('Exercises: how many keys each time (1–12)')),
   category: f.opt(f.oneOf(CATEGORY_IDS)),
-  use_with_tunes: f.opt(f.bool('Exercises: false keeps a technical one (long tones, interval drills) out of tunes: not suggested as a warm-up')),
+  use: f.opt(f.oneOf(USES, 'Exercises: either = in a key on its own and with tunes (as a warm-up); own = technical work (long tones, interval drills), never with a tune; tunes = only over a tune\'s chords (guide tones, the changes): only as a warm-up or through a tune, never in a key on its own')),
   vary: f.opt(f.oneOf(['scale', 'chord', 'none'] as const, 'Exercises: change the scale or chord type each session (notation is then written out for each type, so `abc` isn\'t used); none = the same notes every time.')),
   types: f.opt(f.list(f.oneOf([...Object.keys(SCALES), ...Object.keys(CHORDS)]), `Which types are turned on. Scales: ${Object.entries(SCALES).map(([id, x]) => `${id} (${x.label})`).join(', ')}. Chords: ${Object.entries(CHORDS).map(([id, x]) => `${id} (${x.label})`).join(', ')}. Defaults: scales ${VARY.scale.defaults.join(', ')}; chords ${VARY.chord.defaults.join(', ')}.`)),
   shape: f.opt(f.oneOf(Object.keys(SHAPES) as Shape[], 'updown = up and down an octave; updown2 = two octaves; thirds, fours (groups of 4) and p1235 (1-2-3-5 from each note) are for scales; inversions for chords; custom uses `pattern`.')),
@@ -112,7 +116,7 @@ function varyFrom(t: { vary: Vary | null }, a: ItemFields): Vary | null {
  */
 export function applyItem(t: Item, a: ItemFields): string[] {
   const x = t.type === 'exercise' ? t : null;
-  const exerciseOnly = (['key_mode', 'keys_per_session', 'category', 'use_with_tunes', 'vary', 'types', 'shape', 'pattern', 'abc', 'meter', 'harmony', 'as_written', 'home'] as const).filter((k) => a[k] != null);
+  const exerciseOnly = (['key_mode', 'keys_per_session', 'category', 'use', 'vary', 'types', 'shape', 'pattern', 'abc', 'meter', 'harmony', 'as_written', 'home'] as const).filter((k) => a[k] != null);
   if (!x && exerciseOnly.length) throw new CommandError(`Only exercises have ${exerciseOnly.join(', ')}.`);
   if (a.name != null && !a.name.trim()) throw new CommandError('The name is empty.');
   const vary = x && (a.vary || a.types || a.shape || a.pattern != null) ? varyFrom(x, a) : undefined;
@@ -134,7 +138,13 @@ export function applyItem(t: Item, a: ItemFields): string[] {
     if (a.key_mode) { x.keyMode = a.key_mode; keysChanged = true; did.push(`keys: ${KEY_MODES[a.key_mode].label.toLowerCase()}`); }
     if (a.keys_per_session != null) { x.keysPerSession = Math.max(1, Math.min(12, a.keys_per_session)); keysChanged = true; did.push(`${x.keysPerSession} keys a session`); }
     if (a.category) { x.category = a.category; did.push(CATEGORIES[a.category].toLowerCase()); }
-    if (a.use_with_tunes != null) { if (a.use_with_tunes) delete x.solo; else x.solo = true; did.push(a.use_with_tunes ? 'used with tunes' : 'kept out of tunes'); }
+    if (a.use) {
+      delete x.solo;
+      delete x.tunesOnly;
+      if (a.use === 'own') x.solo = true;
+      if (a.use === 'tunes') x.tunesOnly = true;
+      did.push({ either: 'on its own and with tunes', own: 'on its own only', tunes: 'only with a tune' }[a.use]);
+    }
     if (a.abc != null) { x.abc = a.abc.trim(); did.push('notation'); }
     if (a.meter) { x.meter = a.meter; did.push(`in ${a.meter}`); }
     if (a.home != null) { if (a.home) x.home = a.home; else delete x.home; did.push('written in another key'); }

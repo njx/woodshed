@@ -1122,8 +1122,6 @@ body:has(#view[data-tab="today"]) .metro-pill, body:has(#view[data-tab="today"])
 .bar.now { background: color-mix(in srgb, var(--exercise) 18%, transparent); }
 
 /* An exercise with tunes: its switch, and the tune's chart under its notation. */
-.use-tunes { margin: 14px 0 4px; align-items: flex-start; }
-.use-tunes input { margin-top: 1px; flex: none; }
 .x-tune-chart { margin-top: 6px; }
 
 /* Looping part of a chart: the bars in the loop stand out; the first bar tapped is marked. */

@@ -4,7 +4,7 @@ import { VARY, chooseTypes } from '../theory.js';
 import { itemStats, itemById, isPlanItemPlayed, planEntry, markPlayed as logPlayed, unmarkPlayed as unlog, rate, todaysEntry } from '../practice.js';
 import { clampBpm } from '../tempo.js';
 import {
-  ensurePlan, addToToday as addItem, todayItem, setTodayKeys, setTodayKey, refreshTypes, typeCounts, makePlanItem, pickItem, pickTune, pickFocus,
+  ensurePlan, addToToday as addItem, todayItem, setTodayKeys, setTodayKey, refreshTypes, typeCounts, makePlanItem, pickItem, pickTune, pickFocus, onlyWithTunes,
   excludedIds, swapWarmup, dropOrphanWarmups, buildPlan, addWarmups as addTuneWarmups, addWarmup as addOneWarmup, tryWithTune as tryThrough,
 } from '../plan.js';
 import { command, f, CommandError } from './core.js';
@@ -47,6 +47,7 @@ export const addToToday = command<AddInput>({
   fields: { item: f.item(), keys: f.opt(f.list(f.key())), types: f.opt(f.list(f.str())) },
   run({ item, keys, types }, { note }) {
     const t = itemById(item)!; // (checked by its field, or by the app)
+    if (onlyWithTunes(t)) throw new CommandError(`${t.name} only goes over a tune’s chords: try it through a tune (try_with_tune), or add it as a warm-up (add_warmups).`);
     if (!addItem(t)) throw new CommandError(`${t.name} is already in today's set.`);
     const it = todayItem(t)!; // (just added)
     if (keys?.length) {

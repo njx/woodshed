@@ -56,7 +56,7 @@ function itemSummary(t: Item, stats: ReturnType<typeof itemStats>) {
       keys_per_session: t.keyMode === 'none' ? 0 : t.keysPerSession,
       has_notation: !!(t.abc || t.vary),
       ...varySummary(t),
-      ...(t.solo ? { use_with_tunes: false } : {}),
+      use: t.solo ? 'own' : t.tunesOnly || t.fromTune ? 'tunes' : 'either',
     }),
     level: levelLabel(t.level),
     priority: PRIORITIES[(t.priority || 3) - 1].label.toLowerCase(),

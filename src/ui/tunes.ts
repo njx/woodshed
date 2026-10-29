@@ -2,7 +2,8 @@ import { store } from '../store.js';
 import { ago } from '../dates.js';
 import { itemStats, isDue } from '../practice.js';
 import { ICON, ui, saveUi, keysText, switchView, attachSwipe, perform, toast, type SwipeCard } from './shell.js';
-import { inToday } from '../plan.js';
+import { inToday, onlyWithTunes } from '../plan.js';
+import { pickTune } from './pickers.js';
 import * as cmd from '../commands/index.js';
 import { openItem } from './item.js';
 import { openExercise, exerciseRow } from './exercise.js';
@@ -21,7 +22,7 @@ export function itemRow(t: Item, main: TemplateResult, end: unknown): TemplateRe
   const today = inToday(t);
   return html`
   <li class="row-wrap">
-    <div class="swipe-bg" aria-hidden="true"><span class="bg-right">${raw(today ? ICON.check : ICON.plus)}${today ? 'In today’s set' : 'Add to today'}</span></div>
+    <div class="swipe-bg" aria-hidden="true"><span class="bg-right">${raw(today ? ICON.check : ICON.plus)}${today ? 'In today’s set' : onlyWithTunes(t) ? 'With a tune…' : 'Add to today'}</span></div>
     <div class="row ${t.off ? 'off' : ''}" data-id=${t.id} role="button" tabindex="0">
       <div class="row-main">${main}</div>
       ${today ? html`<span class="today-mark" title="In today’s set">${raw(ICON.check)}</span>` : nothing}
@@ -145,6 +146,7 @@ export class LibraryView extends View {
     const t = store.state.items.find((x) => x.id === id);
     if (!t) return;
     if (inToday(t)) return toast(`${t.name} is already in today’s set`);
+    if (t.type === 'exercise' && onlyWithTunes(t)) return pickTune(t, { back: () => this.requestUpdate() }); // (it goes in with a tune)
     perform(cmd.addToToday, { item: id }, { undo: true });
     this.requestUpdate();
   }

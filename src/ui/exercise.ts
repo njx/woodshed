@@ -4,7 +4,7 @@ import { RATINGS, CATEGORIES, KEY_MODES } from '../constants.js';
 import { dateStr, niceDate, ago } from '../dates.js';
 import { keyName, writtenToConcert } from '../keys.js';
 import { itemStats, itemById, isPlayedToday, isPlanItemPlayed, levelSuggestion, playTempo } from '../practice.js';
-import { itemStatus, inToday, typeCounts, todayItem } from '../plan.js';
+import { itemStatus, inToday, typeCounts, todayItem, onlyWithTunes } from '../plan.js';
 import { chartFor } from '../charts.js';
 import './chart.js'; // (<ws-chart>)
 import './exercise-settings.js'; // (<ws-exercise-settings>)
@@ -299,11 +299,13 @@ export class ExerciseSheet extends View {
         @input=${(e: Event) => this.rename(e.target as HTMLTextAreaElement)}></textarea>
       ${isNew ? nothing : statusControl(t, itemStatus(t), (st) => this.edit({ status: st }), (b) => this.menu(b))}
       ${isNew ? nothing : todayPart(planItem?.warmup ? `In today’s set, as a warm-up for ${itemById(planItem.warmup)?.name || 'a tune'}`
-        : inToday(t) ? 'In today’s set' : null, () => this.addToToday())}
+        : inToday(t) ? 'In today’s set' : null,
+        // (One that only goes with a tune goes into today's set with one, before it.)
+        onlyWithTunes(t) ? () => this.tryThroughTune() : () => this.addToToday(), onlyWithTunes(t) ? 'Try it through a tune…' : undefined)}
 
       <div class="field-label row-label"><span>Notation</span>${t.vary ? html`<button class="link-btn" id="x-to-pattern" @click=${() => this.toPattern()}>Edit pattern</button>`
         : t.abc ? html`<button class="link-btn" id="x-edit-abc" @click=${() => this.editNotation()}>Edit</button>` : nothing}</div>
-      ${t.fromTune && !prog ? html`<p class="fine">This one takes its chords from a tune, so it comes up as a warm-up: tap <b>+ Warm-up</b> on a tune’s card in Today, or <b>Add a warm-up</b> under its chart.</p>` : nothing}
+      ${onlyWithTunes(t) && !prog ? html`<p class="fine">This one ${t.fromTune ? 'takes its chords from a tune' : 'goes over a tune’s chords'}, so it comes up as a warm-up: tap <b>+ Warm-up</b> on a tune’s card in Today, or <b>Add a warm-up</b> under its chart.</p>` : nothing}
       ${t.vary || t.abc || prog ? this.notationCard() : html`<button class="ghost-btn" id="x-add-abc" @click=${() => this.editNotation()}>${raw(ICON.plus)}<span>Add notation</span></button>`}
       ${planItem && this.forTune && !prog && chartFor(this.forTune) // (a warm-up: its tune's chart, in the tune's key)
         ? html`<div class="x-tune-chart" id="x-tune-chart"><ws-chart .tune=${this.forTune} .compact=${true} .startKey=${todayItem(this.forTune)?.key ?? (planItem.form ? planItem.overKey ?? null : null)}></ws-chart></div>` : nothing}
@@ -509,6 +511,7 @@ export class ExerciseSheet extends View {
     if (!this.t.name.trim()) { this.querySelector<HTMLElement>('#x-name')!.focus(); return toast('Give the exercise a name'); }
     closeSheet(); // adds it
   }
+  tryThroughTune() { this.goTo(() => pickTune(this.t, { back: this.back })); }
   addToToday() {
     const t = this.t;
     if (perform(cmd.addToToday, { item: t.id })) toast(`Added ${t.name} to today’s set`);
@@ -521,7 +524,7 @@ export class ExerciseSheet extends View {
     openMenu(anchor, [
       card && { label: 'Swap for another', fn: () => { closeSheet(); swapInToday(card); } },
       card && { label: 'Take out of today’s set', fn: () => { closeSheet(); removeFromToday(card); } },
-      !t.solo && { label: 'Try it through a tune…', fn: () => this.goTo(() => pickTune(t, { back: this.back })) },
+      !t.solo && !onlyWithTunes(t) && { label: 'Try it through a tune…', fn: () => this.tryThroughTune() }, // (otherwise it's the button)
       { label: 'Delete exercise', danger: true, fn: () => {
         if (!confirm(`Delete “${t.name}” and its practice history?`)) return;
         closeSheet();

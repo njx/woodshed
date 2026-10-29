@@ -106,8 +106,13 @@ goes, and you transpose into today's keys in your head.
 
 After the ones that fit come **through the form**: any exercise, in the tune's key, shown with the
 tune's chart (and **Bass**, a walking bass through it) under its notation. It isn't rewritten chord
-by chord: bend it to the changes as you go, or use it to take off from. Technical exercises (long
-tones, interval drills) can be kept out of all this: turn off **Use with tunes** in their details.
+by chord: bend it to the changes as you go, or use it to take off from.
+
+An exercise's **Use** (in its details) says how it fits: **Either** (the usual: in the day's
+exercises in a key, and with tunes), **On its own** (technical work like long tones or interval
+drills, never with a tune), or **With a tune** (one that only makes sense over a tune's chords, like
+guide tones through the changes: it comes up as a warm-up or through a tune, never in a key on its
+own — its button, and a swipe in the library, pick the tune to take it through).
 
 The other way round, **Try it through a tune** in an exercise's details lists tunes to try it with
 (today's first, then tunes whose chords it fits, then ones you know, then the rest; with a search). The

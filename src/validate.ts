@@ -37,6 +37,8 @@ function item(t: Raw, ids: Set<Id>): Item | null {
   t.focus = !!t.focus;
   if (t.type === 'exercise' && t.solo) t.solo = true; // not for tunes: technical, on its own only
   else delete t.solo;
+  if (t.type === 'exercise' && t.tunesOnly && !t.solo) t.tunesOnly = true; // only over a tune's chords (see plan.js)
+  else delete t.tunesOnly;
   if (t.off && !t.focus) t.off = true; // left out of the pool (see plan.js itemStatus)
   else delete t.off;
   t.ivl = num(t.ivl, 0, 3650);

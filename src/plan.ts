@@ -67,10 +67,13 @@ export function chooseKey(t: Tune, stats: Stats): Pick<PlanItem, 'key' | 'alt' |
   return { key: leastPracticed(t.keys, played)[0], alt: false, shift: null };
 }
 
+// An exercise that only goes over a tune's chords (one that takes them from the tune, or is marked
+// so): it comes up as a warm-up or through a tune, never in a key on its own.
+export const onlyWithTunes = (t: Item): boolean => t.type === 'exercise' && (!!t.fromTune || !!t.tunesOnly);
+
 export function pickItem(bucket: Bucket, exclude: Set<Id>, stats: Stats): Item | null {
   for (const b of [bucket, ...BUCKETS[bucket].fallback]) {
-    // (Exercises that take their chords from a tune only come up as warm-ups.)
-    const pool = store.state.items.filter((t) => !t.focus && !t.off && !(t.type === 'exercise' && t.fromTune) && bucketOf(t) === b && !exclude.has(t.id));
+    const pool = store.state.items.filter((t) => !t.focus && !t.off && !onlyWithTunes(t) && bucketOf(t) === b && !exclude.has(t.id));
     const t = weightedPick(pool, (t) => weightFor(t, stats, b));
     if (t) return t;
   }
@@ -113,9 +116,8 @@ function recentGroups(kind: Kind): Map<string, number> {
   }
   return new Map([...days].map(([g, d]) => [g, d.size]));
 }
-// (Exercises that take their chords from a tune only come up as warm-ups.)
 const pickPool = (kind: Kind, exclude: Set<Id>) => store.state.items.filter((t) => t.type === kind && !t.focus && !t.off
-  && !(t.type === 'exercise' && t.fromTune) && !exclude.has(t.id));
+  && !onlyWithTunes(t) && !exclude.has(t.id));
 const inSetOf = (plan: Plan, kind: Kind) => plan.items.filter((i) => !i.warmup && itemById(i.itemId)?.type === kind);
 
 // One more tune or exercise for today's set (plan), not one of `exclude`; null if there are none.
@@ -457,7 +459,7 @@ export function syncFocus(): void {
 // n more focus items of a type, least recently played first.
 function addFocus(plan: Plan, type: Item['type'], n: number, stats: Stats): void {
   const next = store.state.items
-    .filter((t) => t.type === type && t.focus && !(plan.focusSkipped || []).includes(t.id) && !plan.items.some((i) => i.itemId === t.id && !i.warmup))
+    .filter((t) => t.type === type && t.focus && !onlyWithTunes(t) && !(plan.focusSkipped || []).includes(t.id) && !plan.items.some((i) => i.itemId === t.id && !i.warmup))
     .sort((a, b) => (stats.get(a.id)?.last || '').localeCompare(stats.get(b.id)?.last || ''));
   for (const t of next.slice(0, Math.max(0, n))) plan.items.push(makePlanItem(t, stats, 'focus'));
 }

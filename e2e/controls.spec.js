@@ -142,12 +142,17 @@ test('an exercise’s settings: keys per session, level, priority, use with tune
   await ui.setting('priority');
   await page.locator('.sub-panel [data-field="priority"] button').nth(3).click();
   await ui.panelDone();
-  await page.uncheck('#x-tunes');
+  await ui.setting('use');
+  await page.click('.sub-panel [data-field="use"] [data-v="own"]');
+  await ui.panelDone();
   await expect.poll(async () => {
     const x = await ex();
     return [x.keysPerSession, x.level, x.priority, !!x.solo];
   }).toEqual([kps + 1, 1, 4, true]);
-  await page.check('#x-tunes');
+  await expect(page.locator('[data-open="use"] .set-value')).toHaveText('On its own');
+  await ui.setting('use');
+  await page.click('.sub-panel [data-field="use"] [data-v="either"]');
+  await ui.panelDone();
   await expect.poll(async () => !!(await ex()).solo).toBe(false);
   await page.click('#x-log');
   await expect(page.locator('#x-log')).toHaveText(/Played today/);

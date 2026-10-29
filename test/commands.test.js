@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store } from '../src/store.js';
 import { exec, undo, canUndo, invalidateUndo, dataChanged, beginGroup, endGroup, CommandError, command, f, readInput } from '../src/commands/core.js';
-import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, addNote, updateNote, COMMANDS } from '../src/commands/index.js';
+import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, addNote, updateNote, addToToday, COMMANDS } from '../src/commands/index.js';
 import { running, startPractice as startTimer } from '../src/practicetime.js';
 import { buildPlan, ensurePlan } from '../src/plan.js';
 import { freezeToday, tune, setState } from './helpers.js';
+import { normalize } from '../src/store.js';
 
 beforeEach(() => {
   freezeToday();
@@ -146,6 +147,20 @@ describe('commands', () => {
     exec(updateNote, { note: added, lesson: false });
     expect(store.state.diary.find((e) => e.id === added)).not.toHaveProperty('lesson');
     expect(store.state.diary.find((e) => e.id === added)).not.toHaveProperty('lessonMs');
+  });
+
+  it('set how an exercise is used: either, on its own, or only with a tune (not added to today on its own)', () => {
+    store.state.items.push(normalize({ version: 2, items: [{ ...tune({ id: 'x', name: 'Guide tones' }), type: 'exercise', category: 'pattern', keyMode: 'weak', keysPerSession: 2, keys: [], abc: '' }], log: [], settings: {} }).items[0]);
+    const x = store.state.items.find((t) => t.id === 'x');
+    exec(updateItem, { item: 'x', use: 'own' });
+    expect(x).toMatchObject({ solo: true });
+    exec(updateItem, { item: 'x', use: 'tunes' });
+    expect(x).toMatchObject({ tunesOnly: true });
+    expect(x).not.toHaveProperty('solo');
+    expect(() => exec(addToToday, { item: 'x' })).toThrow(/only goes over a tune/);
+    exec(updateItem, { item: 'x', use: 'either' });
+    expect(x).not.toHaveProperty('tunesOnly');
+    expect(x).not.toHaveProperty('solo');
   });
 
   it('say what they did', () => {

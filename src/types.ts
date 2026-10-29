@@ -105,6 +105,9 @@ export interface Exercise extends ItemBase {
   fromTune?: boolean;
   /** Technical, played on its own: not suggested with tunes. */
   solo?: boolean;
+  /** Only makes sense over a tune's chords (guide tones, the changes): only a warm-up, never in a
+   * key on its own (see plan.ts onlyWithTunes). Not with solo. */
+  tunesOnly?: boolean;
   /** The chords it goes with, typed (otherwise read from its notation). */
   harmony?: string;
   /** The key it's written in (see abc.ts homeKey). */

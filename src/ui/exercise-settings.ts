@@ -5,7 +5,7 @@ import { chordsFromText } from '../chords.js';
 import { SHAPES, PATTERN_PAD, typesOf, typeInfo, parsePattern, patternText } from '../theory.js';
 import { rootName } from './exercise.js';
 import { customElement, property, state } from 'lit/decorators.js';
-import { View, html, nothing, raw, segButtons, stepperButtons, settingRows, subPanel, helpParts } from './lit.js';
+import { View, html, nothing, raw, segButtons, stepperButtons, settingRows, subPanel } from './lit.js';
 import type { ExerciseSheet } from './exercise.js';
 import type { Category, KeyMode, Priority, Shape, Vary } from '../types.js';
 
@@ -13,11 +13,18 @@ import type { Category, KeyMode, Priority, Shape, Vary } from '../types.js';
 // with its controls over the sheet (a new exercise's too, as it will be once it's added).
 // Changes go through the sheet (its edit, keysChanged and varyChanged), which shows what follows.
 
-type PanelKey = 'harmony' | 'kind' | 'vary' | 'keys' | 'level' | 'priority';
+type PanelKey = 'harmony' | 'kind' | 'use' | 'vary' | 'keys' | 'level' | 'priority';
 const PANEL_LABELS: Record<PanelKey, string> = {
-  harmony: 'Chords it goes with', kind: 'Kind', vary: 'Each session', keys: 'Keys', level: 'How well you know it', priority: 'Priority',
+  harmony: 'Chords it goes with', kind: 'Kind', use: 'Use', vary: 'Each session', keys: 'Keys', level: 'How well you know it', priority: 'Priority',
 };
-const TUNES_HELP = 'As a warm-up before a tune, or through a tune’s form. Off for technical work like long tones or interval drills.';
+// How it's used (see plan.ts onlyWithTunes): its button, its row's value, and what it means.
+type Use = 'either' | 'own' | 'tunes';
+const USES: Record<Use, { label: string; hint: string }> = {
+  either: { label: 'Either', hint: 'In the day’s exercises, in a key on its own; and with tunes, as a warm-up before one or through its form.' },
+  own: { label: 'On its own', hint: 'Technical work, like long tones or interval drills: in the day’s exercises, never with a tune.' },
+  tunes: { label: 'With a tune', hint: 'Only makes sense over a tune’s chords (guide tones, the changes): it comes up as a warm-up or through a tune, never in a key on its own.' },
+};
+const useOf = (t: { solo?: boolean; tunesOnly?: boolean }): Use => (t.solo ? 'own' : t.tunesOnly ? 'tunes' : 'either');
 
 const patternHint = (kind: Vary['kind']) => (kind === 'chord'
   ? 'Numbers are chord tones: 1 3 5 7, and 8 10 12 14 an octave up. Tap numbers to change the pattern.'
@@ -42,7 +49,8 @@ export class ExerciseSettings extends View {
     const t = this.t;
     if (k === 'harmony') return !t.vary && !t.fromTune;
     if (k === 'vary') return !t.fromTune;
-    if (k === 'keys') return !t.fromTune && t.keyMode !== 'none'; // (No key is a choice in Each session)
+    if (k === 'use') return !t.fromTune; // (one that takes a tune's chords is only ever with a tune)
+    if (k === 'keys') return !t.fromTune && !t.tunesOnly && t.keyMode !== 'none'; // (No key is a choice in Each session; with a tune, its key)
     return true;
   }
   panelValue(k: PanelKey) {
@@ -50,6 +58,7 @@ export class ExerciseSettings extends View {
     switch (k) {
       case 'harmony': return (t.harmony ?? this.sheet.guessed()) || 'None yet';
       case 'kind': return CATEGORIES[t.category] || 'Other';
+      case 'use': return USES[useOf(t)].label;
       case 'vary': return t.keyMode === 'none' ? 'No key' : !t.vary ? 'Key only' : `${t.vary.types.map((id) => typeInfo(t.vary!.kind, id)?.short || id).join(' ')} · ${(SHAPES[t.vary.shape]?.label || '').toLowerCase()}`;
       case 'keys': return `${t.keysPerSession} · ${KEY_MODES[t.keyMode].label.toLowerCase()}${t.keyMode === 'fixed' && t.keys.length ? `: ${t.keys.map((k) => rootName(k)).join(' ')}` : ''}`;
       case 'level': return LEVELS[t.level ?? 0].label;
@@ -57,22 +66,20 @@ export class ExerciseSettings extends View {
     }
   }
   render() {
-    const t = this.t;
     const keys = (Object.keys(PANEL_LABELS) as PanelKey[]).filter((k) => this.shown(k));
     const row = (key: PanelKey) => ({ key, label: PANEL_LABELS[key], value: this.panelValue(key) });
-    const help = helpParts('x-tunes-help', TUNES_HELP);
-    return html`${settingRows([
-      ...keys.slice(0, 2).map(row),
-      !t.fromTune && { content: html`<label class="as-written use-tunes"><span>Use with tunes${help.btn}</span><input type="checkbox" id="x-tunes" .checked=${!t.solo}
-        @change=${(e: Event) => this.sheet.edit({ use_with_tunes: (e.target as HTMLInputElement).checked })}></label>` },
-      ...keys.slice(2).map(row),
-    ], (k) => (this.panel = k as PanelKey))}${t.fromTune ? nothing : help.text}
+    return html`${settingRows(keys.map(row), (k) => (this.panel = k as PanelKey))}
     ${this.panel ? subPanel(PANEL_LABELS[this.panel], this.panelBody(this.panel), () => (this.panel = null)) : nothing}`;
   }
   panelBody(k: PanelKey) {
     const t = this.t;
     switch (k) {
       case 'harmony': return this.harmonyBody();
+      case 'use': {
+        const use = useOf(t);
+        return html`<div class="seg" data-field="use">${segButtons((Object.keys(USES) as Use[]).map((u) => [u, USES[u].label] as const), use, (v) => this.sheet.edit({ use: v }))}</div>
+          <p class="fine" id="x-use-hint">${USES[use].hint}</p>`;
+      }
       case 'kind': return html`<div class="chips wrap" id="x-cat">${(Object.entries(CATEGORIES) as [Category, string][]).map(([c, l]) => html`<button class="chip ${t.category === c ? 'on' : ''}" data-cat=${c} @click=${() => this.sheet.edit({ category: c })}>${l}</button>`)}</div>`;
       case 'vary': return this.varyBody();
       case 'keys': return this.keysBody();

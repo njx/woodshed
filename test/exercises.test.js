@@ -105,6 +105,16 @@ describe('exercises in the daily set', () => {
     expect(doubled).toBeLessThan(18); // (about 22 if picked from all twelve alike)
   });
 
+  it('one that only goes with a tune never comes up in a key on its own (even as a focus one)', () => {
+    const over = exercise({ name: 'Guide tones', tunesOnly: true, focus: true });
+    const items = [over, exercise(), exercise()];
+    for (let n = 0; n < 20; n++) {
+      setState(items, { settings: { exercises: 3, tunes: 0 } });
+      buildPlan();
+      expect(store.state.plan.items.map((i) => i.itemId)).not.toContain(over.id);
+    }
+  });
+
   it('logs every key practiced', () => {
     const x = exercise();
     setState([x]);

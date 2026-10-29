@@ -113,11 +113,12 @@ export function subPanel(title: string, body: unknown, done: () => void) {
 
 // At the top of a tune's or exercise's details: Focus / On / Off, and a ⋯ menu for the rest. What
 // Focus or Off means shows under it (On is the usual, and says nothing).
-// Under it, in a details sheet: that it's in today's set (inSet: how), or a button to add it.
-export function todayPart(inSet: string | null, add: () => void) {
+// Under it, in a details sheet: that it's in today's set (inSet: how), or a button to add it
+// (label: for one added another way, like an exercise that only goes with a tune).
+export function todayPart(inSet: string | null, add: () => void, label = 'Add to today’s set') {
   return inSet != null
     ? html`<p class="in-today">${unsafeHTML(ICON.check)}${inSet}</p>`
-    : html`<button class="pill-btn add-today" id="add-today" @click=${add}>${unsafeHTML(ICON.plus)}<span>Add to today’s set</span></button>`;
+    : html`<button class="pill-btn add-today" id="add-today" @click=${add}>${unsafeHTML(ICON.plus)}<span>${label}</span></button>`;
 }
 type Status = ReturnType<typeof itemStatus>;
 export function statusControl(t: Item, status: Status, set: (s: Status) => void, menu: (anchor: HTMLElement) => void) {
