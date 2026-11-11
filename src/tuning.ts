@@ -1,14 +1,13 @@
 import { store } from './store.js';
 import { openMic } from './media.js';
-import { detectPitch, noteOf } from './pitch.js';
+import { detectPitch, noteOf, PitchTrace } from './pitch.js';
 import { acquireAudio, onAudioReset, matchSampleRate, type Audio } from './audio.js';
 import { keepAwake } from './keepawake.js';
 
 export interface TunerState { running: boolean; error: boolean; mini: boolean }
 /** A reading: the nearest note (concert MIDI), how far off (cents), the frequency, and when (performance.now()). */
 export interface TunerReading { midi: number; cents: number; hz: number; at: number }
-/** A point of the trace: when, and the note and cents (both null: no note). */
-export interface TracePoint { t: number; cents: number | null; midi: number | null }
+export type { TracePoint } from './pitch.js';
 
 // The tuner's listening, apart from how it's shown: the full tuner (ui/tuner.js) and the mini one
 // that stays on screen while you go through today's set both read from here. It listens until
@@ -28,7 +27,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let releaseAwake: (() => void) | null = null;
 let gen = 0; // each start; a mic request that answers after a stop (or a restart) is let go
 let last: TunerReading | null = null; // { midi, cents, hz, at } (at: performance.now())
-const trace: TracePoint[] = []; // { t, cents, midi } (cents null = no note)
+const trace = new PitchTrace(TRACE_SECONDS); // (its clock runs only while a note sounds)
 
 export const tuner = {
   get state(): TunerState { return { ...st }; },
@@ -140,7 +139,7 @@ function teardown() {
   releaseAwake?.();
   releaseAwake = null;
   last = null;
-  trace.length = 0;
+  trace.clear();
 }
 
 function detect() {
@@ -154,9 +153,8 @@ function detect() {
     // Smooth out jitter: average with the previous reading of the same note.
     const cents = last && last.midi === n.midi && now - last.at < 200 ? last.cents * 0.6 + n.cents * 0.4 : n.cents;
     last = { midi: n.midi, cents, hz: p.hz, at: now };
-    trace.push({ t: now, cents, midi: n.midi });
+    trace.add(now, { midi: n.midi, cents });
   } else {
-    trace.push({ t: now, cents: null, midi: null });
+    trace.add(now, null);
   }
-  while (trace.length && now - trace[0].t > TRACE_SECONDS * 1000) trace.shift();
 }

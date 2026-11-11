@@ -10,7 +10,7 @@ import { normalize } from '../src/store.js';
 beforeEach(() => {
   freezeToday();
   setState([tune({ id: 'a', name: 'Solar', keys: [12], level: 1 }), tune({ id: 'b', name: 'Stella', keys: [10], level: 2 })], {
-    settings: { instruments: ['bb', 'c'], view: 'bb', tunes: 2, exercises: 0 },
+    settings: { instruments: ['tenor', 'c'], view: 'tenor', tunes: 2, exercises: 0 },
   });
   buildPlan();
   invalidateUndo();

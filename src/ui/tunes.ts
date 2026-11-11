@@ -119,8 +119,8 @@ export class LibraryView extends View {
       <div class="chips" role="tablist">${filters.map((x) => html`<button class="chip ${filter === x.id ? 'on' : ''}" data-f=${x.id} @click=${() => show(() => { ui[filterKey] = x.id; })}>${x.label}${x.id === 'focus' ? focusCount : nothing}</button>`)}</div>
       <div class="list-head">
         <span id="count">${list.length === items.length ? '' : `${list.length} shown`}</span>
-        <button class="transpose ${multi ? '' : 'solo'}" id="transpose" aria-label="Keys shown for ${view.label} instruments${multi ? '. Tap to switch' : ''}" @click=${switchView}>
-          <span>Keys in</span><b>${view.label}</b>${multi ? raw(ICON.swap) : nothing}</button>
+        <button class="transpose ${multi ? '' : 'solo'}" id="transpose" aria-label="Keys shown for ${view.label}${multi ? '. Tap to switch' : ''}" @click=${switchView}>
+          <span>Keys in</span><b>${store.state.settings.view === 'c' ? 'Concert' : view.key}</b>${multi ? raw(ICON.swap) : nothing}</button>
         <label class="sort"><span class="sr">Sort</span>
           <select id="sort" @change=${(e: Event) => show(() => { ui.sort = (e.target as HTMLSelectElement).value; })}>${Object.entries(SORTS).map(([k, v]) => html`<option value=${k} ?selected=${ui.sort === k}>${v.label}</option>`)}</select>
         </label>

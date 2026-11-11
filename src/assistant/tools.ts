@@ -123,7 +123,7 @@ export function appSnapshot(): string {
   const plan = planSummary();
   const tunes = store.state.items.filter((t) => t.type === 'tune');
   return [
-    `Today is ${today}. Keys are shown for ${TRANSPOSITIONS[s.view].label} instruments (${s.instruments.map((i) => TRANSPOSITIONS[i].label).join(' and ')} enabled).`,
+    `Today is ${today}. Keys and notes are shown as written for ${s.view === 'c' ? 'concert pitch' : `${TRANSPOSITIONS[s.view].label.toLowerCase()} (a ${TRANSPOSITIONS[s.view].key} instrument)`}; the instruments they play: ${s.instruments.map((i) => TRANSPOSITIONS[i].label).join(', ')}.`,
     `Library: ${tunes.length} tunes (${tunes.filter((t) => isDue(t, stats)).length} due for review), ${store.state.items.length - tunes.length} exercises.`,
     `Today's set: ${plan.map((p) => `${p.name}${p.played ? ' (played)' : ''}`).join('; ') || 'empty'}.`,
     `Open to-dos: ${openTodos().length}.`,

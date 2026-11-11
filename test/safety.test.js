@@ -70,7 +70,7 @@ describe('checking imported data', () => {
       log: [{ id: 'e1', itemId: 'ok1', rating: 'solid' }, { id: 'e2', date: '2026-10-01', itemId: 'ok1', rating: evil, bpm: '9"' }],
       diary: [{ id: evil, date: '2026-10-01', text: 'hi', flag: evil, itemId: 'nope', media: [{ id: evil }, { id: 'c1', kind: evil }] }],
       plan: { date: '2026-10-01', items: [{ itemId: 'ok1', bucket: evil }, { itemId: 'gone' }] },
-      settings: { view: evil, instruments: [evil, 'bb'], exercises: 'lots' },
+      settings: { view: evil, instruments: [evil, 'tenor'], exercises: 'lots' },
     });
     const [ex, t] = s.items;
     expect(ex.id).toMatch(/^[\w-]+$/);
@@ -81,7 +81,7 @@ describe('checking imported data', () => {
     expect(s.diary[0].id).toMatch(/^[\w-]+$/);
     expect(s.diary[0]).toMatchObject({ flag: null, itemId: null, media: [{ id: 'c1', kind: 'audio' }] });
     expect(s.plan.items).toEqual([expect.objectContaining({ itemId: 'ok1', bucket: 'learn' })]);
-    expect(s.settings).toMatchObject({ instruments: ['bb'], view: 'bb', exercises: 2 });
+    expect(s.settings).toMatchObject({ instruments: ['tenor'], view: 'tenor', exercises: 2 });
   });
 
   it('doesn’t take names every object has (like "constructor") for scale types, shapes or instruments', () => {
@@ -92,11 +92,11 @@ describe('checking imported data', () => {
         { id: 'x2', type: 'exercise', name: 'B', vary: { kind: 'scale', types: ['toString', 'major'], shape: 'constructor' } },
       ],
       log: [],
-      settings: { instruments: ['toString', 'bb'] },
+      settings: { instruments: ['toString', 'tenor'] },
     });
     expect(s.items[0].vary).toBeNull();
     expect(s.items[1].vary).toMatchObject({ kind: 'scale', types: ['major'], shape: 'updown' });
-    expect(s.settings.instruments).toEqual(['bb']);
+    expect(s.settings.instruments).toEqual(['tenor']);
   });
 
   it('leaves good data as it is', () => {

@@ -31,12 +31,22 @@ export const SHIFTS: Record<number, string> = {
   5: 'up a 4th', 6: 'a tritone away', 7: 'down a 4th', 8: 'down a major 3rd',
   9: 'down a minor 3rd', 10: 'down a whole step', 11: 'down a half step',
 };
+// The instruments keys and notes can be shown for: each one's key (as its name says: a B♭
+// instrument), offset (how many half steps above concert its keys are written, as a pitch class)
+// and written (how far above concert its notes are written, octaves and all: a tenor sax reads a
+// 9th above, a soprano a step above). Keys only need the offset; octaves need written.
 export const TRANSPOSITIONS = {
-  c: { label: 'Concert', offset: 0, hint: 'Piano, guitar, bass, flute, vocals' },
-  bb: { label: 'B♭', offset: 2, hint: 'Tenor & soprano sax, trumpet, clarinet' },
-  eb: { label: 'E♭', offset: 9, hint: 'Alto & baritone sax' },
-  f: { label: 'F', offset: 7, hint: 'French horn' },
+  c: { label: 'Concert', key: 'C', offset: 0, written: 0, hint: 'Piano, guitar, bass, flute, trombone, vocals' },
+  soprano: { label: 'Soprano sax', key: 'B♭', offset: 2, written: 2, hint: 'B♭' },
+  tenor: { label: 'Tenor sax', key: 'B♭', offset: 2, written: 14, hint: 'B♭, an octave below a soprano' },
+  trumpet: { label: 'Trumpet', key: 'B♭', offset: 2, written: 2, hint: 'B♭ (and flugelhorn, cornet)' },
+  clarinet: { label: 'Clarinet', key: 'B♭', offset: 2, written: 2, hint: 'B♭' },
+  alto: { label: 'Alto sax', key: 'E♭', offset: 9, written: 9, hint: 'E♭' },
+  bari: { label: 'Baritone sax', key: 'E♭', offset: 9, written: 21, hint: 'E♭, an octave below an alto' },
+  horn: { label: 'French horn', key: 'F', offset: 7, written: 7, hint: 'F' },
 };
+// What earlier versions saved (by key, not instrument): the likeliest instrument for each.
+export const LEGACY_INSTRUMENTS: Record<string, keyof typeof TRANSPOSITIONS> = { bb: 'tenor', eb: 'alto', f: 'horn' };
 
 // Spaced repetition: starting and maximum review interval (days) per familiarity level.
 export const BASE_INTERVAL: Record<Level, number> = { 0: 1, 1: 2, 2: 4, 3: 7 };

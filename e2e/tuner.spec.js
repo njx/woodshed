@@ -2,22 +2,22 @@ import { test, expect } from './app.js';
 
 // The fake microphone plays concert B♭3 8 cents sharp, then a D4 sagging from in tune to 25 cents
 // flat (see tone.js).
-test('the tuner names notes as written and follows the pitch @narrow', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+test('the tuner names notes as written for the instrument, octave and all, and follows the pitch @narrow', async ({ page, ui }) => {
+  await ui.start({ instruments: ['tenor'] });
   await page.click('#today-tuner');
-  await expect(page.locator('.sheet .eyebrow')).toContainText('B♭ instrument');
+  await expect(page.locator('.sheet .eyebrow')).toContainText('Tenor sax');
 
   const seen = new Set();
   for (let i = 0; i < 45; i++) {
-    seen.add(`${await page.locator('#t-note').innerText()} | ${await page.locator('#t-cents').textContent()}`.replace(/\s+/g, ' '));
+    seen.add(`${await page.locator('#t-note .t-name').textContent()} ${await page.locator('#t-note small').textContent()} | ${await page.locator('#t-cents').textContent()}`.replace(/\s+/g, ' '));
     await page.waitForTimeout(150);
   }
   const readings = [...seen];
-  // B♭ concert is a written C on a B♭ instrument; 8 cents sharp (±2).
-  expect(readings.some((r) => /^C concert B♭3 \| \+([6-9]|10) cents sharp$/.test(r))).toBe(true);
-  // D concert is a written E; it starts in tune and goes flat.
-  expect(readings.some((r) => /^E concert D4 \| In tune$/.test(r))).toBe(true);
-  expect(readings.some((r) => /^E concert D4 \| −(1[5-9]|2\d) cents flat$/.test(r))).toBe(true);
+  // B♭3 concert is a written C5 on a tenor sax (a 9th above); 8 cents sharp (±2).
+  expect(readings.some((r) => /^C5 concert B♭3 \| \+([6-9]|10) cents sharp$/.test(r))).toBe(true);
+  // D4 concert is a written E5; it starts in tune and goes flat.
+  expect(readings.some((r) => /^E5 concert D4 \| In tune$/.test(r))).toBe(true);
+  expect(readings.some((r) => /^E5 concert D4 \| −(1[5-9]|2\d) cents flat$/.test(r))).toBe(true);
   await ui.expectNoSideScroll();
 
   // Reference pitch is adjustable and remembered.
@@ -34,7 +34,7 @@ test('concert view shows octaves', async ({ page, ui }) => {
 });
 
 test('the mini tuner: its circle on Today shows the note; a pill elsewhere; × stops it @narrow', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await page.click('#today-tuner');
   await page.click('#t-mini');
   await expect(page.locator('.sheet')).toHaveCount(0);
@@ -84,7 +84,7 @@ test('the metronome’s circle shows the tempo while it runs', async ({ page, ui
 });
 
 test('the tuner circle shows sharp (an arc on top) and flat (underneath)', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await page.click('#today-tuner');
   await page.click('#t-mini');
   const circle = page.locator('#today-tuner');

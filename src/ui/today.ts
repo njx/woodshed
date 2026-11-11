@@ -100,8 +100,8 @@ function toolsHtml() {
   const s = store.state.settings;
   const multi = s.instruments.length > 1;
   return html`<div class="hd-tools" role="toolbar" aria-label="Tools">
-    ${multi ? html`<button class="hd-tool" id="transpose" aria-label="Keys in ${TRANSPOSITIONS[s.view].label}. Tap to switch" @click=${switchView}>
-      <span class="hd-icon hd-key">${s.view === 'c' ? 'C' : TRANSPOSITIONS[s.view].label}</span></button>` : nothing}
+    ${multi ? html`<button class="hd-tool" id="transpose" aria-label="Keys for ${TRANSPOSITIONS[s.view].label}. Tap to switch" @click=${switchView}>
+      <span class="hd-icon hd-key">${TRANSPOSITIONS[s.view].key}</span></button>` : nothing}
     ${tool('today-ask', ICON.ask, 'Ask the assistant', () => openAssistant())}
     ${tool('today-note', ICON.note, 'New note', () => openNote(null))}
     ${canRecord() ? tool('today-rec', ICON.rec, 'Record', () => openRecorder()) : nothing}
@@ -365,9 +365,9 @@ function welcome() {
   return html`
     <div class="welcome">
       <h2>What do you play?</h2>
-      <p>Keys will be shown for your instrument. Pick more than one to switch between them.</p>
+      <p>Keys and notes will be shown as written for your instrument. Pick more than one to switch between them.</p>
       <div class="chips">${(Object.entries(TRANSPOSITIONS) as [Transposition, (typeof TRANSPOSITIONS)[Transposition]][]).map(([id, tr]) => html`<button class="chip ${s.instruments.includes(id) ? 'on' : ''}" data-ins=${id} @click=${() => pick(id)}>${tr.label}</button>`)}</div>
-      <p>${Object.values(TRANSPOSITIONS).map((tr, i) => html`${i ? html`<br>` : nothing}<b>${tr.label}</b>: ${tr.hint}`)}</p>
+      <p><b>Concert</b>: ${TRANSPOSITIONS.c.hint}.</p>
       <button class="primary-btn" id="ins-done" @click=${() => { s.instrumentsChosen = true; greeted(); render(); window.scrollTo(0, 0); }}>Done</button>
     </div>`;
 }

@@ -28,10 +28,10 @@ describe('notation', () => {
 
   it('shifts written-in-C notation up into the key, for the instrument', () => {
     expect(writtenShift(3, 'c')).toBe(3); // concert E♭
-    expect(writtenShift(3, 'bb')).toBe(5); // E♭ concert = F on tenor
-    expect(writtenShift(3, 'eb')).toBe(0); // E♭ concert = C on alto
-    expect(writtenShift(10, 'bb')).toBe(0);
-    expect(soundingShift('bb')).toBe(-2);
+    expect(writtenShift(3, 'tenor')).toBe(5); // E♭ concert = F on tenor
+    expect(writtenShift(3, 'alto')).toBe(0); // E♭ concert = C on alto
+    expect(writtenShift(10, 'tenor')).toBe(0);
+    expect(soundingShift('tenor')).toBe(-2);
   });
 });
 

@@ -76,7 +76,7 @@ describe('names and keys', () => {
     const c = chart('Autumn Leaves'); // G minor
     expect(chartShift(c, 19, 'c')).toBe(0);
     expect(chartShift(c, 16, 'c')).toBe(9); // E minor: up a 6th (or down a 3rd)
-    expect(chartShift(c, 19, 'bb')).toBe(2); // written a step up on a B♭ instrument
+    expect(chartShift(c, 19, 'tenor')).toBe(2); // written a step up on a B♭ instrument
   });
 });
 
@@ -170,9 +170,9 @@ describe('progressions', async () => {
 
 describe('a warm-up’s chord, for the instrument shown', () => {
   it('is named in written pitch, like the keys beside it; roman numerals stay as they are', () => {
-    expect(overName('Fmaj7', 'bb')).toBe('Gmaj7');
-    expect(overName('ii–V–I', 'bb')).toBe('ii–V–I');
-    expect(overName('Cm7', 'eb')).toBe('Am7');
+    expect(overName('Fmaj7', 'tenor')).toBe('Gmaj7');
+    expect(overName('ii–V–I', 'tenor')).toBe('ii–V–I');
+    expect(overName('Cm7', 'alto')).toBe('Am7');
     expect(overName('Gbmaj7')).toBe('G♭maj7'); // (G♭: flats, as the key is named)
   });
 });

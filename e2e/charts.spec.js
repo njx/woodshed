@@ -8,7 +8,7 @@ async function openTune(page, ui, name) {
 }
 
 test('a tune shows its chords, written for the instrument, in any key @narrow', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await openTune(page, ui, 'Autumn Leaves');
   const chart = page.locator('.chart');
   await expect(chart).toBeVisible();

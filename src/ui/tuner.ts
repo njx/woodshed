@@ -1,6 +1,6 @@
 import { store } from '../store.js';
 import { TRANSPOSITIONS } from '../constants.js';
-import { concertName, writtenName } from '../pitch.js';
+import { concertName, writtenName, writtenNote } from '../pitch.js';
 import { tuner, TRACE_SECONDS } from '../tuning.js';
 import { ICON, closeSheet, perform } from './shell.js';
 import * as cmd from '../commands/index.js';
@@ -8,9 +8,9 @@ import { customElement, state } from 'lit/decorators.js';
 import { View, html, svg, raw, openSheetView, type TemplateResult } from './lit.js';
 import type { TracePoint } from '../tuning.js';
 
-// Tuner: a dial for the note you're playing now, and a trace of the last few seconds underneath
-// (handy for long tones: you can see the pitch sag at the end of a breath).
-// Notes are named as written for the transposition being viewed.
+// Tuner: a dial for the note you're playing now, and a trace of the last few seconds of sound
+// underneath (handy for long tones: you can see the pitch sag at the end of a breath). It stands
+// still in a silence. Notes are named as written for the instrument being viewed, with its octave.
 
 const IN_TUNE = 5; // cents either side that count as in tune
 const HOLD_MS = 600; // keep showing the last note this long after the sound stops
@@ -50,7 +50,7 @@ export class TunerSheet extends View {
         if (!this.error) this.read(now);
       }
       this.drawNeedle();
-      this.drawTrace(now);
+      this.drawTrace();
     };
     this.raf = requestAnimationFrame(loop);
   }
@@ -75,7 +75,7 @@ export class TunerSheet extends View {
     const view = store.state.settings.view;
     const r = this.reading;
     return html`
-      <div class="row-label tuner-head"><p class="eyebrow">Tuner${view !== 'c' ? ` · ${TRANSPOSITIONS[view].label} instrument` : ''}</p>
+      <div class="row-label tuner-head"><p class="eyebrow">Tuner${view !== 'c' ? ` · ${TRANSPOSITIONS[view].label}` : ''}</p>
         <button class="link-btn" id="t-mini" @click=${() => this.toMini()}>${raw(ICON.tuner)}Mini tuner</button></div>
       <div class="tuner-dial ${r ? 'live' : ''} ${r?.good ? 'good' : ''} ${r?.near ? 'near' : ''}" id="t-dial">
         <svg viewBox="-100 -100 200 200" aria-hidden="true">
@@ -88,7 +88,7 @@ export class TunerSheet extends View {
           <span id="t-cents">${this.error ? 'No microphone' : r ? r.cents : this.heard ? '' : 'Play a note'}</span>
         </div>
       </div>
-      <canvas class="tuner-trace" id="t-trace" aria-label="Pitch over the last ${TRACE_SECONDS} seconds"></canvas>
+      <canvas class="tuner-trace" id="t-trace" aria-label="Pitch over the last ${TRACE_SECONDS} seconds of sound"></canvas>
       <div class="tuner-foot">
         <span id="t-hz" class="fine">${r ? r.hz : ''}</span>
         <div class="t-a4">
@@ -98,7 +98,7 @@ export class TunerSheet extends View {
         </div>
       </div>
       <p class="fine" id="t-msg">${this.error ? 'The tuner needs the microphone. Allow it in your browser’s settings and try again.'
-        : view !== 'c' ? `Notes are shown as written for ${TRANSPOSITIONS[view].label}, with concert pitch underneath.` : ''}</p>
+        : view !== 'c' ? `Notes are shown as written for ${TRANSPOSITIONS[view].label.toLowerCase()}, with concert pitch underneath.` : ''}</p>
     `;
   }
 
@@ -109,9 +109,9 @@ export class TunerSheet extends View {
     const view = store.state.settings.view;
     const c = Math.round(last.cents);
     this.reading = {
-      note: view === 'c'
-        ? html`${writtenName(last.midi)}<sub>${Math.floor(last.midi / 12) - 1}</sub>`
-        : html`${writtenName(last.midi, view)}<small>concert ${concertName(last.midi)}</small>`,
+      // The note and its octave as written (for a transposing instrument, with concert pitch under it).
+      note: html`<span class="t-name">${writtenName(last.midi, view)}<sub>${writtenNote(last.midi, view).slice(writtenName(last.midi, view).length)}</sub></span>${
+        view === 'c' ? '' : html`<small>concert ${concertName(last.midi)}</small>`}`,
       cents: Math.abs(c) <= IN_TUNE ? 'In tune' : `${c > 0 ? '+' : '−'}${Math.abs(c)} cents ${c > 0 ? 'sharp' : 'flat'}`,
       hz: `${last.hz.toFixed(1)} Hz`,
       good: Math.abs(last.cents) <= IN_TUNE,
@@ -129,8 +129,9 @@ export class TunerSheet extends View {
     needle.setAttribute('transform', `rotate(${this.shown.toFixed(2)})`);
   }
 
-  // The trace: newest on the right, in tune along the middle, ±50 cents top to bottom.
-  drawTrace(now: number) {
+  // The trace: newest on the right, in tune along the middle, ±50 cents top to bottom. (Its clock
+  // runs only while there's sound: see PitchTrace.)
+  drawTrace() {
     const canvas = this.querySelector<HTMLCanvasElement>('#t-trace');
     if (!canvas) return;
     const g = canvas.getContext('2d')!; // (a 2d context is always there for a canvas)
@@ -142,6 +143,7 @@ export class TunerSheet extends View {
     g.clearRect(0, 0, w, h);
     const css = getComputedStyle(canvas);
     const y = (c: number) => h / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (h / 2 - 6);
+    const now = tuner.trace.now;
     const x = (t: number) => w - ((now - t) / (TRACE_SECONDS * 1000)) * w;
     // In-tune band and centre line.
     g.fillStyle = css.getPropertyValue('--t-band');
@@ -154,11 +156,11 @@ export class TunerSheet extends View {
     g.lineJoin = 'round';
     g.font = '600 12px system-ui, sans-serif';
     let prev: TracePoint | null = null; // (only ever a point with a note: cents and midi set)
-    for (const p of tuner.trace) {
+    for (const p of tuner.trace.points) {
       if (p.cents == null) { prev = null; continue; } // (midi is null just when cents is)
       if (!prev || prev.midi !== p.midi) {
         g.fillStyle = css.getPropertyValue('--t-label');
-        g.fillText(view === 'c' ? concertName(p.midi!) : writtenName(p.midi!, view), Math.max(2, x(p.t) + 3), 14);
+        g.fillText(writtenNote(p.midi!, view), Math.max(2, x(p.t) + 3), 14);
         prev = null;
       }
       if (prev) {

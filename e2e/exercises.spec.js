@@ -1,7 +1,7 @@
 import { test, expect } from './app.js';
 
 test('an exercise shows notation in today’s keys and plays', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.locator('#tune-list .row', { hasText: 'Major scale' }).click();
@@ -87,7 +87,7 @@ test('delete an exercise from its details, and undo', async ({ page, ui }) => {
 
 test('notation is one bar per line, black on white even in dark mode @narrow', async ({ page, ui }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await ui.tab('tunes');
   await page.click('[data-lib="exercises"]');
   await page.locator('#tune-list .row', { hasText: 'Scales: major and minors' }).click();

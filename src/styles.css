@@ -883,7 +883,7 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .tuner-dial.good .t-needle circle, .tuner-dial.good .t-needle line { fill: var(--good); stroke: var(--good); }
 .t-readout { position: absolute; left: 0; right: 0; top: 34%; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .t-readout b { font-family: var(--serif); font-size: 52px; line-height: 1; color: var(--ink); display: flex; flex-direction: column; align-items: center; }
-.t-readout b sub { font-size: 20px; vertical-align: baseline; position: relative; top: -2px; }
+.t-readout b sub { font-size: 20px; vertical-align: baseline; position: relative; top: -2px; margin-left: 1px; }
 .t-readout b small { font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink-3); margin-top: 4px; }
 .tuner-dial:not(.live) .t-readout b { opacity: .35; }
 .t-readout span { font-size: 14px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }

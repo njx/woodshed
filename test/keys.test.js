@@ -15,15 +15,15 @@ describe('keys', () => {
   it('names keys for each transposition', () => {
     const eb = parseKey('Eb');
     expect(keyName(eb, 'c')).toBe('E♭');
-    expect(keyName(eb, 'bb')).toBe('F'); // tenor reads a whole step up
-    expect(keyName(eb, 'eb')).toBe('C'); // alto reads a major 6th up
-    expect(keyName(eb, 'f')).toBe('B♭');
-    expect(keyName(parseKey('Cm'), 'bb')).toBe('Dm');
+    expect(keyName(eb, 'tenor')).toBe('F'); // tenor reads a whole step up
+    expect(keyName(eb, 'alto')).toBe('C'); // alto reads a major 6th up
+    expect(keyName(eb, 'horn')).toBe('B♭');
+    expect(keyName(parseKey('Cm'), 'tenor')).toBe('Dm');
   });
 
   it('maps written roots back to concert', () => {
-    expect(writtenToConcert(5, 'bb')).toBe(3); // written F on tenor = concert E♭
-    expect(writtenToConcert(0, 'eb')).toBe(3); // written C on alto = concert E♭
+    expect(writtenToConcert(5, 'tenor')).toBe(3); // written F on tenor = concert E♭
+    expect(writtenToConcert(0, 'alto')).toBe(3); // written C on alto = concert E♭
   });
 });
 

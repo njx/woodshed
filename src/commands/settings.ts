@@ -45,7 +45,7 @@ export const changeSettings = command<SettingsInput>({
     exercise_focus: f.opt(f.oneOf(['own', 'day'] as const, 'own: each exercise picks its own keys; day: a key or two of the day for every exercise that picks by weak keys or at random')),
     priority: f.opt(f.oneOf(['off', 'some', 'strong'] as const, 'How much priority matters when picking tunes that are due')),
     new_keys: f.opt(f.oneOf(['mastered', 'proficient', 'never'] as const, 'Which tunes get suggested in keys other than their usual ones')),
-    instruments: f.opt(f.list(f.oneOf(ids(TRANSPOSITIONS)), `The instruments they play, for the keys shown: ${Object.entries(TRANSPOSITIONS).map(([k, x]) => `${k} (${x.label}: ${x.hint})`).join('; ')}`)),
+    instruments: f.opt(f.list(f.oneOf(ids(TRANSPOSITIONS)), `The instruments they play, for the keys shown: ${Object.entries(TRANSPOSITIONS).map(([k, x]) => `${k} (${x.label}, ${k === 'c' ? 'concert pitch' : `in ${x.key}`})`).join('; ')}`)),
     view: f.opt(f.oneOf(ids(TRANSPOSITIONS), 'Which of their instruments keys are shown for')),
     listen: f.opt(f.oneOf(ids(LISTEN_SERVICES), 'Where recording links open')),
     sound: f.opt(f.oneOf(ids(SOUNDS), 'The sound notation plays with')),

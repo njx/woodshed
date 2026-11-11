@@ -20,7 +20,7 @@ export function parseKey(name: string): Key | null {
 export function isMinor(k: Key): boolean {
   return k >= 12;
 }
-// Name of a concert key as written for a transposition ('c', 'bb', 'eb', 'f').
+// Name of a concert key as written for an instrument ('c', 'tenor', 'alto'…: see TRANSPOSITIONS).
 export function keyName(k: Key | null | undefined, view: Transposition = 'c'): string {
   if (k == null) return '';
   const root = ((k % 12) + TRANSPOSITIONS[view].offset) % 12;

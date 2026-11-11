@@ -270,9 +270,11 @@ theirs; new installs get the new ones).
 ## Tuner
 
 Tap **Tuner** on Today. The dial shows the note you're playing and how many cents sharp or flat
-it is (green within 5 cents); underneath, a trace of the last 10 seconds shows how your pitch moves
-— useful for long tones, where it shows the pitch sagging as a breath runs out. Notes are named as
-written for the transposition you're viewing (B♭, E♭, F), with concert pitch underneath. The
+it is (green within 5 cents); underneath, a trace of the last 10 seconds of sound shows how your
+pitch moves — useful for long tones, where it shows the pitch sagging as a breath runs out. The
+trace stands still while nothing's sounding (with a small gap between phrases), so a pause doesn't
+scroll away what you just played. Notes are named as written for the instrument you're viewing,
+octave and all (concert B♭3 is a C5 on tenor sax), with concert pitch underneath. The
 reference pitch (A = 440 Hz) can be changed. Pitch detection uses the YIN algorithm (`src/pitch.ts`),
 which finds the fundamental even when overtones are louder, as they often are on sax. It listens
 with the phone's own mic (or the one picked in the recorder), not earbuds', so with earbuds in the
@@ -350,8 +352,11 @@ which don't cover it. The Anthropic console has the official numbers.
   one key (Autumn Leaves in Gm/Em, Summertime in Am/Dm…) rotate through them. Mastered tunes (or
   Proficient and up, if you choose) are suggested in a *different* key, with less-practiced keys
   coming up first.
-- **Transposition.** Pick the instruments you play (Concert, B♭, E♭, F). Keys are shown for
-  whichever one is active; tap the key circle at the top of Today (or **Keys in …** on Tunes) to switch.
+- **Instruments.** Pick the instruments you play (Concert, soprano, tenor, alto or baritone sax,
+  trumpet, clarinet, French horn). Keys and notes are shown as written for whichever one is active —
+  keys by its key (B♭, E♭, F), and octaves by the instrument (a tenor reads an octave below a
+  soprano); tap the key circle at the top of Today (or **Keys in …** on Tunes) to switch. Data from
+  before instruments were named carries over as tenor sax (B♭), alto sax (E♭) or French horn (F).
 
 ## Diary
 

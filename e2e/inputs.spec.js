@@ -13,7 +13,7 @@ test('text fields and menus are at least 16px everywhere @narrow', async ({ page
   const found = [];
   const check = async (where) => { for (const f of await smallFields(page)) found.push(`${where}: ${f.id} ${f.size}px`); };
 
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await check('today');
   await ui.tab('tunes');
   await check('library');

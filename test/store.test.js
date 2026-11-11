@@ -31,7 +31,7 @@ describe('migration', () => {
     expect(s.log[0]).toMatchObject({ itemId: 'a' });
     expect(s.log[0].tuneId).toBeUndefined();
     expect(s.plan.items[0]).toMatchObject({ itemId: 'a', bucket: 'hone' });
-    expect(s.settings).toMatchObject({ view: 'bb', listen: 'apple', tunes: 4 });
+    expect(s.settings).toMatchObject({ view: 'tenor', instruments: ['tenor', 'c'], listen: 'apple', tunes: 4 }); // (B♭: tenor sax, to start with)
   });
 
   it('v13: the hone / learn / new numbers become a number of tunes (focus ones in it)', () => {

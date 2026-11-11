@@ -69,8 +69,49 @@ export function concertName(midi: number): string {
   return `${MAJOR[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
 }
 
-// The note name as written for a transposing instrument (no octave: a B♭ part could be for
-// soprano or tenor, which are an octave apart).
+// The note name as written for an instrument (no octave).
 export function writtenName(midi: number, view: Transposition = 'c'): string {
   return MAJOR[(((midi + TRANSPOSITIONS[view].offset) % 12) + 12) % 12];
+}
+// …with the octave it's written in for that instrument ("C5" for a concert B♭3 on tenor sax).
+export function writtenNote(midi: number, view: Transposition = 'c'): string {
+  return `${writtenName(midi, view)}${Math.floor((midi + TRANSPOSITIONS[view].written) / 12) - 1}`;
+}
+
+/** A point of the trace: when (on its clock), and the note and cents (both null: a break). */
+export interface TracePoint { t: number; cents: number | null; midi: number | null }
+// The tuner's trace of the last few seconds of pitch. Its clock runs only while a note sounds, so
+// a silence doesn't scroll what you played away: the line breaks there, and after a real pause
+// (not a moment's dropout in a long note) the next note starts a little gap along.
+export class PitchTrace {
+  static GAP_MS = 400; // between phrases
+  static PAUSE_MS = 250; // silent this long: a pause
+  points: TracePoint[] = [];
+  now = 0; // the clock: milliseconds of sound (and gaps)
+  private at: number | null = null; // when (in real time) the last reading came
+  private silentSince: number | null = null;
+  constructor(private seconds = 10) {}
+  add(t: number, reading: { midi: number; cents: number } | null): void {
+    const dt = this.at == null ? 0 : Math.min(t - this.at, 200); // (a stall isn't sound)
+    this.at = t;
+    if (!reading) {
+      if (this.silentSince == null) {
+        this.silentSince = t;
+        if (this.points.length) this.points.push({ t: this.now, cents: null, midi: null });
+      }
+      return;
+    }
+    if (this.silentSince != null) {
+      if (t - this.silentSince >= PitchTrace.PAUSE_MS && this.points.length) this.now += PitchTrace.GAP_MS;
+      else this.now += dt;
+      this.silentSince = null;
+    } else this.now += dt;
+    this.points.push({ t: this.now, cents: reading.cents, midi: reading.midi });
+    while (this.points.length && this.now - this.points[0].t > this.seconds * 1000) this.points.shift();
+  }
+  clear(): void {
+    this.points = [];
+    this.now = 0;
+    this.at = this.silentSince = null;
+  }
 }

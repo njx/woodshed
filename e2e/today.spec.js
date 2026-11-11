@@ -3,7 +3,7 @@ import { test, expect } from './app.js';
 test('first run picks instruments and builds a set @narrow', async ({ page, ui }) => {
   await page.goto('./');
   await expect(page.locator('.welcome')).toBeVisible();
-  await page.click('.welcome .chip[data-ins="bb"]');
+  await page.click('.welcome .chip[data-ins="tenor"]');
   await page.click('#ins-done');
   await expect(page.locator('.welcome')).toHaveCount(0);
   // Two exercises up top, then four tunes (mixed up); no warm-ups till asked for.
@@ -109,7 +109,7 @@ test('focus tunes lead the set; recordings and listening links', async ({ page, 
 });
 
 test('every tab fits the screen @narrow', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   for (const t of ['today', 'tunes', 'diary', 'progress', 'settings']) {
     await ui.tab(t);
     await ui.expectNoSideScroll();
@@ -136,7 +136,7 @@ test('picks up data from the first version of the app', async ({ page }) => {
       tunes: [{ id: 'a', name: 'Solar', style: 'Jazz Standard', priority: 1, level: 2, keys: [12], notes: 'watch the bridge', focus: true, ivl: 4, due: '2026-10-08' }],
       log: [{ id: 'e1', date: '2026-10-04', tuneId: 'a', key: 12, rating: 'solid', prev: {} }],
       plan: null,
-      settings: { instruments: ['bb', 'c'], view: 'bb', instrumentsChosen: true },
+      settings: { instruments: ['tenor', 'c'], view: 'tenor', instrumentsChosen: true },
     }));
   });
   await page.goto('./');

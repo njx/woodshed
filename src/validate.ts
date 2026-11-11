@@ -1,7 +1,7 @@
 import { uid } from './util.js';
 import { VARY, SHAPES, CHORDS } from './theory.js';
 import { SOUNDS, SWING } from './sounds.js';
-import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
+import { LEVELS, BUCKETS, RATINGS, CATEGORIES, KEY_MODES, TRANSPOSITIONS, LEGACY_INSTRUMENTS, LISTEN_SERVICES, DEFAULT_SETTINGS } from './constants.js';
 import type { Chart, DateStr, DiaryEntry, Id, Item, Key, LogEntry, Plan, PracticeSession, Progression, Settings, Shape, State, Vary } from './types.js';
 
 // Makes saved or imported state safe to use: every field the app reads gets the type it expects.
@@ -192,7 +192,10 @@ function plan(p: Raw, ids: Set<Id>): Plan | null {
 function settings(s: Raw): Settings {
   s = { ...DEFAULT_SETTINGS, ...(s && typeof s === 'object' ? s : {}) };
   for (const k of ['exercises', 'tunes'] as const) s[k] = int(s[k], 0, 8) ?? DEFAULT_SETTINGS[k];
-  s.instruments = (Array.isArray(s.instruments) ? s.instruments : []).filter((x: Raw) => has(TRANSPOSITIONS, x));
+  // (B♭, E♭, F, as earlier versions saved them: an instrument in that key, which can be changed.)
+  const legacy = (x: Raw) => (typeof x === 'string' && has(LEGACY_INSTRUMENTS, x) ? LEGACY_INSTRUMENTS[x] : x);
+  s.view = legacy(s.view);
+  s.instruments = [...new Set((Array.isArray(s.instruments) ? s.instruments : []).map(legacy))].filter((x: Raw) => has(TRANSPOSITIONS, x));
   if (!s.instruments.length) s.instruments = ['c'];
   if (!s.instruments.includes(s.view)) s.view = s.instruments[0];
   s.listen = oneOf(s.listen, Object.keys(LISTEN_SERVICES), DEFAULT_SETTINGS.listen);

@@ -10,12 +10,12 @@ test('settings: instruments, the daily mix, tune order, picking, recordings serv
   await ui.start();
   await ui.tab('settings');
   // Instruments: at least one stays on.
-  await page.check('[data-ins="bb"]');
+  await page.check('[data-ins="tenor"]');
   await page.uncheck('[data-ins="c"]');
-  await page.click('[data-ins="bb"]'); // (the last one: stays on)
+  await page.click('[data-ins="tenor"]'); // (the last one: stays on)
   await expect(page.locator('#toast')).toContainText('Pick at least one');
-  await expect(page.locator('[data-ins="bb"]')).toBeChecked();
-  await expect.poll(async () => (await ui.saved()).state.settings.instruments).toEqual(['bb']);
+  await expect(page.locator('[data-ins="tenor"]')).toBeChecked();
+  await expect.poll(async () => (await ui.saved()).state.settings.instruments).toEqual(['tenor']);
   // The daily mix: steppers, then rebuild.
   const before = (await ui.saved()).state.settings;
   await page.locator('.stepper[data-key="exercises"] [data-d="-1"]').click();

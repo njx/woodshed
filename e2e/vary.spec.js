@@ -8,7 +8,7 @@ async function openExercise(page, ui, name) {
 }
 
 test('a scale exercise shows each scale type, and settings change what comes up @narrow', async ({ page, ui }) => {
-  await ui.start({ instruments: ['bb'] });
+  await ui.start({ instruments: ['tenor'] });
   await openExercise(page, ui, 'Scales: major and minors');
   await expect(page.locator('.sheet [data-open="vary"] .set-value')).toContainText('maj dor aeol');
   await expect(page.locator('.type-strip button')).toHaveText(['maj', 'dor', 'aeol', 'harm min', 'mel min', 'dim H/W']);

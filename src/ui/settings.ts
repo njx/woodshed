@@ -128,11 +128,11 @@ export class SettingsView extends View {
       <header class="top"><div><p class="eyebrow">Woodshed</p><h1>Settings</h1></div></header>
 
       <section class="panel">
-        <ws-heading label="Instruments you play" help="Keys are shown for these. With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch."></ws-heading>
+        <ws-heading label="Instruments you play" help="Keys and notes are shown as written for these (a tenor sax reads in B♭, an octave below a soprano). With more than one, tap the key circle (B♭, E♭…) at the top of Today, or <b>Keys in …</b> on Tunes, to switch."></ws-heading>
         <ul class="instruments">${(Object.entries(TRANSPOSITIONS) as [Transposition, (typeof TRANSPOSITIONS)[Transposition]][]).map(([id, tr]) => html`
           <li><label>
             <input type="checkbox" data-ins=${id} .checked=${live(s.instruments.includes(id))} @change=${(e: Event) => this.toggleInstrument(id, (e.target as HTMLInputElement).checked)}>
-            <span class="ins-name">${tr.label}${id === 'c' ? '' : ' instruments'}</span>
+            <span class="ins-name">${tr.label}</span>
             <span class="ins-hint">${tr.hint}</span>
           </label></li>`)}</ul>
       </section>
