@@ -18,7 +18,7 @@ const lessonFields = {
   lesson_minutes: f.opt(f.int('How long the lesson was, in minutes (0: not given)')),
 };
 const minutes = (m: number) => Math.max(0, Math.min(12 * 60, Math.round(m))) * 60000;
-const pastDay = (date: string) => {
+export const pastDay = (date: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new CommandError('A day is written like 2026-10-24.');
   if (date > dateStr()) throw new CommandError('That day hasn’t happened yet.');
   return date as DateStr;

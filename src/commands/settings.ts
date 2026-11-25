@@ -1,11 +1,12 @@
 import { store } from '../store.js';
 import { TRANSPOSITIONS, LISTEN_SERVICES } from '../constants.js';
 import { SOUNDS, SWING } from '../sounds.js';
-import { dateStr } from '../dates.js';
+import { dateStr, parseDate, niceDate } from '../dates.js';
 import { orderPlan, refreshExercises } from '../plan.js';
-import { startPractice as start, endPractice as end, running, practicedMs, fmtDuration } from '../practicetime.js';
+import { startPractice as start, endPractice as end, running, practicedMs, fmtDuration, addSession } from '../practicetime.js';
+import { pastDay } from './diary.js';
 import { command, f, CommandError, type Field } from './core.js';
-import type { Settings, Transposition } from '../types.js';
+import type { PracticeSession, Settings, Transposition } from '../types.js';
 
 // Settings, and the practice timer.
 
@@ -97,5 +98,61 @@ export const endPractice = command<Record<string, never>>({
     if (!end()) throw new CommandError('The practice timer isn’t running.');
     note(`Practice ended · ${fmtDuration(practicedMs())} today`);
     return { minutes_today: Math.round(practicedMs() / 60000) };
+  },
+});
+
+// Editing the timer's sessions: how long one was, taking one out, or time it missed.
+const MAX_MIN = 12 * 60;
+const sessionOf = (id: string): PracticeSession => {
+  const s = (store.state.sessions || []).find((x) => x.id === id);
+  if (!s) throw new CommandError('That practice session isn’t there any more.');
+  if (s.id === store.state.timing) throw new CommandError('That session is still running: end it first.');
+  return s;
+};
+const minutesOf = (m: number) => {
+  if (!(m >= 1 && m <= MAX_MIN)) throw new CommandError(`A session is 1 to ${MAX_MIN} minutes.`);
+  return Math.round(m) * 60000;
+};
+const dayName = (d: string) => (d === dateStr() ? 'today' : niceDate(d, { weekday: 'short', month: 'short', day: 'numeric' }));
+
+export const setSessionMinutes = command<{ session: string; minutes: number }>({
+  name: 'set_session_minutes',
+  description: 'Change how long one of the practice timer\'s sessions was, in minutes (ids from get_practice_sessions). Not one that\'s running.',
+  fields: { session: f.str('The session id'), minutes: f.int('1–720') },
+  undoToast: true,
+  run({ session, minutes }, { note }) {
+    const s = sessionOf(session);
+    s.end = s.start + minutesOf(minutes);
+    delete s.away;
+    note(`Practice session: ${fmtDuration(s.end - s.start)} (${dayName(s.date)})`);
+    return { minutes: Math.round((s.end - s.start) / 60000) };
+  },
+});
+export const removeSession = command<{ session: string }>({
+  name: 'remove_session',
+  description: 'Take one of the practice timer\'s sessions out (one started by mistake). Not one that\'s running.',
+  fields: { session: f.str('The session id') },
+  undoToast: true,
+  run({ session }, { note }) {
+    const s = sessionOf(session);
+    store.state.sessions = store.state.sessions.filter((x) => x !== s);
+    note(`Took out ${fmtDuration(s.end - s.start)} of practice (${dayName(s.date)})`);
+    return { removed: true };
+  },
+});
+export const addPracticeTime = command<{ minutes: number; date?: string }>({
+  name: 'add_practice_time',
+  description: 'Add practice time the timer missed, as a session of so many minutes on a day (today, the default, or earlier).',
+  fields: { minutes: f.int('1–720'), date: f.opt(f.str('The day, like 2026-10-24: today (the default) or earlier')) },
+  undoToast: true,
+  run({ minutes, date }, { note }) {
+    const day = date ? pastDay(date) : dateStr();
+    const ms = minutesOf(minutes);
+    // Today: just before now (or before the running session); an earlier day: from noon.
+    const r = running();
+    const end = day === dateStr() ? Math.min(Date.now(), r?.date === day ? r.start : Infinity) : parseDate(day).getTime() + 12 * 3600000 + ms;
+    addSession(day, end - ms, end);
+    note(`Added ${fmtDuration(ms)} of practice (${dayName(day)})`);
+    return { added_minutes: Math.round(ms / 60000) };
   },
 });

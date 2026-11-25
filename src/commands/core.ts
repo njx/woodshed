@@ -224,7 +224,7 @@ let revs = 0;
 let rev = 0;
 let group: { state: State; rev: number; notes: string[]; ran: number; timing: boolean } | null = null;
 // The commands that change the practice timer (undoing anything else leaves it as it is now).
-const TIMING = new Set(['start_practice', 'end_practice']);
+const TIMING = new Set(['start_practice', 'end_practice', 'set_session_minutes', 'remove_session', 'add_practice_time']); // (undo puts the timer's sessions back too)
 
 const copy = (): State => structuredClone(store.state);
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { store } from '../src/store.js';
 import { exec, undo, canUndo, invalidateUndo, dataChanged, beginGroup, endGroup, CommandError, command, f, readInput } from '../src/commands/core.js';
-import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, addNote, updateNote, addToToday, COMMANDS } from '../src/commands/index.js';
-import { running, startPractice as startTimer } from '../src/practicetime.js';
+import { updateItem, removeFromToday, deleteItem, changeSettings, markPlayed, rateToday, addRecording, removeRecording, startPractice, addNote, updateNote, addToToday, setSessionMinutes, removeSession, addPracticeTime, COMMANDS } from '../src/commands/index.js';
+import { running, startPractice as startTimer, endPractice as endTimer, practicedMs, timeByDay } from '../src/practicetime.js';
 import { buildPlan, ensurePlan } from '../src/plan.js';
 import { freezeToday, tune, setState } from './helpers.js';
 import { normalize } from '../src/store.js';
@@ -161,6 +161,28 @@ describe('commands', () => {
     exec(updateItem, { item: 'x', use: 'either' });
     expect(x).not.toHaveProperty('tunesOnly');
     expect(x).not.toHaveProperty('solo');
+  });
+
+  it('edit practice time: a session’s minutes, taking one out, adding time the timer missed (with Undo)', () => {
+    const MIN = 60000, at = (h, m = 0) => new Date(2026, 9, 6, h, m).getTime();
+    startTimer(at(9));
+    endTimer(at(9, 20));
+    const s = store.state.sessions[0];
+    const a = exec(setSessionMinutes, { session: s.id, minutes: 45 });
+    expect(practicedMs('2026-10-06', at(23))).toBe(45 * MIN);
+    expect(undo(a.undo)).toBe(true); // (the timer's sessions come back with it)
+    expect(practicedMs('2026-10-06', at(23))).toBe(20 * MIN);
+    exec(addPracticeTime, { minutes: 30, date: '2026-10-04' }); // an earlier day
+    expect(timeByDay().get('2026-10-04')).toBe(30 * MIN);
+    expect(() => exec(addPracticeTime, { minutes: 30, date: '2026-10-07' })).toThrow(/hasn’t happened/);
+    exec(addPracticeTime, { minutes: 15 }); // today: ending now
+    expect(practicedMs('2026-10-06', at(23))).toBe(35 * MIN);
+    exec(removeSession, { session: s.id });
+    expect(practicedMs('2026-10-06', at(23))).toBe(15 * MIN);
+    expect(() => exec(removeSession, { session: 'nope' })).toThrow(/isn’t there/);
+    // Not one that's running: end it first.
+    startTimer();
+    expect(() => exec(setSessionMinutes, { session: running().id, minutes: 5 })).toThrow(/running/);
   });
 
   it('say what they did', () => {

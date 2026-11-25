@@ -7,6 +7,7 @@ import { View, mount, html, nothing, pips } from './lit.js';
 import { keyFamiliarity, keySessions } from '../keystats.js';
 import { writtenToConcert } from '../keys.js';
 import { rootName } from './exercise.js';
+import { openPracticeTime } from './timesheet.js';
 import { timeByDay, lessonsByDay, practiceDays, streak as streakDays, fmtDuration } from '../practicetime.js';
 import type { DateStr, Id, Key } from '../types.js';
 
@@ -125,7 +126,7 @@ export class ProgressView extends View {
       <section class="panel">
         <h3 class="section-label">Recent sessions</h3>
         ${byDate.length ? html`<ul class="sessions">${byDate.map((day) => html`
-          <li><span class="sess-date">${dayLong(day)}${timeOn(day) ? html`<small>${timeOn(day)}</small>` : nothing}</span><span>${namesOn(day).join(', ') || html`<i>Nothing marked played</i>`}</span></li>`)}</ul>`
+          <li><button class="sess-row" data-day=${day} aria-label="${dayLong(day)}: practice time" @click=${() => openPracticeTime(day)}><span class="sess-date">${dayLong(day)}${timeOn(day) ? html`<small>${timeOn(day)}</small>` : nothing}</span><span>${namesOn(day).join(', ') || html`<i>Nothing marked played</i>`}</span></button></li>`)}</ul>`
           : html`<p class="empty">Nothing logged yet — play something from Today’s set.</p>`}
       </section>
     `;

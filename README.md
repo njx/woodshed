@@ -185,6 +185,10 @@ in, or **Start again** starts a new session — and if that was a slip, **Add to
 the timer still counts the time between, joining the two into one session. Sessions count toward the
 practice day they started on (which runs until 4am).
 
+Tap the timer's text for the day's **practice time**: its sessions, each with its minutes to change
+(or × to take one out, like one started by mistake), and **Add time** for practice the timer
+missed. Any day in Progress's *Recent sessions* opens the same for that day. Each change has Undo.
+
 Progress shows practice time for the last 7 and 30 days, the average on the days you practiced, and per day in *Recent sessions* and the
 heatmap, with lessons' time (see Diary). A day counts toward the streak and *days practiced* when you
 marked something played, ran the timer five minutes or more, or had a lesson. The assistant sees it

@@ -401,8 +401,9 @@ h1 { margin: 2px 0 0; font: 600 32px/1.1 var(--serif); letter-spacing: -.01em; }
 .lv-bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
 .lv-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .sessions { list-style: none; margin: 0; padding: 0; font-size: 14px; }
-.sessions li { display: grid; grid-template-columns: 7.5em 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
+.sessions li { padding: 8px 0; border-top: 1px solid var(--line); color: var(--ink-2); }
 .sessions li:first-child { border-top: 0; }
+.sess-row { display: grid; grid-template-columns: 7.5em 1fr; gap: 10px; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; } /* (opens the day's practice time) */
 .sess-date { color: var(--ink-3); }
 
 /* ---------- Settings ---------- */
@@ -962,7 +963,17 @@ textarea.mono { font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 /* Practice timer (Today) */
 .ptimer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; margin: 0 0 12px; padding: 6px 6px 6px 14px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; color: var(--ink-2); }
 .ptimer b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.pt-text { flex: 1 1 10em; line-height: 1.4; }
+.pt-text { flex: 1 1 10em; line-height: 1.4; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.pt-go { margin-left: 6px; color: var(--ink-3); }
+/* A day's practice time (ui/timesheet.ts). */
+.pt-sessions { list-style: none; margin: 12px 0 4px; padding: 0; }
+.pt-session { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.pt-session:first-child { border-top: 0; }
+.pt-when { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pt-min { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-3); }
+.pt-min input { width: 64px; height: 40px; padding: 0 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 16px; text-align: center; } /* 16px+ so iOS doesn't zoom */
+.pt-add { flex-wrap: wrap; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; }
+.pt-add > div { flex: 1 1 10em; }
 .pt-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .pt-btns .pill-btn { padding: 0 12px; min-height: 36px; }
 .pt-dot { display: inline-block; vertical-align: 1px; margin-right: 7px; width: 9px; height: 9px; border-radius: 50%; background: var(--good); animation: pt-pulse 2s ease-in-out infinite; }

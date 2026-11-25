@@ -32,6 +32,14 @@ export function startPractice(now = Date.now()) {
   return s;
 }
 
+// A session added by hand (time the timer missed), on a practice day.
+export function addSession(date: DateStr, start: number, end: number): Session {
+  const s: Session = { id: uid(), date, start, end };
+  sessions().push(s);
+  sessions().sort((a, b) => a.start - b.start); // (in order: see awayGap)
+  return s;
+}
+
 export function endPractice(now = Date.now()) {
   const s = running();
   if (!s) return null;

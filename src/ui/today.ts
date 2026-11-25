@@ -14,6 +14,7 @@ import * as cmd from '../commands/index.js';
 import { tuneRow } from './tunes.js';
 import { openItem } from './item.js';
 import { rememberPanel, openNote } from './diary.js';
+import { openPracticeTime } from './timesheet.js';
 import { pickWarmup } from './pickers.js';
 import { openRecorder } from './recorder.js';
 import { exerciseKeysText, exerciseRow, rootName, takeLabel } from './exercise.js';
@@ -311,7 +312,9 @@ export class Timer extends View {
   }
   render() {
     const total = practicedMs();
-    const bar = (cls: string, text: TemplateResult, buttons: TemplateResult) => html`<div class="ptimer ${cls}"><span class="pt-text">${text}</span><span class="pt-btns">${buttons}</span></div>`;
+    // (Its text opens the day's practice time, to change a session or add time the timer missed.)
+    const bar = (cls: string, text: TemplateResult, buttons: TemplateResult) => html`<div class="ptimer ${cls}">
+      <button class="pt-text" id="pt-edit" aria-label="Practice time today: change it" @click=${() => openPracticeTime()}>${text}<span class="pt-go" aria-hidden="true">›</span></button><span class="pt-btns">${buttons}</span></div>`;
     const start = (label: string, aria?: string) => html`<button class="pill-btn" id="pt-start" aria-label=${aria ?? nothing} @click=${() => perform(cmd.startPractice, {})}>${raw(ICON.play)}${label}</button>`;
     // Started again after it stopped while away: the time between can still be counted.
     const g = awayGap();

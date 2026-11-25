@@ -140,12 +140,31 @@ interface SearchInput {
   due_only?: boolean; focus_only?: boolean; not_played_in_days?: number;
   sort?: 'priority' | 'longest_ago' | 'recent' | 'most_played' | 'name'; limit?: number;
 }
+const clock = (ms: number) => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
 export const QUERIES: Command[] = [
   query<Record<string, never>>({
     name: 'get_today',
     description: "Today's practice set: each item with its entry_id (for the commands that change today's set), its group (focus, exercise, hone = proficient/mastered, learn = familiar, fresh = new), suggested key(s), working tempo, and whether it's been played and how it was rated.",
     fields: {},
     run: () => ({ items: planSummary(), minutes_practiced_today: Math.round(practicedMs() / 60000), timer_running: !!running() }),
+  }),
+  query<{ date?: string }>({
+    name: 'get_practice_sessions',
+    description: "The practice timer's sessions on a day (today, the default, or an earlier one like 2026-10-24): each with its id (for set_session_minutes and remove_session), start and end (24-hour), minutes, and whether it's running; and the day's lessons' minutes.",
+    fields: { date: f.opt(f.str('The day, like 2026-10-24')) },
+    run: ({ date }) => {
+      const day = date || dateStr();
+      return {
+        date: day,
+        sessions: (store.state.sessions || []).filter((s) => s.date === day).map((s) => {
+          const on = s.id === store.state.timing;
+          const end = on ? Math.max(s.end, Date.now()) : s.end;
+          return { id: s.id, start: clock(s.start), end: on ? null : clock(end), minutes: Math.round((end - s.start) / 60000), running: on };
+        }),
+        lesson_minutes: Math.round((lessonsByDay().get(day) || 0) / 60000),
+      };
+    },
   }),
   query<SearchInput>({
     name: 'search_library',

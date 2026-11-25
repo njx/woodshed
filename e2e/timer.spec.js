@@ -99,3 +99,31 @@ test('“Not now” leaves the welcome until tomorrow', async ({ page, ui }) => 
   await expect(page.locator('.card').first()).toBeVisible();
   await expect(page.locator('.greet')).toHaveCount(0);
 });
+
+test('a day’s practice time: add time the timer missed, change a session, take one out; from Today or Progress @narrow', async ({ page, ui }) => {
+  await ui.start();
+  await page.click('#pt-edit');
+  await expect(page.locator('#pt-total')).toHaveText('Nothing on the timer.');
+  await expect(page.locator('#pt-add')).toBeDisabled();
+  await page.fill('#pt-add-min', '25');
+  await page.click('#pt-add');
+  await expect(page.locator('#toast')).toContainText('Added 25 min of practice');
+  await expect(page.locator('#pt-total')).toHaveText('25 min on the timer.');
+  const row = page.locator('.pt-session');
+  await expect(row).toHaveCount(1);
+  await ui.expectNoSideScroll();
+  // Changed: saved as it's left.
+  await row.locator('input').fill('40');
+  await row.locator('input').press('Enter');
+  await expect(page.locator('#pt-total')).toHaveText('40 min on the timer.');
+  await expect.poll(async () => { const s = (await ui.saved()).state.sessions?.[0]; return s && Math.round((s.end - s.start) / 60000); }).toBe(40);
+  await ui.backdrop();
+  await expect(page.locator('.ptimer')).toContainText('Practiced 40 min today');
+  // From Progress: the day in Recent sessions.
+  await ui.tab('progress');
+  await page.locator('.sess-row').first().click();
+  await expect(page.locator('.sheet-title')).toHaveText('Today');
+  await page.locator('.pt-session [data-rm]').click();
+  await expect(page.locator('.pt-session')).toHaveCount(0);
+  await expect.poll(async () => (await ui.saved()).state.sessions.length).toBe(0);
+});
